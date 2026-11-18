@@ -62,7 +62,17 @@ export default function AdminOrder() {
           {item.card?.frontMessage?.text ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Portada: {item.card.frontMessage.text}</Text> : null}
           {item.card?.insideMessage?.text ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Interior: {item.card.insideMessage.text}</Text> : null}
           {item.card?.sizeId === "5x7" ? <Text style={{ fontFamily: font.semibold, color: colors.bad }}>requires large card stock / print shop</Text> : null}
-          {item.voice ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Voz {item.voice.seconds}s · /v/{item.voice.token}</Text> : null}
+          {item.voice ? (
+            <View style={{ gap: 6 }}>
+              <Text style={{ fontFamily: font.body, color: colors.ink }}>Voz {item.voice.seconds}s</Text>
+              <Pressable onPress={() => void downloadVoiceCard(item.voice!.token, "png")} style={chip(false)}>
+                <Text style={chipText(false)}>Descargar QR (PNG)</Text>
+              </Pressable>
+              <Pressable onPress={() => void downloadVoiceCard(item.voice!.token, "svg")} style={chip(false)}>
+                <Text style={chipText(false)}>Descargar QR (SVG)</Text>
+              </Pressable>
+            </View>
+          ) : null}
           {item.photoPrintPath ? (
             <Pressable onPress={() => void getRepo().signPhoto(item.photoPrintPath || "").then((url) => window.open(url, "_blank")).catch((err: Error) => setError(err.message))} style={chip(false)}>
               <Text style={chipText(false)}>Abrir foto de imprenta</Text>
@@ -106,6 +116,15 @@ export default function AdminOrder() {
       ))}
     </ScrollView>
   );
+}
+
+async function downloadVoiceCard(token: string, kind: "png" | "svg") {
+  const { voiceQrDataUrl, voiceQrSvg } = await import("../../../lib/voice-qr");
+  const href = kind === "png" ? await voiceQrDataUrl(token) : URL.createObjectURL(new Blob([await voiceQrSvg(token)], { type: "image/svg+xml" }));
+  const link = document.createElement("a");
+  link.href = href;
+  link.download = `voz-${token}.${kind}`;
+  link.click();
 }
 
 function chip(on: boolean) {

@@ -128,7 +128,12 @@ export async function resolvePhoto(id: string): Promise<{ uri?: string; source?:
   });
   if (!blob) return null;
   const url = URL.createObjectURL(blob);
-  const size = await measure(blob);
+  let size = { width: 0, height: 0 };
+  try {
+    size = await measure(blob);
+  } catch {
+    size = { width: 0, height: 0 };
+  }
   memory.set(id, { url, ...size });
   return { uri: url };
 }

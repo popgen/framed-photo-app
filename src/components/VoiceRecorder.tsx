@@ -1,3 +1,4 @@
+import { Image } from "expo-image";
 import { createElement, useEffect, useRef, useState } from "react";
 import { Platform, Pressable, Text, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
@@ -6,11 +7,14 @@ import { saveAudioBlob } from "../lib/photos";
 import { uploadVoice } from "../lib/photo-upload";
 import { VOICE_ADDON_CENTS, VOICE_MAX_BYTES, VOICE_MAX_SECONDS, newVoiceToken, publishVoice, recorderMime, type VoiceNote } from "../lib/voice";
 import { formatSoles } from "../lib/money";
+import { voiceQrDataUrl } from "../lib/voice-qr";
 
 export function VoiceRecorder({ value, onChange }: { value: VoiceNote | null; onChange: (next: VoiceNote | null) => void }) {
   const [seconds, setSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [qr, setQr] = useState<string | null>(null);
+  const [recording, setRecording] = useState(false);
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const secondsRef = useRef(0);
@@ -44,6 +48,7 @@ export function VoiceRecorder({ value, onChange }: { value: VoiceNote | null; on
       void finish(blob, secondsRef.current);
     };
     recorder.current = media;
+    setRecording(true);
     setSeconds(0);
     secondsRef.current = 0;
     media.start();
@@ -62,6 +67,7 @@ export function VoiceRecorder({ value, onChange }: { value: VoiceNote | null; on
   }
 
   function stop() {
+    setRecording(false);
     recorder.current?.stop();
     stopTimer();
   }
@@ -82,6 +88,7 @@ export function VoiceRecorder({ value, onChange }: { value: VoiceNote | null; on
     publishVoice(note);
     void uploadVoice(note.token, blob).catch(() => null);
     setPreview(URL.createObjectURL(blob));
+    setQr(await voiceQrDataUrl(note.token));
     setError(null);
     onChange(note);
   }
@@ -99,9 +106,9 @@ export function VoiceRecorder({ value, onChange }: { value: VoiceNote | null; on
       <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Mensaje de voz con QR · {formatSoles(VOICE_ADDON_CENTS)}</Text>
       <Text style={{ fontFamily: font.body, color: colors.muted }}>Hasta {VOICE_MAX_SECONDS} segundos. Lo escuchan al escanear el QR del marco.</Text>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-        <Animated.View style={[{ width: 72, height: 72, borderRadius: 36, backgroundColor: colors.red, alignItems: "center", justifyContent: "center" }, wave]}>
-          <Pressable onPress={() => (recorder.current?.state === "recording" ? stop() : void start())} style={{ width: 72, height: 72, alignItems: "center", justifyContent: "center" }}>
-            <Text style={{ color: "white", fontFamily: font.bold }}>{recorder.current?.state === "recording" ? "Listo" : "Grabar"}</Text>
+        <Animated.View style={[{ width: 88, height: 88, borderRadius: 44, backgroundColor: colors.red, alignItems: "center", justifyContent: "center" }, wave]}>
+          <Pressable onPress={() => (recording ? stop() : void start())} style={{ width: 88, height: 88, borderRadius: 44, alignItems: "center", justifyContent: "center" }}>
+            <Text style={{ color: "white", fontFamily: font.bold, fontSize: 16 }}>{recording ? "Listo" : "Grabar"}</Text>
           </Pressable>
         </Animated.View>
         <Text style={{ fontFamily: font.displaySoft, fontSize: 28, color: colors.ink }}>{seconds}s</Text>
@@ -117,8 +124,15 @@ export function VoiceRecorder({ value, onChange }: { value: VoiceNote | null; on
           })
         : null}
       {preview && value ? createElement("audio", { src: preview, controls: true, style: { width: "100%" } }) : null}
+      {qr && value ? (
+        <View style={{ alignItems: "center", gap: 6, backgroundColor: colors.white, borderRadius: 16, padding: 12 }}>
+          <Image source={{ uri: qr }} style={{ width: 160, height: 160 }} />
+          <Text style={{ fontFamily: font.medium, color: colors.ink, textAlign: "center" }}>Escanea y escucha</Text>
+          <Text style={{ fontFamily: font.body, color: colors.muted, textAlign: "center" }}>https://mifotito.com/v/{value.token}</Text>
+        </View>
+      ) : null}
       {value ? (
-        <Pressable onPress={() => onChange(null)} style={{ minHeight: 44, justifyContent: "center" }}>
+        <Pressable onPress={() => { setPreview(null); setQr(null); onChange(null); }} style={{ minHeight: 44, justifyContent: "center" }}>
           <Text style={{ fontFamily: font.semibold, color: colors.bad }}>Quitar audio</Text>
         </Pressable>
       ) : null}
