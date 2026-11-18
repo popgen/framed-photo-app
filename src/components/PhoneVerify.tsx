@@ -30,7 +30,7 @@ export function PhoneVerify({ onVerified, title }: { onVerified: (phone: string)
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch("/api/otp-send", {
+      const response = await fetch("/api/shop?op=otp-send", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ phone }),
@@ -79,7 +79,7 @@ export function PhoneVerify({ onVerified, title }: { onVerified: (phone: string)
     try {
       let json: { ok?: boolean; error?: string; token?: string; phone?: string; exp?: number; tokenHash?: string | null } | null = null;
       try {
-        const response = await fetch("/api/otp-verify", {
+        const response = await fetch("/api/shop?op=otp-verify", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ phone, code }),

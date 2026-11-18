@@ -82,28 +82,16 @@ Izipay (tarjeta y Yape) queda como siguiente proveedor. Las variables están com
 
 ## Supabase
 
-El proyecto en vivo es `mifotito` (`tvochainkffolgvcnucs`, Sao Paulo): `https://tvochainkffolgvcnucs.supabase.co`.
+1. Crea un proyecto en supabase.com.
+2. En el SQL editor corre `supabase/migrations/20261118120000_init.sql` y luego `supabase/seed.sql`.
+3. Authentication → añade un usuario y copia su `id`.
+4. `insert into public.admin_users (user_id, email) values ('…', 'tu@correo');`
+5. Storage: el bucket `photos` lo crea la migración. En Settings → CORS permite tu dominio si vas a descargar la impresión desde el admin.
+6. En `.env`: `EXPO_PUBLIC_DATA_MODE=supabase` más la URL y la anon key.
 
-Ya están aplicadas, y no hay que volver a correrlas:
+El modo `local` no necesita esto. Con `supabase`, el admin entra con Auth y la tienda sigue usando el motor de precios del cliente después de comprobar que el proyecto responde. El webhook de WhatsApp, si tiene `SUPABASE_SERVICE_ROLE_KEY`, guarda cada sesión en `wa_events`.
 
-1. `supabase/migrations/20261118182440_init.sql` (en Supabase figura como versión `20261118182440`)
-2. `supabase/migrations/20261118182536_customers_order_numbers_hardening.sql`
-
-Falta aplicar, en el SQL editor, solo este archivo nuevo:
-
-3. `supabase/migrations/20261118193000_shop_extras.sql`
-
-Ese archivo agrega los marcos de Navidad, el stock, las columnas de texto/tarjeta/voz, las direcciones, los códigos de WhatsApp, las consultas de retablo y las notas de voz. Sin él, un marco de los diez originales se puede pedir; una tarjeta, un marco de Navidad o el audio del QR todavía no.
-
-El admin entra con Supabase Auth. Después del primer ingreso, Lucas agrega su fila:
-
-```sql
-insert into public.admin_users (user_id, email) values ('uuid-del-usuario', 'tu@correo');
-```
-
-Sin `EXPO_PUBLIC_SUPABASE_URL` y `EXPO_PUBLIC_SUPABASE_ANON_KEY` la tienda sigue en modo local (demo en el navegador). Con las dos, marcos, reseñas y la campaña activa se leen con la clave anon. Los pedidos los escriben las funciones de Netlify con `SUPABASE_SERVICE_ROLE_KEY`.
-
-El número `MF-26-####` lo asigna la base. Lo ve el admin. El cliente no: rastrea con el celular y el código de WhatsApp, y el enlace usa el token público.
+`app_settings.payments_mode` nace en `mock`. Pásalo a `live` antes de cobrar de verdad para que un cliente no pueda marcar un pedido como pagado por su cuenta cuando cierres esa puerta en el servidor.
 
 ## Pagos
 
@@ -174,15 +162,14 @@ No hace falta ninguna para el demo. Para cobrar y escribir de verdad, en Site co
 | --- | --- |
 | `EXPO_PUBLIC_SITE_URL` | `https://mifotito.com` (el toml ya la pone en el build) |
 | `EXPO_PUBLIC_DATA_MODE` | `supabase` |
-| `EXPO_PUBLIC_SUPABASE_URL` | `https://tvochainkffolgvcnucs.supabase.co` |
-| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | clave anon. Pública en el bundle, nunca la service role |
+| `EXPO_PUBLIC_SUPABASE_URL` | URL del proyecto |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | clave anon |
 | `EXPO_PUBLIC_PAYMENTS_MODE` | `live` |
 | `EXPO_PUBLIC_NOTIFY_MODE` | `live` |
 | `EXPO_PUBLIC_WHATSAPP_SUPPORT_NUMBER` | celular de soporte, `51999…` |
-| `SUPABASE_URL` | `https://tvochainkffolgvcnucs.supabase.co`, solo en el servidor |
-| `SUPABASE_SERVICE_ROLE_KEY` | funciones de Netlify: pedidos, fotos firmadas, códigos. Nunca en el cliente ni con prefijo `EXPO_PUBLIC_` |
+| `SUPABASE_URL` | igual que la URL pública, solo en el servidor |
+| `SUPABASE_SERVICE_ROLE_KEY` | funciones de Netlify: pedidos, fotos firmadas, códigos. Nunca en el cliente |
 | `OTP_SIGNING_SECRET` | firma la sesión de 30 minutos tras el código de WhatsApp |
-| `WHATSAPP_OTP_ENABLED` | `false` hasta que Meta apruebe la plantilla. En `true` el código sale por WhatsApp y no vuelve en la respuesta |
 | `WHATSAPP_OTP_TEMPLATE` | plantilla de autenticación. Por defecto `mifotito_codigo` |
 | `WHATSAPP_OTP_TEMPLATE_LANG` | `es` |
 | `PAYMENTS_MODE` | `live` |
@@ -204,43 +191,28 @@ Sin `EXPO_PUBLIC_DATA_MODE=supabase` todo sigue en el navegador (demo). Con Supa
 
 | Dato | Dónde |
 | --- | --- |
-| Pedidos y líneas | Postgres `orders` / `order_items`. La base asigna `MF-26-####` y el `public_token`. La función `create-order` devuelve solo el token |
-| Fotos y audio | Bucket privado `photos`, un archivo por subida: `uploads/<uuid>.<ext>`. El visitante solo puede insertar. El admin abre una URL firmada |
-| Clientes | `customers` (teléfono único, nombre, correo, `user_id`). Direcciones en `customer_addresses` después de la migración nueva |
-| Stock, promos, gift cards, referidos, créditos | Tablas del servidor. El mostrador lee cantidades con `public_stock()` |
+| Pedidos y líneas (marcos y tarjetas), número `MF-26-1004` | Postgres `orders` / `order_items`. El número sale de la secuencia `order_number_seq` (empieza en 1001) |
+| Foto original y foto de imprenta | Bucket privado `photos`, rutas `uploads/<id>/original.jpg` y `print.jpg`. El admin las abre con URL firmada |
+| Perfil: nombre, celular, correo, direcciones | `customers` y `customer_addresses`, ligados a `auth.users` tras el código de WhatsApp. RLS: cada quien ve solo lo suyo |
+| Stock, promos, gift cards, referidos, créditos | Tablas `inventory`, `promo_codes`, `gift_cards`, `referrals`, `credits` |
 | Reclamos y consultas de retablo | `claims`, `retablo_inquiries` |
-| Mensaje de voz | `voice_notes` + el mismo bucket, bajo `uploads/` |
-| Código de WhatsApp | Hash en `phone_otps` (10 min, 5 intentos, límite por teléfono e IP). El envío real espera `WHATSAPP_OTP_ENABLED=true` |
+| Mensaje de voz | `voice_notes` + archivo en `photos/uploads/voice/<token>` |
+| Código de WhatsApp | Solo el hash en `phone_otps` (10 min, 5 intentos) y los envíos en `otp_sends` |
 | Carrito y recibo de la pestaña | Siguen en el navegador hasta pagar |
 
-El cliente no ve el número `MF-…`. Rastrea con el celular y el código, y abre `/pedido/<token>`.
+El rastreo pide solo el celular, luego el código de WhatsApp, y entonces lista los pedidos. El número `MF-…` se ve en el admin y como referencia chica; no se pide para rastrear.
 
 ### Checklist de Supabase
 
-1. El proyecto `mifotito` ya existe. No vuelvas a correr `20261118182440` ni `20261118182536`.
-2. SQL editor: corre solo `supabase/migrations/20261118193000_shop_extras.sql`.
-3. Authentication → Providers: Email activo. Site URL `https://mifotito.com` y redirect `https://mifotito.com/**`.
-4. Storage: el bucket `photos` es privado, 25 MB, imágenes y audio. No lo hagas público.
-5. Authentication → Users: crea el admin e inserta su UUID en `admin_users`.
-6. WhatsApp Manager: plantilla de autenticación `mifotito_codigo`, idioma español. Déjala en espera y mantén `WHATSAPP_OTP_ENABLED=false` hasta que Meta la apruebe. Mientras tanto la función devuelve el código en la respuesta.
-7. En Netlify, Site configuration → Environment variables:
+1. Crea un proyecto en supabase.com.
+2. Authentication → Providers: activa Email. No hace falta SMS. Site URL `https://mifotito.com` y redirect `https://mifotito.com/**`.
+3. SQL editor, en este orden: `supabase/migrations/20261118120000_init.sql`, `20261118143000_cards_voice_retablo.sql`, `20261118180000_shared_backend.sql`, luego `supabase/seed.sql`.
+4. Storage: el bucket privado `photos` lo crea la primera migración. No lo hagas público.
+5. Authentication → Users: crea el admin y copia su UUID a `admin_users`.
+6. WhatsApp Manager: plantilla de **autenticación** llamada `mifotito_codigo`, idioma español, con el botón de copiar código. Meta tiene que aprobarla. El cuerpo usa el texto estándar de autenticación; el código va como parámetro.
+7. En Netlify, Environment variables: `EXPO_PUBLIC_DATA_MODE=supabase`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL` (la misma URL), `SUPABASE_SERVICE_ROLE_KEY`, `OTP_SIGNING_SECRET`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_OTP_TEMPLATE=mifotito_codigo`, `WHATSAPP_OTP_TEMPLATE_LANG=es`. La service role y el secreto del código no llevan prefijo `EXPO_PUBLIC_`.
 
-| Variable | Valor |
-| --- | --- |
-| `EXPO_PUBLIC_DATA_MODE` | `supabase` |
-| `EXPO_PUBLIC_SUPABASE_URL` | `https://tvochainkffolgvcnucs.supabase.co` |
-| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | clave anon del proyecto |
-| `EXPO_PUBLIC_SITE_URL` | `https://mifotito.com` |
-| `SUPABASE_URL` | `https://tvochainkffolgvcnucs.supabase.co` |
-| `SUPABASE_SERVICE_ROLE_KEY` | service role. Solo servidor |
-| `OTP_SIGNING_SECRET` | secreto largo para la sesión del celular |
-| `WHATSAPP_OTP_ENABLED` | `false` hasta que la plantilla esté aprobada |
-| `WHATSAPP_TOKEN` | Cloud API, cuando exista |
-| `WHATSAPP_PHONE_NUMBER_ID` | id del número |
-| `WHATSAPP_OTP_TEMPLATE` | `mifotito_codigo` |
-| `WHATSAPP_OTP_TEMPLATE_LANG` | `es` |
-
-No pongas la service role, el token de WhatsApp ni el de Mercado Pago en una variable `EXPO_PUBLIC_`. Sin las claves de Supabase el sitio publicado sigue en modo demo y muestra el aviso rojo.
+Sin token de WhatsApp el sitio muestra el código en pantalla con la nota de modo demo.
 
 ### DNS en Porkbun
 

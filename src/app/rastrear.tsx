@@ -46,6 +46,7 @@ export default function Rastrear() {
                     return <Text key={status} style={{ fontFamily: font.medium, color: reached ? colors.pine : colors.muted }}>{reached ? "●" : "○"} {STATUS_LABEL[status]}</Text>;
                   })}
                 </View>
+                <Text style={{ fontFamily: font.medium, color: colors.muted }}>Ref. {order.number}</Text>
                 <Button label="Abrir pedido" tone="ghost" onPress={() => router.push(`/pedido/${order.publicToken}`)} />
               </View>
             ))}

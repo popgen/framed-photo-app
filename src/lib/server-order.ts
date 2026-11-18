@@ -10,12 +10,11 @@ import { shippingZone } from "./zone";
 import { VOICE_ADDON_CENTS } from "./voice";
 import type { CheckoutInput, GiftCard, Promo, Referral } from "./types";
 
-export function quoteLines(input: CheckoutInput, prices?: Record<string, number>): QuoteItem[] {
+export function quoteLines(input: CheckoutInput): QuoteItem[] {
   return input.items.flatMap((item) => {
-    const fromDb = prices?.[item.frameId];
     const lines: QuoteItem[] = item.card
       ? [{ unitPriceCents: priceCards(item.card.quantity).cents, quantity: 1, kind: "plain" }]
-      : [{ unitPriceCents: fromDb ?? frameById(item.frameId).priceCents, quantity: 1, kind: "frame" }];
+      : [{ unitPriceCents: frameById(item.frameId).priceCents, quantity: 1, kind: "frame" }];
     if (item.voice) lines.push({ unitPriceCents: item.voice.addonCents || VOICE_ADDON_CENTS, quantity: 1, kind: "plain" });
     return lines;
   });
@@ -29,7 +28,7 @@ export function stockNeeds(input: CheckoutInput) {
   );
 }
 
-export function evaluateOrder(input: CheckoutInput, ctx: { promos: Promo[]; stock: Record<string, number>; referrals?: Referral[]; giftCards?: GiftCard[]; credits?: Record<string, number>; prices?: Record<string, number> }) {
+export function evaluateOrder(input: CheckoutInput, ctx: { promos: Promo[]; stock: Record<string, number>; referrals?: Referral[]; giftCards?: GiftCard[]; credits?: Record<string, number> }) {
   const phone = normalizePhone(input.phone);
   if (!phone) return { error: "Revisa el celular." };
   if (!input.items.length) return { error: "Tu carrito está vacío." };
@@ -53,7 +52,7 @@ export function evaluateOrder(input: CheckoutInput, ctx: { promos: Promo[]; stoc
     else giftCardBalance = gift.balanceCents;
   }
   const priced = quote({
-    items: quoteLines(input, ctx.prices),
+    items: quoteLines(input),
     giftWrap: input.giftWrap && input.items.some((item) => !item.card),
     promo,
     promoCode,

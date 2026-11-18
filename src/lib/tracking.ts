@@ -15,10 +15,6 @@ export type TrackingCard = {
   itemCount: number;
 };
 
-export function customerOrder<T extends { number?: string }>(order: T): T {
-  return { ...order, number: "" };
-}
-
 export function toTrackingCard(order: Order): TrackingCard {
   return {
     publicToken: order.publicToken,

@@ -15,7 +15,6 @@ export default function AdminHome() {
   const [query, setQuery] = useState("");
   const [urgent, setUrgent] = useState(true);
   const { data: orders } = useRepo((repo) => repo.listOrders(filter === "all" ? undefined : filter), [filter]);
-  const { data: customers } = useRepo((repo) => repo.listCustomers(), []);
   const { data: campaign } = useRepo((repo) => repo.getCampaign());
   const active = campaign ?? defaultCampaign;
   const rows = [...(orders ?? [])].sort((a, b) => {
@@ -51,13 +50,6 @@ export default function AdminHome() {
             {order.needsHuman ? " · pide una persona" : ""}
           </Text>
         </Pressable>
-      ))}
-      <Text style={{ fontFamily: font.display, fontSize: 28, color: colors.ink, marginTop: 12 }}>Clientes</Text>
-      {(customers ?? []).map((customer) => (
-        <View key={customer.id} style={{ backgroundColor: colors.white, borderRadius: 16, padding: 12 }}>
-          <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{customer.name || "Sin nombre"} · {customer.phone}</Text>
-          {customer.email ? <Text style={{ fontFamily: font.body, color: colors.muted }}>{customer.email}</Text> : null}
-        </View>
       ))}
     </ScrollView>
   );

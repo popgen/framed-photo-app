@@ -784,7 +784,7 @@ export function createLocalRepo() {
         channel: "whatsapp",
         to: phone,
         event: "whatsapp_draft",
-        body: `Armamos tu pedido por WhatsApp. Ábrelo aquí para ver la foto en el marco y pagar.`,
+        body: `Armamos tu pedido ${order.number} por WhatsApp. Ábrelo aquí para ver la foto en el marco y pagar.`,
       });
       persist(state);
       return order;
@@ -845,15 +845,6 @@ export function createLocalRepo() {
     },
     async signPhoto(_path: string): Promise<string> {
       throw new AppError("Las fotos de imprenta se abren con Supabase.");
-    },
-    async listCustomers() {
-      const seen = new Map<string, { id: string; name: string; phone: string; email: string; createdAt: string }>();
-      for (const order of required().orders) {
-        if (!seen.has(order.phone)) {
-          seen.set(order.phone, { id: order.phone, name: order.customerName, phone: order.phone, email: order.email ?? "", createdAt: order.createdAt });
-        }
-      }
-      return [...seen.values()];
     },
     async resetDemo() {
       db = seed();

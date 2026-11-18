@@ -155,7 +155,7 @@ export default function Checkout() {
         const response = await fetch("/api/payments/create", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ orderId: order.publicToken, amountCents: order.totalCents, method, description: "Pedido Mi Fotito", payer: { name: order.customerName, email: order.email, phone: order.phone } }),
+          body: JSON.stringify({ orderId: order.id, amountCents: order.totalCents, method, description: order.number, payer: { name: order.customerName, email: order.email, phone: order.phone } }),
         });
         const payload = (await response.json()) as { checkoutUrl?: string; status?: string };
         if (payload.checkoutUrl && typeof window !== "undefined") {
