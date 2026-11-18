@@ -17,13 +17,9 @@ export default function Root({ children }: PropsWithChildren) {
         <style>{`
           html, body, #root { height: 100%; background: #E7D3C3; }
           body { overflow-x: hidden; }
-          /* Netlify injects a fixed "Powered by Netlify" iframe (#nl-badge-frame) at bottom: 0.
-             The inline style wins unless overridden. Keep the badge, but sit it above the tab bar. */
-          #nl-badge-frame, #nl-hud-frame {
-            bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
-            transform: scale(0.78);
-            transform-origin: bottom right;
-          }
+          /* Netlify injects the public HUD iframe on the free plan. It cannot be
+             turned off in project settings, and its inline position covers the tab bar. */
+          #nl-badge-frame, #nl-hud-frame { display: none !important; }
         `}</style>
       </head>
       <body>{children}</body>
