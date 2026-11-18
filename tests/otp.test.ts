@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { checkOtp, hashCode, OTP_MAX_ATTEMPTS, OTP_TTL_MS, otpTemplateBody, prepareSend, publicSendResult, readSession, signSession } from "../src/lib/otp";
+import { shouldWarnLocalMode } from "../src/lib/hosted";
 import { formatOrderNumber } from "../src/lib/order-number";
 import { toTrackingCard } from "../src/lib/tracking";
 import type { Order } from "../src/lib/types";
@@ -9,6 +10,13 @@ describe("order numbers", () => {
     expect(formatOrderNumber(1001, new Date("2026-11-18T12:00:00-05:00"))).toBe("MF-26-1001");
     expect(formatOrderNumber(1004, new Date("2026-06-01T00:00:00-05:00"))).toBe("MF-26-1004");
     expect(formatOrderNumber(1001, new Date("2027-01-02T00:00:00-05:00"))).toBe("MF-27-1001");
+  });
+
+  it("warns when the public site is still on browser storage", () => {
+    expect(shouldWarnLocalMode("mifotito.com", "local")).toBe(true);
+    expect(shouldWarnLocalMode("mifotito.netlify.app", "local")).toBe(true);
+    expect(shouldWarnLocalMode("mifotito.com", "supabase")).toBe(false);
+    expect(shouldWarnLocalMode("localhost", "local")).toBe(false);
   });
 });
 

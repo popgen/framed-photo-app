@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import * as Haptics from "expo-haptics";
 import { supportNumber } from "../lib/env";
+import { hostedWithoutDatabase } from "../lib/hosted";
 import { colors, font } from "./theme";
 
 export function goBack(fallback = "/") {
@@ -59,6 +60,9 @@ export function Screen({
     <View style={[styles.outer, { paddingTop: insets.top }]}>
       <View style={styles.column}>
         {seasonal}
+        {hostedWithoutDatabase() ? (
+          <Banner tone="bad" text="Este sitio está en modo demo: los pedidos se quedan en el navegador y no llegan al admin. Configura Supabase antes de vender." />
+        ) : null}
         {showBack ? (
           <View style={styles.backBar}>
             <BackButton />
