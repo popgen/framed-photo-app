@@ -108,6 +108,13 @@ export default function Home() {
             <P>Regala soles para un marco. Llega por WhatsApp.</P>
           </Card>
         </Pressable>
+        <Pressable accessibilityRole="link" accessibilityLabel="Haz clic aquí para rastrear tu pedido" onPress={() => router.push("/rastrear")} style={{ minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <Svg width={18} height={18} viewBox="0 0 24 24">
+            <Path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z" fill="none" stroke={colors.red} strokeWidth="1.8" />
+            <Path d="M12 10.5a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2Z" fill={colors.red} />
+          </Svg>
+          <Text style={{ fontFamily: font.semibold, color: colors.ink, textAlign: "center" }}>Haz clic aquí para rastrear tu pedido</Text>
+        </Pressable>
       </View>
       <WhatsAppButton />
     </Screen>

@@ -130,48 +130,11 @@ function festive(zone: Zone, when: Date, campaign: Campaign) {
 function seed(): DB {
   const commerce = structuredClone(commerceSeed) as unknown as Omit<DB, "orders" | "claims" | "notifications" | "campaign" | "seq" | "waDrafts" | "inquiries">;
   const campaign = structuredClone(defaultCampaign);
-  const limaWhen = new Date("2026-11-17T15:00:00-05:00");
   const cuscoWhen = new Date("2026-11-16T11:00:00-05:00");
   const doneWhen = new Date("2026-11-02T11:00:00-05:00");
-  const limaFestive = festive("lima", limaWhen, campaign);
   const cuscoFestive = festive("provinces", cuscoWhen, campaign);
   const doneFestive = festive("lima", doneWhen, campaign);
   const orders = [
-    {
-      id: "ord_seed_lima",
-      publicToken: "demo-lima",
-      number: "MF-26-1001",
-      status: "in_review",
-      customerName: "Ana Flores",
-      phone: "51987654321",
-      email: "ana@example.com",
-      giftWrap: true,
-      giftNote: "Para mamá, con todo mi cariño.",
-      addressLine: "Calle Berlín 214",
-      district: "Miraflores",
-      province: "Lima",
-      city: "Lima",
-      department: "Lima",
-      zone: "lima",
-      subtotalCents: 5900,
-      frameDiscountCents: 0,
-      frameDiscountLabel: null,
-      promoDiscountCents: 0,
-      referralDiscountCents: 0,
-      creditAppliedCents: 0,
-      giftCardAppliedCents: 0,
-      giftWrapCents: 1000,
-      totalCents: 6900,
-      paymentMethod: "yape",
-      paymentStatus: "approved",
-      paymentProvider: "mock",
-      paymentRef: "mock_seed_lima",
-      ...limaFestive,
-      referralCodeIssued: "ANAF4821",
-      items: [sampleItem("wood-15", "it_seed_lima")],
-      createdAt: limaWhen.toISOString(),
-      updatedAt: limaWhen.toISOString(),
-    },
     {
       id: "ord_seed_cusco",
       publicToken: "demo-cusco",
@@ -201,6 +164,7 @@ function seed(): DB {
       paymentRef: "mock_seed_cusco",
       ...cuscoFestive,
       items: [sampleItem("black-30", "it_seed_cusco")],
+      channel: "whatsapp" as const,
       createdAt: cuscoWhen.toISOString(),
       updatedAt: cuscoWhen.toISOString(),
     },
@@ -234,13 +198,14 @@ function seed(): DB {
       trackingNumber: "OLVA-88421",
       ...doneFestive,
       items: [sampleItem("square-black-20", "it_seed_done")],
+      channel: "web" as const,
       createdAt: doneWhen.toISOString(),
       updatedAt: doneWhen.toISOString(),
     },
   ];
   const state: DB = {
     ...commerce,
-    orders: orders.map((order, index) => ({ ...order, channel: index === 1 ? ("whatsapp" as const) : ("web" as const) })) as Order[],
+    orders: orders as Order[],
     claims: [
       {
         id: "clm_seed",
@@ -253,17 +218,7 @@ function seed(): DB {
         createdAt: "2026-11-10T18:00:00-05:00",
       },
     ],
-    notifications: [
-      {
-        id: "nt_seed",
-        orderId: "ord_seed_lima",
-        channel: "whatsapp",
-        to: "51987654321",
-        event: "paid",
-        body: paidMessage(orders[0]),
-        createdAt: "2026-11-17T15:01:00-05:00",
-      },
-    ],
+    notifications: [],
     campaign,
     waDrafts: [],
     inquiries: [],

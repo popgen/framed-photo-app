@@ -27,7 +27,7 @@ Abre http://localhost:8081. Sin variables, los datos viven en el navegador (semi
 - correo `admin@mifotito.pe`
 - contraseña `recuerdo-demo`
 
-Códigos de prueba: `NAVIDAD10` (10%), `MARCO20` (S/ 20), gift card `HOLANAVIDAD` (S/ 50), referido `AMIGO1500`. En la demo local, Mi cuenta encuentra los pedidos de la semilla con el celular `987 654 321`.
+Códigos de prueba: `NAVIDAD10` (10%), `MARCO20` (S/ 20), gift card `HOLANAVIDAD` (S/ 50), referido `AMIGO1500`. El rastreo de un pedido real está en `/rastrear` y pide el celular.
 
 Para repetir la demo, en el admin no hace falta: borra `localStorage` clave `recuerdo-db-v2`.
 
