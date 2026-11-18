@@ -37,9 +37,9 @@ export default function Home() {
           </Text>
         </View>
         <H1>{active.heroTitle}</H1>
-        <P>{active.heroSubtitle}</P>
+        <P style={centered}>{active.heroSubtitle}</P>
         {countdownVisible(now, active) ? <Countdown target={countdownTarget(now, null, active)} now={now} /> : null}
-        <GuaranteeNote guarantee={guarantee} />
+        <GuaranteeNote guarantee={guarantee} align="center" />
         <View style={{ alignItems: "center" }}>
           <Button label={active.cta} onPress={() => router.push("/crear")} />
         </View>
@@ -51,11 +51,11 @@ export default function Home() {
             <View style={cardPromo}>
               <FoldAccent reduced={reduced} />
               <View style={{ flex: 1, gap: 4 }}>
-                <Text style={{ fontFamily: font.displaySoft, fontSize: 18, color: colors.ink }}>{active.cardsPromo.headline}</Text>
-                <Text style={{ fontFamily: font.body, color: colors.muted, fontSize: 14, lineHeight: 20 }}>
+                <Text style={{ fontFamily: font.displaySoft, fontSize: 18, color: colors.ink, textAlign: "center" }}>{active.cardsPromo.headline}</Text>
+                <Text style={{ fontFamily: font.body, color: colors.muted, fontSize: 14, lineHeight: 20, textAlign: "center" }}>
                   {active.cardsPromo.detail.replace("{price}", formatSoles(priceCards(1).cents))}
                 </Text>
-                <Text style={{ fontFamily: font.bold, color: colors.red, marginTop: 4 }}>{active.cardsPromo.cta}</Text>
+                <Text style={{ fontFamily: font.bold, color: colors.red, marginTop: 4, textAlign: "center" }}>{active.cardsPromo.cta}</Text>
               </View>
             </View>
           </Pressable>
@@ -79,33 +79,33 @@ export default function Home() {
         <Tier title="Premium" price="S/ 129" body="Foto 15×20 dentro de un 30×40 con paspartú blanco." />
         <Card>
           <Text style={section}>Un muro, no un marco</Text>
-          <P>Arma un trío, una cuadrícula o un mixto. El segundo marco va con 20% y desde el tercero el set baja 15%.</P>
+          <P style={centered}>Arma un trío, una cuadrícula o un mixto. El segundo marco va con 20% y desde el tercero el set baja 15%.</P>
           <Button label="Armar mi muro" tone="ghost" onPress={() => router.push("/muro")} />
         </Card>
         {active.giftWrapFeatured ? (
           <Card>
             <Text style={section}>{active.giftWrapTitle}</Text>
-            <P>{active.giftWrapBody} S/ 10. La caja va sin precios.</P>
+            <P style={centered}>{active.giftWrapBody} S/ 10. La caja va sin precios.</P>
           </Card>
         ) : null}
         <Text style={section}>Lo que cuentan</Text>
         {(reviews ?? []).map((review) => (
           <Card key={review.id}>
-            <Text style={{ color: colors.gold, fontFamily: font.bold }}>{"★".repeat(review.stars)}</Text>
-            <P>“{review.quote}”</P>
-            <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{review.author} · {review.city}</Text>
+            <Text style={{ color: colors.gold, fontFamily: font.bold, textAlign: "center" }}>{"★".repeat(review.stars)}</Text>
+            <P style={centered}>“{review.quote}”</P>
+            <Text style={{ fontFamily: font.semibold, color: colors.ink, textAlign: "center" }}>{review.author} · {review.city}</Text>
           </Card>
         ))}
         <Pressable onPress={() => router.push("/retablo")}>
           <Card>
             <Text style={section}>¿Quieres un retablo de verdad?</Text>
-            <P>Tres hojas de madera, hechas a mano. No se compra aquí: solo cuéntanos el tamaño.</P>
+            <P style={centered}>Tres hojas de madera, hechas a mano. No se compra aquí: solo cuéntanos el tamaño.</P>
           </Card>
         </Pressable>
         <Pressable onPress={() => router.push("/regalo")}>
           <Card>
             <Text style={section}>Gift card</Text>
-            <P>Regala soles para un marco. Llega por WhatsApp.</P>
+            <P style={centered}>Regala soles para un marco. Llega por WhatsApp.</P>
           </Card>
         </Pressable>
         <Pressable accessibilityRole="link" accessibilityLabel="Haz clic aquí para rastrear tu pedido" onPress={() => router.push("/rastrear")} style={{ minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }}>
@@ -149,8 +149,8 @@ function Step({ n, title, body, icon }: { n: string; title: string; body: string
             <Text style={{ fontFamily: font.display, fontSize: 18, color: "white", marginTop: 2 }}>{n}</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontFamily: font.displaySoft, fontSize: 22, color: colors.ink }}>{title}</Text>
-            <P>{body}</P>
+            <Text style={{ fontFamily: font.displaySoft, fontSize: 22, color: colors.ink, textAlign: "center" }}>{title}</Text>
+            <P style={centered}>{body}</P>
           </View>
         </View>
       </Card>
@@ -187,11 +187,11 @@ function HomeIcon() {
 function Tier({ title, price, body }: { title: string; price: string; body: string }) {
   return (
     <Card>
-      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-        <Text style={{ fontFamily: font.displaySoft, fontSize: 22, color: colors.ink }}>{title}</Text>
-        <Text style={{ fontFamily: font.bold, color: colors.red }}>{price}</Text>
+      <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 12 }}>
+        <Text style={{ fontFamily: font.displaySoft, fontSize: 22, color: colors.ink, textAlign: "center" }}>{title}</Text>
+        <Text style={{ fontFamily: font.bold, color: colors.red, textAlign: "center" }}>{price}</Text>
       </View>
-      <P>{body}</P>
+      <P style={centered}>{body}</P>
     </Card>
   );
 }
@@ -220,7 +220,8 @@ const wordmarkText = {
   textAlign: "center" as const,
 };
 
-const section = { fontFamily: font.displaySoft, fontSize: 22, color: colors.ink, marginBottom: 6 };
+const section = { fontFamily: font.displaySoft, fontSize: 22, color: colors.ink, marginBottom: 6, textAlign: "center" as const };
+const centered = { textAlign: "center" as const };
 const cardPromo = {
   flexDirection: "row" as const,
   alignItems: "center" as const,
