@@ -25,7 +25,7 @@ export type CardSnapshot = {
   bleed: boolean;
   frontCrop?: Crop | null;
   insideCrop?: Crop | null;
-  layout?: "diptych";
+  layout?: "diptych" | "half-fold";
 };
 
 export const cardCatalog = cardsJson;
@@ -66,16 +66,28 @@ export function defaultCardSize(): CardSize {
   return cardSizes.find((item) => item.default) ?? cardSizes[0];
 }
 
+export function offeredCardSizes(): CardSize[] {
+  return cardSizes.filter((item) => !item.legacy);
+}
+
 export function cardSheetCopy(size: CardSize): string {
+  if (size.format === "half-fold" && size.id === "letter") {
+    return "Hoja carta horizontal, doblada a la mitad. La tarjeta queda de 5.5×8.5 pulgadas. Incluye sobre blanco C5 (162×229 mm).";
+  }
+  if (size.format === "half-fold") {
+    return "Hoja A4 horizontal (297×210 mm), doblada a la mitad. La tarjeta queda A5, 148×210 mm. Incluye sobre blanco C5 (162×229 mm).";
+  }
   if (size.id === "5x7") {
     const flag = "shopFlag" in size && size.shopFlag ? ` ${size.shopFlag}` : "";
     return `Díptico con pliegue arriba. Cada panel mide 5×7 pulgadas y la hoja abierta mide 5×14 pulgadas.${flag}`;
   }
-  return `Díptico con pliegue arriba. Cada panel mide ${size.panelWmm}×${size.panelHmm} mm y la hoja abierta mide ${size.flatWmm}×${size.flatHmm} mm, así que cabe en una A4. Sobre ${size.envelopeName} ${size.envelopeWmm}×${size.envelopeHmm} mm.`;
+  return `Díptico con pliegue arriba. Cada panel mide ${size.panelWmm}×${size.panelHmm} mm y la hoja abierta mide ${size.flatWmm}×${size.flatHmm} mm. Sobre ${size.envelopeName} ${size.envelopeWmm}×${size.envelopeHmm} mm.`;
 }
 
 export function cardOrderLine(card: Pick<CardSnapshot, "sizeId">): string {
   const size = cardSizeById(card.sizeId);
+  if (size.format === "half-fold" && size.id === "letter") return "Tarjeta doblada 5.5×8.5 pulgadas. Hoja carta.";
+  if (size.format === "half-fold") return "Tarjeta A5 doblada, 148×210 mm. Hoja A4.";
   if (size.id === "5x7") return "Díptico, pliegue arriba. Hoja abierta 5×14 pulgadas.";
   return `Díptico, pliegue arriba. Hoja abierta ${size.flatWmm}×${size.flatHmm} mm.`;
 }

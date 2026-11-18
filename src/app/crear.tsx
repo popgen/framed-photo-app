@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { PanResponder, Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { Cropper } from "../components/Cropper";
-import { PhotoImport } from "../components/PhotoImport";
+import { PhotoSources } from "../components/PhotoSources";
 import { FrameView } from "../components/FrameView";
 import { TextStyleEditor } from "../components/TextStyleEditor";
 import { VoiceRecorder } from "../components/VoiceRecorder";
@@ -13,10 +13,10 @@ import { useApp, useRepo } from "../components/provider";
 import { Banner, Button, Card, Progress, Screen, TabBar, WhatsAppButton } from "../components/ui";
 import { colors, font } from "../components/theme";
 import { readBoot } from "../lib/boot";
-import { aspectParts, frameById, type FrameDef } from "../lib/catalog";
+import { aspectParts, frameById, frameChips, framesForChip, type FrameChip, type FrameDef } from "../lib/catalog";
 import { importFlags, stockChecksEnabled } from "../lib/env";
 import { uid } from "../lib/ids";
-import { pickAndSavePhotos, resolvePhoto, samplePhoto } from "../lib/photos";
+import { resolvePhoto, samplePhoto } from "../lib/photos";
 import { assessResolution, centeredCrop, refitCrop, type Crop, type Orientation } from "../lib/print-size";
 import { serializeOverlay, type TextOverlay } from "../lib/overlay";
 import { useCart } from "../lib/store";
@@ -31,12 +31,12 @@ export default function Crear() {
   const { data } = useRepo((repo) => repo.listFrames());
   const offers = data ?? [];
   const [index, setIndex] = useState(2);
+  const [chip, setChip] = useState<FrameChip>("todos");
   const [orientation, setOrientation] = useState<Orientation>("portrait");
   const [photo, setPhoto] = useState<{ id: string; width: number; height: number } | null>(null);
   const [crop, setCrop] = useState<Crop | null>(null);
   const [source, setSource] = useState<{ uri?: string; source?: number } | null>(null);
   const [ack, setAck] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const [overlay, setOverlay] = useState<TextOverlay | null>(null);
   const [voice, setVoice] = useState<VoiceNote | null>(null);
   const add = useCart((state) => state.add);
@@ -45,8 +45,11 @@ export default function Crear() {
 
   const indexRef = useRef(index);
   const offersRef = useRef(offers);
+  const chipRef = useRef(chip);
   indexRef.current = index;
   offersRef.current = offers;
+  chipRef.current = chip;
+  const visible = framesForChip(offers, chip);
 
   useEffect(() => {
     if (!offers.length) return;
@@ -93,11 +96,13 @@ export default function Crear() {
     PanResponder.create({
       onMoveShouldSetPanResponder: (_event, gesture) => Math.abs(gesture.dx) > 18 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
       onPanResponderRelease: (_event, gesture) => {
-        const list = offersRef.current;
+        const list = framesForChip(offersRef.current, chipRef.current);
         if (!list.length) return;
-        const current = indexRef.current;
-        const next = gesture.dx < -40 ? (current + 1) % list.length : gesture.dx > 40 ? (current - 1 + list.length) % list.length : current;
-        if (next !== current) {
+        const currentId = offersRef.current[indexRef.current]?.id;
+        const place = Math.max(0, list.findIndex((item) => item.id === currentId));
+        const nextItem = gesture.dx < -40 ? list[(place + 1) % list.length] : gesture.dx > 40 ? list[(place - 1 + list.length) % list.length] : null;
+        const next = nextItem ? offersRef.current.findIndex((item) => item.id === nextItem.id) : indexRef.current;
+        if (next !== indexRef.current && next >= 0) {
           setIndex(next);
           void Haptics.selectionAsync();
         }
@@ -187,12 +192,26 @@ export default function Crear() {
         ) : frame.lowStock ? (
           <Banner tone="warn" text="Pocas unidades" />
         ) : null}
+        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+          {frameChips(offers).map((item) => (
+            <Pressable
+              key={item.id}
+              onPress={() => {
+                setChip(item.id);
+                const first = framesForChip(offers, item.id)[0];
+                if (!first) return;
+                const found = offers.findIndex((frameItem) => frameItem.id === first.id);
+                if (found >= 0) shift(found - index);
+              }}
+              style={{ minHeight: 44, paddingHorizontal: 14, borderRadius: 999, justifyContent: "center", backgroundColor: chip === item.id ? colors.ink : colors.white, borderWidth: 1, borderColor: chip === item.id ? colors.ink : colors.line }}
+            >
+              <Text style={{ fontFamily: font.semibold, color: chip === item.id ? "white" : colors.ink }}>{item.label}</Text>
+            </Pressable>
+          ))}
+        </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
-          <Pressable onPress={() => { const found = offers.findIndex((item) => item.category === "navidad"); if (found >= 0) shift(found - index); }} style={{ width: 72, alignItems: "center", justifyContent: "center" }}>
-            <Text style={{ fontFamily: font.semibold, color: colors.red, textAlign: "center" }}>Navidad</Text>
-          </Pressable>
-          {offers.map((item, itemIndex) => (
-            <Pressable key={item.id} onPress={() => shift(itemIndex - index)} style={{ width: 72, alignItems: "center", opacity: itemIndex === index ? 1 : 0.55 }}>
+          {visible.map((item) => (
+            <Pressable key={item.id} onPress={() => { const found = offers.findIndex((frameItem) => frameItem.id === item.id); if (found >= 0) shift(found - index); }} style={{ width: 72, alignItems: "center", opacity: item.id === frame.id ? 1 : 0.55 }}>
               <FrameView frame={item} width={64} />
               <Text style={{ fontFamily: font.medium, fontSize: 11, color: colors.ink, textAlign: "center" }}>{item.name.split(" ")[0]}</Text>
             </Pressable>
@@ -218,16 +237,20 @@ export default function Crear() {
         ) : (
           <Card>
             <Text style={{ fontFamily: font.displaySoft, fontSize: 24, color: colors.ink }}>Tu foto</Text>
-            <Text style={{ fontFamily: font.body, color: colors.muted, marginVertical: 8 }}>JPG, PNG o HEIC. En el iPhone abre Fotos, también las que viven en iCloud, y las pasamos a JPEG en alta.</Text>
-            <Button label="Desde tu iPhone / iCloud" onPress={() => void pickOne(choosePhoto, setMessage, frame)} />
-            <View style={{ height: 8 }} />
-            <Button label="Usar foto de ejemplo" tone="ghost" onPress={() => void choosePhoto(samplePhoto())} />
-            <View style={{ height: 8 }} />
+            <Text style={{ fontFamily: font.body, color: colors.muted, marginVertical: 8 }}>JPG, PNG o HEIC. La galería del teléfono es la primera opción. En el iPhone también puedes abrir iCloud, y el HEIC pasa a JPEG.</Text>
+            <PhotoSources
+              print={frame}
+              flags={flags}
+              notice={params.import}
+              onPhoto={(next) => choosePhoto(next, frame)}
+              onSample={() => void choosePhoto(samplePhoto())}
+            />
             <Button label="Probar aviso de resolución" tone="ghost" onPress={() => void choosePhoto(samplePhoto("sample-small"))} />
           </Card>
         )}
-        {photo ? <Button label="Cambiar foto" tone="ghost" onPress={() => void pickOne(choosePhoto, setMessage, frame)} /> : null}
-        <PhotoImport flags={flags} notice={params.import} frame={frame} onUse={(next) => choosePhoto(next, frame)} />
+        {photo ? (
+          <PhotoSources print={frame} flags={flags} notice={params.import} onPhoto={(next) => choosePhoto(next, frame)} />
+        ) : null}
         {photo ? <TextStyleEditor collapsible label="Agrega texto a tu foto" value={overlay} onChange={setOverlay} maxChars={48} /> : null}
         <VoiceRecorder value={voice} onChange={setVoice} />
         <Pressable onPress={() => router.push("/tarjeta")}>
@@ -239,7 +262,6 @@ export default function Crear() {
             <Text style={{ fontFamily: font.body, color: colors.muted }}>Pregúntanos por nuestro retablo de verdad. Tres hojas de madera, hechas a mano. No entra al carrito.</Text>
           </Card>
         </Pressable>
-        {message ? <Banner tone="bad" text={message} /> : null}
       </View>
       <WhatsAppButton />
     </Screen>
@@ -266,17 +288,4 @@ function turn(
   if (!photo || !crop) return;
   const [aw, ah] = aspectParts(frame, next);
   setCrop(refitCrop(crop, aw, ah));
-}
-
-async function pickOne(
-  choose: (photo: { id: string; width: number; height: number }) => Promise<void>,
-  setMessage: (value: string | null) => void,
-  frame?: { printWcm: number; printHcm: number },
-) {
-  try {
-    const saved = await pickAndSavePhotos(false, frame);
-    if (saved[0]) await choose(saved[0]);
-  } catch (error) {
-    setMessage(error instanceof Error ? error.message : "No pudimos leer esa foto.");
-  }
 }

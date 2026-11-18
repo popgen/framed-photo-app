@@ -2,6 +2,7 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { Pressable, Text, useWindowDimensions, View } from "react-native";
 import { FrameView } from "../components/FrameView";
+import { PhotoSources } from "../components/PhotoSources";
 import { TextStyleEditor } from "../components/TextStyleEditor";
 import { PriceTicker } from "../components/fx";
 import { Button, Card, Screen, TabBar } from "../components/ui";
@@ -9,6 +10,7 @@ import { colors, font } from "../components/theme";
 import { frameById } from "../lib/catalog";
 import { uid } from "../lib/ids";
 import { pickAndSavePhotos, samplePhoto } from "../lib/photos";
+import { importFlags } from "../lib/env";
 import { quote } from "../lib/pricing";
 import { aspectParts } from "../lib/catalog";
 import { assessResolution, centeredCrop } from "../lib/print-size";
@@ -39,14 +41,11 @@ export default function Muro() {
 
   function chooseFrame(index: number) {
     setSlot(index);
-    if (!photos[index]) void putPhoto(index);
   }
 
-  async function putPhoto(index: number) {
-    const picked = await pickAndSavePhotos(false);
-    if (!picked[0]) return;
+  function putSaved(index: number, photo: { id: string; width: number; height: number }) {
     setSlot(index);
-    setPhotos((current) => replaceWallSlot(current, index, picked[0]));
+    setPhotos((current) => replaceWallSlot(current, index, photo));
   }
 
   return (
@@ -142,14 +141,13 @@ export default function Muro() {
             })}
           </View>
         </Card>
+        <Text style={{ fontFamily: font.semibold, color: colors.ink, textAlign: "center" }}>Foto del marco {slot + 1}</Text>
         {photos[slot] ? (
-          <View style={{ gap: 8 }}>
-            <Button label={`Cambiar foto del marco ${slot + 1}`} onPress={() => void putPhoto(slot)} />
-            <Button label={`Quitar foto del marco ${slot + 1}`} tone="ghost" onPress={() => setPhotos((current) => replaceWallSlot(current, slot, null))} />
-          </View>
+          <Button label={`Quitar foto del marco ${slot + 1}`} tone="ghost" onPress={() => setPhotos((current) => replaceWallSlot(current, slot, null))} />
         ) : (
           <Text style={{ fontFamily: font.medium, color: colors.muted, textAlign: "center" }}>Toca un marco para elegir su foto.</Text>
         )}
+        <PhotoSources flags={importFlags()} onPhoto={(photo) => putSaved(slot, photo)} />
         <Button
           label="Llenar todos"
           tone="ghost"

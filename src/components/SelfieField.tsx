@@ -3,6 +3,7 @@ import { Platform, Pressable, Text, TextInput, View } from "react-native";
 import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { colors, font } from "./theme";
 import { encodeSelfie } from "../lib/selfie";
+import { fileToJpegBlob } from "../lib/photos";
 
 type Draft = { url: string; blob: Blob };
 
@@ -37,7 +38,8 @@ export function SelfieField({
     setError(null);
     setBusy(true);
     try {
-      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" } as ImageBitmapOptions);
+      const prepared = await fileToJpegBlob(file);
+      const bitmap = await createImageBitmap(prepared, { imageOrientation: "from-image" } as ImageBitmapOptions);
       try {
         const blob = await encodeSelfie(bitmap, bitmap.width, bitmap.height);
         if (draft) URL.revokeObjectURL(draft.url);
@@ -124,11 +126,11 @@ export function SelfieField({
       ) : null}
       {!camera && !draft ? (
         <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-          <Pressable onPress={openCamera} style={pill(colors.red)}>
-            <Text style={{ color: "white", fontFamily: font.bold }}>Tomar selfie</Text>
+          <Pressable onPress={() => fileInput.current?.click()} style={pill(colors.red)}>
+            <Text style={{ color: "white", fontFamily: font.bold }}>Desde mi dispositivo / galería</Text>
           </Pressable>
-          <Pressable onPress={() => fileInput.current?.click()} style={pill(colors.white)}>
-            <Text style={{ color: colors.ink, fontFamily: font.bold }}>Subir una foto</Text>
+          <Pressable onPress={openCamera} style={pill(colors.white)}>
+            <Text style={{ color: colors.ink, fontFamily: font.bold }}>Tomar selfie</Text>
           </Pressable>
         </View>
       ) : null}

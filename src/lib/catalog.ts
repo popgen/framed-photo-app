@@ -65,6 +65,21 @@ export function pointInPhoto(frame: FrameDef, x: number, y: number): boolean {
   return x >= open.x && x <= open.x + open.w && y >= open.y && y <= open.y + open.h;
 }
 
+export type FrameChip = "todos" | "navidad" | "clasicos";
+
+export function framesForChip<T extends { category?: string }>(list: T[], chip: FrameChip): T[] {
+  if (chip === "navidad") return list.filter((item) => item.category === "navidad");
+  if (chip === "clasicos") return list.filter((item) => item.category !== "navidad");
+  return list;
+}
+
+export function frameChips<T extends { category?: string }>(list: T[]): { id: FrameChip; label: string }[] {
+  const chips: { id: FrameChip; label: string }[] = [{ id: "todos", label: "Todos" }];
+  if (list.some((item) => item.category === "navidad")) chips.push({ id: "navidad", label: "Navidad" });
+  if (list.some((item) => item.category !== "navidad")) chips.push({ id: "clasicos", label: "Clásicos" });
+  return chips;
+}
+
 export function aspectParts(frame: FrameDef, orientation: "portrait" | "landscape"): [number, number] {
   if (frame.aspect === "1:1") return [1, 1];
   return orientation === "landscape" ? [4, 3] : [3, 4];
