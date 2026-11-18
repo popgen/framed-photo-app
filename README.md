@@ -223,7 +223,7 @@ Sin `EXPO_PUBLIC_DATA_MODE=supabase` todo sigue en el navegador (demo). Con Supa
 | Foto original y foto de imprenta | Bucket privado `photos`, rutas `uploads/<id>/original.jpg` y `print.jpg`. El admin las abre con URL firmada |
 | Perfil: nombre, celular, correo, direcciones | `customers` y `customer_addresses`, ligados a `auth.users` por `auth_user_id`. El pedido web guarda `orders.user_id`. RLS: cada quien lee solo sus pedidos |
 | Stock, promos, gift cards, referidos, créditos | Tablas `inventory`, `promo_codes`, `gift_cards`, `referrals`, `credits` |
-| Reclamos y consultas de retablo | `claims`, `retablo_inquiries` |
+| Reclamos y consultas de retablo | `claims`, `retablo_inquiries`. El pedido de retablo abre un correo a pedidos@mifotito.com, sin WhatsApp |
 | Mensaje de voz | `voice_notes` + archivo en `photos/uploads/voice/<token>` |
 | Código de WhatsApp | Solo el hash en `phone_otps` (10 min, 5 intentos) y los envíos en `otp_sends` |
 | Carrito y recibo de la pestaña | Siguen en el navegador hasta pagar |

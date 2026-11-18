@@ -9,7 +9,7 @@ export default function RetablosAdmin() {
   return (
     <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }}>
       <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>Retablos</Text>
-      <Text style={{ fontFamily: font.body, color: colors.muted }}>Solo el tamaño y la hora. El contacto llega por WhatsApp.</Text>
+      <Text style={{ fontFamily: font.body, color: colors.muted }}>Solo el tamaño y la hora. El pedido se escribe a pedidos@mifotito.com.</Text>
       {(data ?? []).map((item) => (
         <View key={item.id} style={{ backgroundColor: colors.white, borderRadius: 16, padding: 12, gap: 6 }}>
           <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{item.size}</Text>
