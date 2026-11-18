@@ -25,6 +25,7 @@ export default async function handler(req, res) {
     if (op === "photos-sign") return await signPhoto(req, res);
     if (op === "voice-url") return await voiceUrl(req, res);
     if (op === "profile") return await profile(req, res);
+    if (op === "customers-list") return await customers(req, res);
     if (op === "gift-card") return await giftCard(req, res);
     if (op === "claim") return await claim(req, res);
     res.status(404).json({ error: "op" });
@@ -126,7 +127,7 @@ async function sendCode(req, res) {
     return;
   }
   await saveSend(prepared.record.phone, ip, prepared.record);
-  const demo = !whatsAppConfigured();
+  const demo = process.env.WHATSAPP_OTP_ENABLED !== "true" || !whatsAppConfigured();
   if (!demo) {
     const sent = await deliverCode(prepared.record.phone, prepared.code);
     if (!sent) {
@@ -469,6 +470,22 @@ async function voiceUrl(req, res) {
   }
   const signed = await supabase.storage.from("photos").createSignedUrl(data.storage_path, 60 * 30);
   res.status(200).json({ url: signed.data?.signedUrl ?? null });
+}
+
+async function customers(req, res) {
+  const supabase = serviceSupabase();
+  if (!supabase || !(await adminSession(req, supabase))) {
+    res.status(401).json({ error: "Solo el admin ve los clientes." });
+    return;
+  }
+  const { data, error } = await supabase.from("customers").select("id, name, phone, email, created_at").order("created_at", { ascending: false });
+  if (error) {
+    res.status(400).json({ error: error.message });
+    return;
+  }
+  res.status(200).json({
+    customers: (data ?? []).map((row) => ({ id: row.id, name: row.name ?? "", phone: row.phone, email: row.email ?? "", createdAt: row.created_at })),
+  });
 }
 
 async function profile(req, res) {

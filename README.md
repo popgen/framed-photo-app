@@ -206,11 +206,11 @@ El rastreo pide solo el celular, luego el código de WhatsApp, y entonces lista 
 
 1. Crea un proyecto en supabase.com.
 2. Authentication → Providers: activa Email. No hace falta SMS. Site URL `https://mifotito.com` y redirect `https://mifotito.com/**`.
-3. SQL editor, en este orden: `supabase/migrations/20261118120000_init.sql`, `20261118143000_cards_voice_retablo.sql`, `20261118180000_shared_backend.sql`, luego `supabase/seed.sql`.
+3. SQL editor, en este orden: `supabase/migrations/20261118120000_init.sql`, `20261118143000_cards_voice_retablo.sql`, `20261118180000_shared_backend.sql`, `20261118190000_photo_size_limit.sql`, luego `supabase/seed.sql`. No renombres el init y no corras otro archivo de números de pedido: el que está en el repo es el que vale.
 4. Storage: el bucket privado `photos` lo crea la primera migración. No lo hagas público.
 5. Authentication → Users: crea el admin y copia su UUID a `admin_users`.
 6. WhatsApp Manager: plantilla de **autenticación** llamada `mifotito_codigo`, idioma español, con el botón de copiar código. Meta tiene que aprobarla. El cuerpo usa el texto estándar de autenticación; el código va como parámetro.
-7. En Netlify, Environment variables: `EXPO_PUBLIC_DATA_MODE=supabase`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL` (la misma URL), `SUPABASE_SERVICE_ROLE_KEY`, `OTP_SIGNING_SECRET`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_OTP_TEMPLATE=mifotito_codigo`, `WHATSAPP_OTP_TEMPLATE_LANG=es`. La service role y el secreto del código no llevan prefijo `EXPO_PUBLIC_`.
+7. En Netlify, Environment variables: `EXPO_PUBLIC_DATA_MODE=supabase`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL` (la misma URL), `SUPABASE_SERVICE_ROLE_KEY`, `OTP_SIGNING_SECRET`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_OTP_ENABLED=false`, `WHATSAPP_OTP_TEMPLATE=mifotito_codigo`, `WHATSAPP_OTP_TEMPLATE_LANG=es`. Pasa `WHATSAPP_OTP_ENABLED` a `true` solo cuando Meta apruebe la plantilla. La service role y el secreto del código no llevan prefijo `EXPO_PUBLIC_`.
 
 Sin token de WhatsApp el sitio muestra el código en pantalla con la nota de modo demo.
 

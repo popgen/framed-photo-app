@@ -1,12 +1,23 @@
+import { defaultCampaign, type Campaign } from "./campaign";
 import { createLocalRepo } from "./repo-local";
 import { getSupabase } from "./supabase";
-import { mapGiftRow, mapInventoryRow, mapOrderRow, mapProfile, mapPromoRow } from "./db-map";
+import { mapFrameRow, mapGiftRow, mapInventoryRow, mapOrderRow, mapProfile, mapPromoRow } from "./db-map";
 import { uploadOrderPhotos } from "./photo-upload";
 import { readPhoneSession } from "./phone-session";
 import type { CheckoutInput, CustomerProfile, OrderStatus } from "./types";
 
+const PATHS: Record<string, string> = {
+  "otp-send": "/api/otp-send",
+  "otp-verify": "/api/otp-verify",
+  "orders-by-phone": "/api/track-orders",
+  "orders-by-token": "/api/track-orders",
+  "orders-create": "/api/create-order",
+  profile: "/api/account",
+  "customers-list": "/api/account",
+};
+
 async function shop(op: string, body: unknown, auth?: string | null) {
-  const response = await fetch(`/api/shop?op=${op}`, {
+  const response = await fetch(PATHS[op] || `/api/shop?op=${op}`, {
     method: "POST",
     headers: { "content-type": "application/json", ...(auth ? { authorization: `Bearer ${auth}` } : {}) },
     body: JSON.stringify(body ?? {}),
@@ -44,6 +55,40 @@ export function createSupabaseRepo() {
     async adminSession() {
       const { data } = await db().auth.getSession();
       return Boolean(data.session);
+    },
+    async listFrames() {
+      const [{ data, error }, stock] = await Promise.all([
+        db().from("frames").select("*").order("sort"),
+        db().from("inventory").select("sku, quantity"),
+      ]);
+      if (error) throw new Error(error.message);
+      const quantities = Object.fromEntries((stock.data ?? []).map((row) => [row.sku, row.quantity]));
+      return (data ?? []).map((row) => mapFrameRow(row, quantities));
+    },
+    async listReviews() {
+      const { data, error } = await db().from("reviews").select("*").order("sort");
+      if (error) throw new Error(error.message);
+      return data ?? [];
+    },
+    async getCampaign() {
+      const { data, error } = await db().from("campaigns").select("id, config").eq("active", true).limit(1).maybeSingle();
+      if (error) throw new Error(error.message);
+      const config = (data?.config ?? {}) as Partial<Campaign>;
+      return { ...defaultCampaign, ...config, id: config.id || data?.id || defaultCampaign.id, cardsPromo: config.cardsPromo ?? defaultCampaign.cardsPromo };
+    },
+    async setSeasonalMotion(on: boolean) {
+      const current = await this.getCampaign();
+      const { error } = await db().from("campaigns").update({ config: { ...current, seasonalMotion: on }, updated_at: new Date().toISOString() }).eq("id", current.id);
+      if (error) throw new Error(error.message);
+    },
+    async listCustomers() {
+      try {
+        const { data } = await db().auth.getSession();
+        const json = await shop("customers-list", {}, data.session?.access_token);
+        return json.customers ?? [];
+      } catch {
+        return [];
+      }
     },
     async listInventory() {
       const { data, error } = await db().from("inventory").select("*").order("sku");
