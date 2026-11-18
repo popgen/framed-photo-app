@@ -1,5 +1,7 @@
 import { router } from "expo-router";
+import type { ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
+import Svg, { Path, Rect } from "react-native-svg";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { FrameView } from "../components/FrameView";
 import { Countdown, GuaranteeNote, Ornaments, useNow, useReducedMotion } from "../components/fx";
@@ -48,9 +50,9 @@ export default function Home() {
           <FrameView frame={frameById("wood-15")} photoId="asset:sample" crop={crop} width={230} />
         </Animated.View>
         <Text style={section}>Super simple</Text>
-        <Step n="1" title="Elige tu foto" body="Desde el teléfono, iCloud o una foto de ejemplo." />
-        <Step n="2" title="Elige tu marco" body="Desliza los marcos, o arma una tarjeta navideña." />
-        <Step n="3" title="Llega a tu casa en días" body="Impresa, con acrílico, hasta la puerta." />
+        <Step n="1" title="Elige tu foto" body="Desde el teléfono, iCloud o una foto de ejemplo." icon={<PhotoIcon />} />
+        <Step n="2" title="Elige tu marco" body="Desliza los marcos, o arma una tarjeta navideña." icon={<FrameIcon />} />
+        <Step n="3" title="Llega a tu casa en días" body="Impresa, con acrílico, hasta la puerta." icon={<HomeIcon />} />
         <Text style={section}>Marcos de Navidad</Text>
         <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
           {frames.filter((item) => item.category === "navidad").slice(0, 3).map((item) => (
@@ -107,14 +109,15 @@ export default function Home() {
   );
 }
 
-function Step({ n, title, body }: { n: string; title: string; body: string }) {
+function Step({ n, title, body, icon }: { n: string; title: string; body: string; icon: ReactNode }) {
   const reduced = useReducedMotion();
   return (
-    <Animated.View entering={reduced ? undefined : FadeInDown.delay(Number(n) * 80).springify().damping(14)}>
+    <Animated.View entering={reduced ? undefined : FadeInDown.delay(Number(n) * 90).springify().damping(14)}>
       <Card>
-        <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
-          <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.red, alignItems: "center", justifyContent: "center" }}>
-            <Text style={{ fontFamily: font.display, fontSize: 24, color: "white" }}>{n}</Text>
+        <View style={{ flexDirection: "row", gap: 14, alignItems: "center" }}>
+          <View style={{ width: 64, height: 64, borderRadius: 20, backgroundColor: colors.red, alignItems: "center", justifyContent: "center" }}>
+            {icon}
+            <Text style={{ fontFamily: font.display, fontSize: 18, color: "white", marginTop: 2 }}>{n}</Text>
           </View>
           <View style={{ flex: 1 }}>
             <Text style={{ fontFamily: font.displaySoft, fontSize: 22, color: colors.ink }}>{title}</Text>
@@ -123,6 +126,32 @@ function Step({ n, title, body }: { n: string; title: string; body: string }) {
         </View>
       </Card>
     </Animated.View>
+  );
+}
+
+function PhotoIcon() {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24">
+      <Rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="#fff" strokeWidth="1.8" />
+      <Path d="M8 14l2.2-2.4 1.8 1.8L15 10l4 5" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+function FrameIcon() {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24">
+      <Rect x="4" y="3" width="16" height="18" rx="1.5" fill="none" stroke="#fff" strokeWidth="1.8" />
+      <Rect x="7.5" y="6.5" width="9" height="11" fill="none" stroke="#fff" strokeWidth="1.4" />
+    </Svg>
+  );
+}
+
+function HomeIcon() {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24">
+      <Path d="M4 11.5 12 4l8 7.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-8.5Z" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinejoin="round" />
+    </Svg>
   );
 }
 
