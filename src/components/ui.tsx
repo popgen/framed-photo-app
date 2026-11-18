@@ -6,6 +6,7 @@ import Svg, { Path } from "react-native-svg";
 import * as Haptics from "expo-haptics";
 import { supportNumber } from "../lib/env";
 import { hostedWithoutDatabase } from "../lib/hosted";
+import { OptimizingPhoto } from "./OptimizingPhoto";
 import { colors, font } from "./theme";
 
 export function goBack(fallback = "/") {
@@ -71,6 +72,7 @@ export function Screen({
         {body}
         {footer}
         {path.startsWith("/admin") || path === "/cuenta" ? null : <AccountButton />}
+        <OptimizingPhoto />
       </View>
     </View>
   );

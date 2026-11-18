@@ -1,6 +1,9 @@
 import { Platform } from "react-native";
 import samples from "../../data/samples.json";
+import { buildCompressSteps, MAX_UPLOAD_BYTES, PHOTO_TOO_LARGE, pickCompressed } from "./photo-compress";
 import { uid } from "./ids";
+
+export { MAX_UPLOAD_BYTES };
 
 const SAMPLE_SOURCES = {
   sample: require("../../assets/sample-memory.png"),
@@ -10,6 +13,16 @@ const SAMPLE_SOURCES = {
 type SampleKey = keyof typeof SAMPLE_SOURCES;
 
 const memory = new Map<string, { url: string; width: number; height: number }>();
+const optimizingListeners = new Set<(active: boolean) => void>();
+
+export function subscribeOptimizing(listener: (active: boolean) => void): () => void {
+  optimizingListeners.add(listener);
+  return () => optimizingListeners.delete(listener);
+}
+
+function setOptimizing(active: boolean) {
+  optimizingListeners.forEach((listener) => listener(active));
+}
 
 export function assetInfo(id: string): { source: number; width: number; height: number } | null {
   if (!id.startsWith("asset:")) return null;
@@ -90,11 +103,63 @@ async function putBlob(id: string, blob: Blob) {
   });
 }
 
-export async function savePhotoPair(original: Blob): Promise<{ id: string; width: number; height: number }> {
-  const print = await resizeForPrint(original);
-  const saved = await savePhotoBlob(print);
-  await putBlob(`${saved.id}:original`, original);
+export async function savePhotoPair(
+  original: Blob,
+  print?: { printWcm: number; printHcm: number },
+): Promise<{ id: string; width: number; height: number }> {
+  const prepared = await prepareForUpload(original, print);
+  const printCopy = await resizeForPrint(prepared);
+  const saved = await savePhotoBlob(printCopy);
+  await putBlob(`${saved.id}:original`, prepared);
   return saved;
+}
+
+export async function prepareForUpload(blob: Blob, print?: { printWcm: number; printHcm: number }): Promise<Blob> {
+  if (blob.size <= MAX_UPLOAD_BYTES) return blob;
+  setOptimizing(true);
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  try {
+    return await compressToLimit(blob, print?.printWcm ?? 30, print?.printHcm ?? 40);
+  } finally {
+    setOptimizing(false);
+  }
+}
+
+async function compressToLimit(blob: Blob, printWcm: number, printHcm: number): Promise<Blob> {
+  const bitmap = await createImageBitmap(blob, { imageOrientation: "from-image" } as ImageBitmapOptions);
+  const steps = buildCompressSteps({ width: bitmap.width, height: bitmap.height, printWcm, printHcm });
+  const sizes: number[] = [];
+  let best: Blob | null = null;
+  try {
+    for (const step of steps) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const encoded = await encodeJpeg(bitmap, step.longEdge, step.quality);
+      sizes.push(encoded.size);
+      best = encoded;
+      if (encoded.size <= MAX_UPLOAD_BYTES) return encoded;
+    }
+  } finally {
+    bitmap.close();
+  }
+  const choice = pickCompressed(blob.size, sizes);
+  if (choice.action === "reject" || !best || best.size > 10 * 1024 * 1024) throw new Error(PHOTO_TOO_LARGE);
+  return best;
+}
+
+async function encodeJpeg(bitmap: ImageBitmap, longEdge: number, quality: number): Promise<Blob> {
+  const scale = Math.min(1, longEdge / Math.max(bitmap.width, bitmap.height));
+  const width = Math.max(1, Math.round(bitmap.width * scale));
+  const height = Math.max(1, Math.round(bitmap.height * scale));
+  const canvas = typeof OffscreenCanvas !== "undefined" ? new OffscreenCanvas(width, height) : Object.assign(document.createElement("canvas"), { width, height });
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error(PHOTO_TOO_LARGE);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  if ("convertToBlob" in canvas) return canvas.convertToBlob({ type: "image/jpeg", quality });
+  const blob = await new Promise<Blob | null>((resolve) => (canvas as HTMLCanvasElement).toBlob(resolve, "image/jpeg", quality));
+  if (!blob) throw new Error(PHOTO_TOO_LARGE);
+  return blob;
 }
 
 export async function savePhotoBlob(blob: Blob): Promise<{ id: string; width: number; height: number }> {
@@ -155,11 +220,14 @@ export function pickPhotoFiles(multiple = false): Promise<File[]> {
   });
 }
 
-export async function pickAndSavePhotos(multiple = false): Promise<{ id: string; width: number; height: number }[]> {
+export async function pickAndSavePhotos(
+  multiple = false,
+  print?: { printWcm: number; printHcm: number },
+): Promise<{ id: string; width: number; height: number }[]> {
   if (Platform.OS === "web") {
     const files = await pickPhotoFiles(multiple);
     const saved = [];
-    for (const file of files) saved.push(await savePhotoPair(await fileToJpegBlob(file)));
+    for (const file of files) saved.push(await savePhotoPair(await fileToJpegBlob(file), print));
     return saved;
   }
   const ImagePicker = await import("expo-image-picker");

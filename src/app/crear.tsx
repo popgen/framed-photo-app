@@ -208,14 +208,14 @@ export default function Crear() {
           <Card>
             <Text style={{ fontFamily: font.displaySoft, fontSize: 24, color: colors.ink }}>Tu foto</Text>
             <Text style={{ fontFamily: font.body, color: colors.muted, marginVertical: 8 }}>JPG, PNG o HEIC. En el iPhone abre Fotos, también las que viven en iCloud, y las pasamos a JPEG en alta.</Text>
-            <Button label="Desde tu iPhone / iCloud" onPress={() => void pickOne(choosePhoto, setMessage)} />
+            <Button label="Desde tu iPhone / iCloud" onPress={() => void pickOne(choosePhoto, setMessage, frame)} />
             <View style={{ height: 8 }} />
             <Button label="Usar foto de ejemplo" tone="ghost" onPress={() => void choosePhoto(samplePhoto())} />
             <View style={{ height: 8 }} />
             <Button label="Probar aviso de resolución" tone="ghost" onPress={() => void choosePhoto(samplePhoto("sample-small"))} />
           </Card>
         )}
-        {photo ? <Button label="Cambiar foto" tone="ghost" onPress={() => void pickOne(choosePhoto, setMessage)} /> : null}
+        {photo ? <Button label="Cambiar foto" tone="ghost" onPress={() => void pickOne(choosePhoto, setMessage, frame)} /> : null}
         {imports.length ? (
           <Text style={{ fontFamily: font.medium, color: colors.muted }}>También puedes importar desde {imports.join(", ")}. Esas cuentas se configuran con las variables del README.</Text>
         ) : null}
@@ -265,9 +265,13 @@ function turn(
   setCrop(refitCrop(crop, aw, ah));
 }
 
-async function pickOne(choose: (photo: { id: string; width: number; height: number }) => Promise<void>, setMessage: (value: string | null) => void) {
+async function pickOne(
+  choose: (photo: { id: string; width: number; height: number }) => Promise<void>,
+  setMessage: (value: string | null) => void,
+  frame?: { printWcm: number; printHcm: number },
+) {
   try {
-    const saved = await pickAndSavePhotos(false);
+    const saved = await pickAndSavePhotos(false, frame);
     if (saved[0]) await choose(saved[0]);
   } catch (error) {
     setMessage(error instanceof Error ? error.message : "No pudimos leer esa foto.");
