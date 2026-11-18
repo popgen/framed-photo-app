@@ -69,18 +69,24 @@ export function PhotoImport({
     }
   }
 
-  const buttons = [
-    flags.instagram ? "instagram" : null,
-    flags.facebook ? "facebook" : null,
-    flags.googlePhotos ? "google" : null,
-  ].filter((item): item is "instagram" | "facebook" | "google" => Boolean(item));
-
-  if (!buttons.length && !provider && !message) return null;
+  const buttons = ["instagram", "facebook", "google"] as const;
+  const ready = { instagram: flags.instagram, facebook: flags.facebook, google: flags.googlePhotos };
 
   return (
     <View style={{ gap: 8 }}>
       {buttons.map((item) => (
-        <Button key={item} label={LABELS[item]} tone="ghost" onPress={() => start(item)} />
+        <Button
+          key={item}
+          label={ready[item] ? LABELS[item] : `${LABELS[item]} · Pronto`}
+          tone="ghost"
+          onPress={() => {
+            if (!ready[item]) {
+              setMessage("Pronto. Esa opción todavía no está conectada.");
+              return;
+            }
+            start(item);
+          }}
+        />
       ))}
       {pickerUri ? <Button label="Elegir en Google Fotos" tone="ghost" onPress={() => { if (typeof window !== "undefined") window.open(pickerUri, "_blank"); }} /> : null}
       {photos.length ? (

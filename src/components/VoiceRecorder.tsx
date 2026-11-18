@@ -2,6 +2,7 @@ import { Image } from "expo-image";
 import { createElement, useEffect, useRef, useState } from "react";
 import { Platform, Pressable, Text, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
+import { Banner } from "./ui";
 import { colors, font } from "./theme";
 import { Collapsible } from "./Collapsible";
 import Svg, { Path } from "react-native-svg";
@@ -50,40 +51,58 @@ export function VoiceRecorder({ value, onChange }: { value: VoiceNote | null; on
     pulse.value = 1;
   }
 
-  async function start() {
+  function beginRecording() {
+    if (recording) {
+      stop();
+      return;
+    }
+    setError(null);
     if (Platform.OS !== "web" || typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-      setError("Graba el audio desde el navegador. En el teléfono también puedes subir un archivo.");
+      setError("Este navegador no puede grabar. Sube un archivo de audio.");
       return;
     }
     const mime = recorderMime();
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const media = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
-    chunks.current = [];
-    media.ondataavailable = (event) => {
-      if (event.data.size) chunks.current.push(event.data);
-    };
-    media.onstop = () => {
-      stream.getTracks().forEach((track) => track.stop());
-      const blob = new Blob(chunks.current, { type: media.mimeType || "audio/webm" });
-      void finish(blob, secondsRef.current);
-    };
-    recorder.current = media;
-    setRecording(true);
-    setSeconds(0);
-    secondsRef.current = 0;
-    media.start();
-    pulse.value = withRepeat(withTiming(1.25, { duration: 500 }), -1, true);
-    timer.current = setInterval(() => {
-      setSeconds((current) => {
-        const next = current + 1 >= VOICE_MAX_SECONDS ? VOICE_MAX_SECONDS : current + 1;
-        secondsRef.current = next;
-        if (next >= VOICE_MAX_SECONDS) {
-          media.stop();
-          stopTimer();
-        }
-        return next;
-      });
-    }, 1000);
+    let pending: Promise<MediaStream>;
+    try {
+      pending = navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      setError(micError(err));
+      return;
+    }
+    void pending.then((stream) => {
+      try {
+        const media = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+        chunks.current = [];
+        media.ondataavailable = (event) => {
+          if (event.data.size) chunks.current.push(event.data);
+        };
+        media.onstop = () => {
+          stream.getTracks().forEach((track) => track.stop());
+          const blob = new Blob(chunks.current, { type: media.mimeType || mime || "audio/mp4" });
+          void finish(blob, secondsRef.current);
+        };
+        recorder.current = media;
+        setRecording(true);
+        setSeconds(0);
+        secondsRef.current = 0;
+        media.start();
+        pulse.value = withRepeat(withTiming(1.25, { duration: 500 }), -1, true);
+        timer.current = setInterval(() => {
+          setSeconds((current) => {
+            const next = current + 1 >= VOICE_MAX_SECONDS ? VOICE_MAX_SECONDS : current + 1;
+            secondsRef.current = next;
+            if (next >= VOICE_MAX_SECONDS) {
+              media.stop();
+              stopTimer();
+            }
+            return next;
+          });
+        }, 1000);
+      } catch {
+        stream.getTracks().forEach((track) => track.stop());
+        setError("Este navegador no puede grabar. Sube un archivo de audio.");
+      }
+    }).catch((err) => setError(micError(err)));
   }
 
   function stop() {
@@ -103,7 +122,7 @@ export function VoiceRecorder({ value, onChange }: { value: VoiceNote | null; on
       token: newVoiceToken(),
       audioId: saved.id,
       seconds: Math.min(VOICE_MAX_SECONDS, Math.max(1, length)),
-      mime: blob.type || "audio/webm",
+      mime: blob.type || "audio/mp4",
       addonCents: VOICE_ADDON_CENTS,
       selfieId: selfie?.id ?? null,
       selfiePath: selfie?.path ?? null,
@@ -137,7 +156,7 @@ export function VoiceRecorder({ value, onChange }: { value: VoiceNote | null; on
       <Text style={{ fontFamily: font.body, color: colors.muted }}>Hasta {VOICE_MAX_SECONDS} segundos. Lo escuchan al escanear el QR del marco.</Text>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
         <Animated.View style={[{ width: 88, height: 88, borderRadius: 44, backgroundColor: colors.red, alignItems: "center", justifyContent: "center" }, wave]}>
-          <Pressable onPress={() => (recording ? stop() : void start())} style={{ width: 88, height: 88, borderRadius: 44, alignItems: "center", justifyContent: "center" }}>
+          <Pressable onPress={beginRecording} style={{ width: 88, height: 88, borderRadius: 44, alignItems: "center", justifyContent: "center" }}>
             <Text style={{ color: "white", fontFamily: font.bold, fontSize: 16 }}>{recording ? "Listo" : "Grabar"}</Text>
           </Pressable>
         </Animated.View>
@@ -160,7 +179,7 @@ export function VoiceRecorder({ value, onChange }: { value: VoiceNote | null; on
             },
           })
         : null}
-      {preview && value ? createElement("audio", { src: preview, controls: true, style: { width: "100%" } }) : null}
+      {preview && value ? createElement("audio", { src: preview, controls: true, style: { width: "100%" } }, createElement("source", { src: preview, type: value.mime || "audio/mp4" })) : null}
       {qr && value ? (
         <View style={{ alignItems: "center", gap: 6, backgroundColor: colors.white, borderRadius: 16, padding: 12 }}>
           <Image source={{ uri: qr }} style={{ width: 160, height: 160 }} />
@@ -205,10 +224,18 @@ export function VoiceRecorder({ value, onChange }: { value: VoiceNote | null; on
           onChange(updated);
         }}
       />
-      {error ? <Text style={{ fontFamily: font.body, color: colors.bad }}>{error}</Text> : null}
+      {error ? <Banner tone="bad" text={error} /> : null}
     </View>
     </Collapsible>
   );
+}
+
+function micError(err: unknown): string {
+  const name = err && typeof err === "object" && "name" in err ? String((err as { name?: string }).name) : "";
+  if (name === "NotAllowedError" || name === "PermissionDeniedError" || name === "SecurityError") {
+    return "No pudimos usar el micrófono. Permite el micrófono en el navegador e inténtalo otra vez.";
+  }
+  return "No pudimos grabar. Permite el micrófono o sube un archivo.";
 }
 
 function MicIcon() {

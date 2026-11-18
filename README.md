@@ -155,7 +155,7 @@ Al tocar el botón, `/api/imports/start` manda a la red. Al volver, la sesión q
 
 Los días de entrega están en `src/lib/delivery.ts`: Lima 2–3 días hábiles, provincias 3–5, con feriados.
 
-La tarjeta navideña es un díptico vertical: dos paneles con el pliegue arriba. A6 es 105×148 mm por panel y la hoja abierta mide 105×296 mm, así que entra en una A4. El tamaño 5×7 pulgadas abre a 5×14 pulgadas (127×355.6 mm) y se imprime en un taller. El reverso no se diseña: lleva la marca Mi Fotito. El sobre es uno solo, blanco, e incluido. Doblada, la A6 mide 105×148 mm y entra en un sobre C6 (114×162 mm). La 5×7 doblada mide 127×177.8 mm y necesita un sobre A7 (133×184 mm). El PDF de imprenta trae la hoja abierta (portada arriba, interior abajo), el reverso y ese sobre. Los pedidos viejos guardan `envelopeColor` (`blanco`, o `white`, `kraft` y `red` de antes) y el admin sigue mostrando ese valor.
+La tarjeta navideña se imprime en una sola hoja de impresora, en horizontal, y se dobla a la mitad. En A4 (297×210 mm) la tarjeta doblada es A5 vertical, 148×210 mm. En carta (11×8.5 pulgadas) queda de 5.5×8.5 pulgadas. La portada lleva una foto y el mensaje va en la mitad de adentro. El PDF tiene dos páginas del tamaño exacto de la hoja, para imprimir a doble cara, con la marca del doblez y las guías de corte. El reverso lleva la marca Mi Fotito. El sobre es uno, blanco, tamaño C5 (162×229 mm), que entra la A5. Los pedidos viejos en A6 o 5×7 siguen leyéndose con su tamaño guardado.
 
 ## Diseño móvil
 

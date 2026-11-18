@@ -209,12 +209,15 @@ export function samplePhoto(kind: "sample" | "sample-small" = "sample"): { id: s
   return { id: `asset:${kind}`, width: info.width, height: info.height };
 }
 
-export function pickPhotoFiles(multiple = false): Promise<File[]> {
+export type PhotoSource = "gallery" | "camera" | "icloud";
+
+export function pickPhotoFiles(multiple = false, source: PhotoSource = "gallery"): Promise<File[]> {
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*,.heic,.heif";
-    input.multiple = multiple;
+    input.multiple = multiple && source !== "camera";
+    if (source === "camera") input.setAttribute("capture", "environment");
     input.onchange = () => resolve(Array.from(input.files ?? []));
     input.click();
   });
@@ -223,9 +226,10 @@ export function pickPhotoFiles(multiple = false): Promise<File[]> {
 export async function pickAndSavePhotos(
   multiple = false,
   print?: { printWcm: number; printHcm: number },
+  source: PhotoSource = "gallery",
 ): Promise<{ id: string; width: number; height: number }[]> {
   if (Platform.OS === "web") {
-    const files = await pickPhotoFiles(multiple);
+    const files = await pickPhotoFiles(multiple, source);
     const saved = [];
     for (const file of files) saved.push(await savePhotoPair(await fileToJpegBlob(file), print));
     return saved;
@@ -275,7 +279,20 @@ export async function fileToJpegBlob(file: File): Promise<Blob> {
   const name = file.name.toLowerCase();
   const heic = name.endsWith(".heic") || name.endsWith(".heif") || file.type === "image/heic" || file.type === "image/heif";
   if (!heic) return file;
-  const heic2any = (await import("heic2any")).default;
-  const converted = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.92 });
-  return Array.isArray(converted) ? converted[0] : converted;
+  try {
+    const heic2any = (await import("heic2any")).default;
+    const converted = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.92 });
+    return Array.isArray(converted) ? converted[0] : converted;
+  } catch {
+    if (typeof createImageBitmap === "function") {
+      try {
+        const bitmap = await createImageBitmap(file);
+        bitmap.close();
+        return file;
+      } catch {
+        throw new Error("No pudimos convertir el HEIC. Prueba con JPG o PNG.");
+      }
+    }
+    throw new Error("No pudimos convertir el HEIC. Prueba con JPG o PNG.");
+  }
 }

@@ -28,8 +28,40 @@
   ],
   "sizes": [
     {
+      "id": "a4",
+      "name": "A4",
+      "format": "half-fold",
+      "legacy": false,
+      "panelWmm": 148.5,
+      "panelHmm": 210,
+      "flatWmm": 297,
+      "flatHmm": 210,
+      "envelopeName": "C5",
+      "envelopeWmm": 162,
+      "envelopeHmm": 229,
+      "printShop": false,
+      "default": true
+    },
+    {
+      "id": "letter",
+      "name": "Carta",
+      "format": "half-fold",
+      "legacy": false,
+      "panelWmm": 139.7,
+      "panelHmm": 215.9,
+      "flatWmm": 279.4,
+      "flatHmm": 215.9,
+      "envelopeName": "C5",
+      "envelopeWmm": 162,
+      "envelopeHmm": 229,
+      "printShop": false,
+      "default": false
+    },
+    {
       "id": "a6",
       "name": "A6",
+      "format": "diptych",
+      "legacy": true,
       "panelWmm": 105,
       "panelHmm": 148,
       "flatWmm": 105,
@@ -38,11 +70,13 @@
       "envelopeWmm": 114,
       "envelopeHmm": 162,
       "printShop": false,
-      "default": true
+      "default": false
     },
     {
       "id": "5x7",
       "name": "5×7 pulgadas",
+      "format": "diptych",
+      "legacy": true,
       "panelWmm": 127,
       "panelHmm": 177.8,
       "flatWmm": 127,

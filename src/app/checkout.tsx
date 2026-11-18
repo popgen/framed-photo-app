@@ -251,7 +251,7 @@ export default function Checkout() {
         <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>Entrega</Text>
         {items.filter((item) => item.card).map((item) => (
           <Text key={item.id} style={{ fontFamily: font.body, color: colors.muted }}>
-            Tarjeta {item.card?.sizeId}: {item.card ? cardOrderLine(item.card) : ""} Portada y interior. Incluye sobre blanco. El reverso lleva la marca Mi Fotito.
+            Tarjeta {item.card?.sizeId}: {item.card ? cardOrderLine(item.card) : ""} Foto en la portada y mensaje adentro. Incluye sobre blanco C5. El reverso lleva la marca Mi Fotito.
           </Text>
         ))}
         {campaign && countdownVisible(now, campaign) ? <Countdown target={countdownTarget(now, zone, campaign)} now={now} /> : null}

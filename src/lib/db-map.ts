@@ -1,3 +1,4 @@
+import { frames as catalogFrames } from "./catalog";
 import { framesAvailable } from "./inventory";
 import type { CustomerProfile, FrameOffer, GiftCard, InventoryItem, Order, OrderItem, Promo, SavedAddress } from "./types";
 
@@ -102,8 +103,8 @@ export function mapFrameRow(row: Record<string, any>, stock: Record<string, numb
     consumes: row.consumes ?? [],
     blurb: row.blurb ?? "",
     sort: row.sort ?? 0,
-    category: row.category ?? undefined,
-    style: row.style ?? undefined,
+    category: row.category || catalogFrames.find((item) => item.id === row.id)?.category || undefined,
+    style: row.style || catalogFrames.find((item) => item.id === row.id)?.style || undefined,
     border: row.border ?? undefined,
   };
   return { ...frame, available: framesAvailable(frame, stock) };
