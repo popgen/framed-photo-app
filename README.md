@@ -54,6 +54,7 @@ Copia `.env.example` a `.env`. No subas `.env`.
 | `EXPO_PUBLIC_SITE_URL` | cliente | origen público, sin barra final |
 | `EXPO_PUBLIC_WHATSAPP_SUPPORT_NUMBER` | cliente | botón de soporte, formato `51999…` |
 | `EXPO_PUBLIC_SEASONAL_MOTION` | cliente | `true` / `false`. Vacío usa la campaña |
+| `EXPO_PUBLIC_COUNTDOWN` | cliente | `true` fuerza el reloj, `false` lo apaga. Vacío usa `countdownStartsAt` |
 | `EXPO_PUBLIC_ENABLE_INSTAGRAM` | cliente | muestra Instagram solo con `EXPO_PUBLIC_META_APP_ID` |
 | `EXPO_PUBLIC_ENABLE_FACEBOOK` | cliente | igual, con el app id de Meta |
 | `EXPO_PUBLIC_ENABLE_GOOGLE_PHOTOS` | cliente | muestra Google Photos solo con el client id |
@@ -128,7 +129,7 @@ Para Google Photos hace falta el Picker API (`photospicker.googleapis.com`) y el
 
 ## Campaña
 
-`data/campaign.json` es Navidad 2026. Lima hasta el 18 de diciembre 23:59 y provincias hasta el 15, hora de Lima. Después de la fecha el texto avisa que puede llegar tarde y apunta a San Valentín (14 de febrero). Para cambiar de campaña, sustituye ese JSON por `data/campaign-san-valentin.json` o actualiza la fila activa en `campaigns`.
+`data/campaign.json` es Navidad 2026. Lima hasta el 18 de diciembre 23:59 y provincias hasta el 15, hora de Lima. Después de la fecha el texto avisa que puede llegar tarde y apunta a San Valentín (14 de febrero). El reloj de cuenta regresiva (inicio y checkout) sigue en el código, pero no se muestra hasta `countdownStartsAt` (10 de diciembre de 2026, 00:00, hora de Lima). `EXPO_PUBLIC_COUNTDOWN=true` lo enciende antes y `false` lo apaga aunque ya haya pasado esa fecha. Para cambiar de campaña, sustituye ese JSON por `data/campaign-san-valentin.json` o actualiza la fila activa en `campaigns`.
 
 Los días de entrega están en `src/lib/delivery.ts`: Lima 2–3 días hábiles, provincias 3–5, con feriados.
 

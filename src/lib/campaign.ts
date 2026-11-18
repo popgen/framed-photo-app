@@ -11,6 +11,7 @@ export type Campaign = {
   cta: string;
   occasionName: string;
   timezone: string;
+  countdownStartsAt?: string;
   cutoffs: { lima: string; provinces: string };
   nextOccasion: { name: string; dateLabel: string; dateISO: string };
   giftWrapFeatured: boolean;
@@ -27,6 +28,18 @@ export const campaignPresets: Record<string, Campaign> = {
   "navidad-2026": navidad as Campaign,
   "san-valentin-2027": sanValentin as Campaign,
 };
+
+export function countdownVisible(
+  now: Date,
+  campaign: { countdownStartsAt?: string | null },
+  flag: string | undefined = process.env.EXPO_PUBLIC_COUNTDOWN,
+): boolean {
+  const value = flag?.trim().toLowerCase();
+  if (value === "0" || value === "false" || value === "off") return false;
+  if (value === "1" || value === "true" || value === "on") return true;
+  if (!campaign.countdownStartsAt) return false;
+  return now.getTime() >= new Date(campaign.countdownStartsAt).getTime();
+}
 
 export function motionEnabled(campaign: { seasonalMotion: boolean }): boolean {
   const flag = process.env.EXPO_PUBLIC_SEASONAL_MOTION;

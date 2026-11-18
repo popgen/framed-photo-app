@@ -8,6 +8,7 @@
   "cta": "Crear mi marco",
   "occasionName": "Navidad",
   "timezone": "America/Lima",
+  "countdownStartsAt": "2026-12-10T00:00:00-05:00",
   "cutoffs": {
     "lima": "2026-12-18T23:59:59-05:00",
     "provinces": "2026-12-15T23:59:59-05:00"

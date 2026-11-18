@@ -6,7 +6,7 @@ import { Countdown, GuaranteeNote, Ornaments, useNow, useReducedMotion } from ".
 import { useRepo } from "../components/provider";
 import { Button, Card, H1, P, Screen, TabBar, WhatsAppButton } from "../components/ui";
 import { colors, font } from "../components/theme";
-import { motionEnabled, ornamentKind } from "../lib/campaign";
+import { countdownVisible, motionEnabled, ornamentKind } from "../lib/campaign";
 import { countdownTarget, guaranteeFor } from "../lib/cutoff";
 import { frameById } from "../lib/catalog";
 import { formatSoles } from "../lib/money";
@@ -34,7 +34,7 @@ export default function Home() {
         <Text style={{ fontFamily: font.bold, color: colors.red, letterSpacing: 1.2 }}>{active.heroEyebrow.toUpperCase()}</Text>
         <H1>{active.heroTitle}</H1>
         <P>{active.heroSubtitle}</P>
-        <Countdown target={countdownTarget(now, null, active)} now={now} />
+        {countdownVisible(now, active) ? <Countdown target={countdownTarget(now, null, active)} now={now} /> : null}
         <GuaranteeNote guarantee={guarantee} />
         <Button label={active.cta} onPress={() => router.push("/crear")} />
         <Animated.View entering={reduced ? undefined : FadeInDown.springify().damping(14)} style={{ alignItems: "center", paddingTop: 8 }}>

@@ -1,9 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { defaultCampaign } from "../src/lib/campaign";
+import { countdownVisible, defaultCampaign } from "../src/lib/campaign";
 import { countdownTarget, guaranteeFor } from "../src/lib/cutoff";
 import { DEPARTMENTS, districtsFor, provincesFor, shippingZone } from "../src/lib/zone";
 
 const campaign = defaultCampaign;
+
+describe("countdown gate", () => {
+  const campaign = { ...defaultCampaign, countdownStartsAt: "2026-12-10T00:00:00-05:00" };
+
+  it("hides the clock before 10 Dec 2026 00:00 Lima time and shows it from that instant", () => {
+    expect(countdownVisible(new Date("2026-12-09T23:59:59-05:00"), campaign, "")).toBe(false);
+    expect(countdownVisible(new Date("2026-12-10T04:59:59Z"), campaign, "")).toBe(false);
+    expect(countdownVisible(new Date("2026-12-10T00:00:00-05:00"), campaign, "")).toBe(true);
+    expect(countdownVisible(new Date("2026-12-10T05:00:00Z"), campaign, "")).toBe(true);
+  });
+
+  it("lets an env flag force the clock on or off", () => {
+    expect(countdownVisible(new Date("2026-12-01T12:00:00-05:00"), campaign, "true")).toBe(true);
+    expect(countdownVisible(new Date("2026-12-20T12:00:00-05:00"), campaign, "false")).toBe(false);
+  });
+});
 
 describe("christmas cutoff", () => {
   it("guarantees Lima through 18 Dec 2026 23:59 Lima time", () => {

@@ -6,7 +6,7 @@ import { useApp } from "../components/provider";
 import { Banner, Button, Field, Progress, Screen } from "../components/ui";
 import { colors, font } from "../components/theme";
 import { readWaOrder, rememberWaOrder } from "../lib/boot";
-import { motionEnabled } from "../lib/campaign";
+import { countdownVisible } from "../lib/campaign";
 import { countdownTarget, guaranteeFor } from "../lib/cutoff";
 import { DEPARTMENTS, districtsFor, provincesFor, shippingZone } from "../lib/zone";
 import { paymentsMode, providerFor, type PaymentMethod } from "../lib/env";
@@ -181,7 +181,7 @@ export default function Checkout() {
       <View style={{ padding: 16, gap: 12 }}>
         <Progress step={3} />
         <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>Entrega</Text>
-        {campaign && motionEnabled(campaign) ? <Countdown target={countdownTarget(now, zone, campaign)} now={now} /> : null}
+        {campaign && countdownVisible(now, campaign) ? <Countdown target={countdownTarget(now, zone, campaign)} now={now} /> : null}
         {guarantee ? <GuaranteeNote guarantee={guarantee} /> : null}
         <Field label="Nombre" value={form.customerName} onChangeText={(customerName) => setForm({ ...form, customerName })} />
         <Field label="Celular" keyboardType="phone-pad" placeholder="987 654 321" value={form.phone} onChangeText={(phone) => setForm({ ...form, phone })} />
