@@ -231,7 +231,10 @@ export default function Crear() {
           <Text style={{ fontFamily: font.semibold, color: colors.ink }}>¿Mejor una tarjeta navideña?</Text>
         </Pressable>
         <Pressable onPress={() => router.push("/retablo")}>
-          <Text style={{ fontFamily: font.semibold, color: colors.pine }}>¿Quieres un retablo de verdad?</Text>
+          <Card>
+            <Text style={{ fontFamily: font.displaySoft, fontSize: 22, color: colors.ink }}>¿Quieres un retablo de verdad?</Text>
+            <Text style={{ fontFamily: font.body, color: colors.muted }}>Pregúntanos por nuestro retablo de verdad. Tres hojas de madera, hechas a mano. No entra al carrito.</Text>
+          </Card>
         </Pressable>
         {message ? <Banner tone="bad" text={message} /> : null}
       </View>
