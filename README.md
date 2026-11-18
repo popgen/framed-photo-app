@@ -165,7 +165,7 @@ El sitio funciona en modo demo sin ningún secreto: pagos sandbox, WhatsApp solo
 - Functions directory: `netlify/functions` (ya está en `netlify.toml`)
 - Dominios: `mifotito.com` (primary) y `www.mifotito.com`
 
-`netlify.toml` redirige `www` y `http` a `https://mifotito.com`, manda `/api/payments/create`, `/api/notify` y `/api/webhooks/whatsapp` a las funciones, y el resto de rutas del cliente a `/index.html`. Los archivos con hash en `/_expo/static/` y `/assets/` se cachean un año. `index.html` no.
+`netlify.toml` redirige `www` y `http` a `https://mifotito.com`. Cada función declara su ruta con `config.path` (`/api/shop`, `/api/track-orders`, `/api/payments/izipay-ipn`, `/api/imports/callback`, y las demás). No hay rewrites de `/api/*` hacia `/.netlify/functions/*`. El fallback a `/index.html` no lleva `force`, así que no tapa esas rutas. Los archivos con hash en `/_expo/static/` y `/assets/` se cachean un año. `index.html` no.
 
 ### Variables en Netlify
 
