@@ -233,12 +233,21 @@ async function createOrder(req, res) {
     res.status(503).json({ error: "Supabase no está configurado." });
     return;
   }
-  const [{ data: promos }, { data: stockRows }] = await Promise.all([
+  const [{ data: promos }, { data: stockRows }, { data: referrals }, { data: gifts }, { data: credits }] = await Promise.all([
     supabase.from("promo_codes").select("*"),
     supabase.from("inventory").select("sku, quantity"),
+    supabase.from("referrals").select("*"),
+    supabase.from("gift_cards").select("*"),
+    supabase.from("credits").select("phone, balance_cents"),
   ]);
   const stock = Object.fromEntries((stockRows ?? []).map((row) => [row.sku, row.quantity]));
-  const evaluated = evaluateOrder(req.body, { promos: (promos ?? []).map(mapPromoRow), stock });
+  const evaluated = evaluateOrder(req.body, {
+    promos: (promos ?? []).map(mapPromoRow),
+    stock,
+    referrals: (referrals ?? []).map((row) => ({ code: row.code, ownerPhone: row.owner_phone, ownerName: row.owner_name ?? "", friendDiscountCents: row.friend_discount_cents, referrerCreditCents: row.referrer_credit_cents, redeemedCount: row.redeemed_count, createdAt: row.created_at })),
+    giftCards: (gifts ?? []).map(mapGiftRow),
+    credits: Object.fromEntries((credits ?? []).map((row) => [row.phone, row.balance_cents])),
+  });
   if (evaluated.error || !evaluated.priced) {
     res.status(400).json({ error: evaluated.error || "No pudimos cotizar." });
     return;
@@ -279,9 +288,11 @@ async function createOrder(req, res) {
       frame_discount_label: evaluated.priced.frameDiscountLabel,
       promo_code: evaluated.priced.promoDiscountCents > 0 ? evaluated.promo?.code : null,
       promo_discount_cents: evaluated.priced.promoDiscountCents,
-      referral_discount_cents: 0,
-      credit_applied_cents: 0,
-      gift_card_applied_cents: 0,
+      referral_code: evaluated.priced.referralDiscountCents > 0 ? evaluated.referral?.code ?? null : null,
+      referral_discount_cents: evaluated.priced.referralDiscountCents,
+      credit_applied_cents: evaluated.priced.creditAppliedCents,
+      gift_card_code: evaluated.priced.giftCardAppliedCents > 0 ? req.body.giftCardCode || null : null,
+      gift_card_applied_cents: evaluated.priced.giftCardAppliedCents,
       gift_wrap_cents: evaluated.priced.giftWrapCents,
       total_cents: evaluated.priced.totalCents,
       payment_method: req.body.paymentMethod,
@@ -387,6 +398,19 @@ async function markPaid(req, res) {
     if (row.gift_card_code && row.gift_card_applied_cents > 0) {
       const { data: card } = await supabase.from("gift_cards").select("balance_cents").eq("code", row.gift_card_code).maybeSingle();
       if (card) await supabase.from("gift_cards").update({ balance_cents: Math.max(0, card.balance_cents - row.gift_card_applied_cents) }).eq("code", row.gift_card_code);
+    }
+    if (row.credit_applied_cents > 0) {
+      const { data: credit } = await supabase.from("credits").select("balance_cents").eq("phone", row.phone).maybeSingle();
+      if (credit) await supabase.from("credits").update({ balance_cents: Math.max(0, credit.balance_cents - row.credit_applied_cents) }).eq("phone", row.phone);
+    }
+    if (row.referral_code) {
+      const { data: referral } = await supabase.from("referrals").select("*").eq("code", row.referral_code).maybeSingle();
+      if (referral && referral.owner_phone !== row.phone) {
+        await supabase.from("referrals").update({ redeemed_count: referral.redeemed_count + 1 }).eq("code", row.referral_code);
+        const { data: owner } = await supabase.from("credits").select("balance_cents").eq("phone", referral.owner_phone).maybeSingle();
+        const next = (owner?.balance_cents ?? 0) + (referral.referrer_credit_cents || 1500);
+        await supabase.from("credits").upsert({ phone: referral.owner_phone, balance_cents: next });
+      }
     }
     await supabase.from("orders").update({
       payment_status: "approved",
