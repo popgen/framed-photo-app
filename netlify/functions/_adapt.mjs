@@ -8,18 +8,22 @@ export function netlifyHandler(routeHandler) {
     let body = {};
     if (request.method !== "GET" && request.method !== "HEAD") {
       const text = await request.text();
+      const contentType = request.headers.get("content-type") || "";
       if (text) {
-        try {
-          body = JSON.parse(text);
-        } catch {
-          body = {};
+        if (contentType.includes("application/x-www-form-urlencoded")) body = Object.fromEntries(new URLSearchParams(text));
+        else {
+          try {
+            body = JSON.parse(text);
+          } catch {
+            body = Object.fromEntries(new URLSearchParams(text));
+          }
         }
       }
     }
 
     let status = 200;
     let payload = "";
-    let contentType = "application/json";
+    let headers = { "content-type": "application/json" };
     const res = {
       status(code) {
         status = code;
@@ -27,20 +31,23 @@ export function netlifyHandler(routeHandler) {
       },
       json(data) {
         payload = JSON.stringify(data);
-        contentType = "application/json";
+        headers = { "content-type": "application/json" };
         return res;
       },
       send(data) {
         payload = data == null ? "" : String(data);
-        contentType = "text/plain; charset=utf-8";
+        headers = { "content-type": "text/plain; charset=utf-8" };
+        return res;
+      },
+      redirect(url) {
+        status = 303;
+        payload = "";
+        headers = { location: url };
         return res;
       },
     };
     const req = { method: request.method, body, query, headers: Object.fromEntries(request.headers.entries()) };
     await routeHandler(req, res);
-    return new Response(payload, {
-      status,
-      headers: { "content-type": contentType },
-    });
+    return new Response(payload, { status, headers });
   };
 }

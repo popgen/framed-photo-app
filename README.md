@@ -78,7 +78,7 @@ Copia `.env.example` a `.env`. No subas `.env`.
 | `GOOGLE_PHOTOS_CLIENT_ID` / `GOOGLE_PHOTOS_CLIENT_SECRET` | servidor | OAuth de Google Photos |
 | `SITE_URL` | servidor | igual que el sitio público |
 
-Izipay (tarjeta y Yape) queda como siguiente proveedor. Las variables están comentadas en `.env.example` y todavía no se usan. Hoy el modo live manda tarjeta y Yape a Mercado Pago, y Plin devuelve el número del comercio.
+Izipay cobra tarjeta y Yape cuando `IZIPAY_COMMERCE_ID`, `IZIPAY_API_KEY`, `IZIPAY_PUBLIC_KEY` y `IZIPAY_HMAC_KEY` están puestos. Si faltan, el modo live sigue con Mercado Pago. Plin no pasa por Izipay.
 
 ## Supabase
 
@@ -95,7 +95,7 @@ El modo `local` no necesita esto. Con `supabase`, el admin entra con Auth y la t
 
 ## Pagos
 
-En `mock`, Yape, Plin y tarjeta abren una hoja de sandbox y el pedido queda pagado. En `live`, la web llama `POST /api/payments/create`. Tarjeta y Yape crean una preferencia de Mercado Pago. Plin responde con el celular de `PLIN_PHONE` para confirmar a mano.
+En `mock`, Yape, Plin y tarjeta abren una hoja de sandbox y el pedido queda pagado. En `live`, la web llama `POST /api/payments/create`. Si las cuatro claves de Izipay están, tarjeta y Yape abren su formulario (`/pago`) y el pedido se marca pagado solo cuando la firma HMAC del regreso o del IPN coincide y el monto es el del pedido. El IPN es `https://mifotito.com/api/payments/izipay-ipn`. Sin esas claves, tarjeta y Yape crean una preferencia de Mercado Pago. Plin responde con el celular de `PLIN_PHONE` para confirmar a mano.
 
 ## Pendiente: WhatsApp Business
 
@@ -186,7 +186,11 @@ No hace falta ninguna para el demo. Para cobrar y escribir de verdad, en Site co
 | `WHATSAPP_OTP_TEMPLATE` | pendiente. Vacío hasta que Meta apruebe `mifotito_codigo` |
 | `WHATSAPP_OTP_TEMPLATE_LANG` | pendiente. Será `es` |
 | `PAYMENTS_MODE` | `live` |
-| `MERCADOPAGO_ACCESS_TOKEN` | tarjeta y Yape |
+| `IZIPAY_COMMERCE_ID` | usuario REST de Izipay. Vacío: tarjeta y Yape siguen en Mercado Pago |
+| `IZIPAY_API_KEY` | clave REST de Izipay. Solo en el servidor |
+| `IZIPAY_PUBLIC_KEY` | clave pública del formulario |
+| `IZIPAY_HMAC_KEY` | firma `kr-hash` del regreso y del IPN |
+| `MERCADOPAGO_ACCESS_TOKEN` | tarjeta y Yape cuando Izipay no está configurado |
 | `PLIN_PHONE` | número Plin del comercio |
 | `YAPE_PHONE` | referencia Yape |
 | `WHATSAPP_TOKEN` | pendiente. Vacío en Netlify por ahora |
@@ -194,7 +198,7 @@ No hace falta ninguna para el demo. Para cobrar y escribir de verdad, en Site co
 | `WHATSAPP_VERIFY_TOKEN` | verificación del webhook de Meta |
 | `SITE_URL` | `https://mifotito.com` |
 
-Las que empiezan con `EXPO_PUBLIC_` quedan dentro del JavaScript. No pongas ahí el token de Mercado Pago, el de WhatsApp ni la service role.
+Las que empiezan con `EXPO_PUBLIC_` quedan dentro del JavaScript. No pongas ahí las claves de Izipay, el token de Mercado Pago, el de WhatsApp ni la service role.
 
 El webhook de Meta es `https://mifotito.com/api/webhooks/whatsapp`.
 

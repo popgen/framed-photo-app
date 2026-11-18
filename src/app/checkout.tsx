@@ -163,17 +163,36 @@ export default function Checkout() {
         await pay(true, order);
         return;
       }
-      if (paymentsMode() === "live") {
+      if (paymentsMode() === "live" && method !== "plin") {
         const response = await fetch("/api/payments/create", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ orderId: order.id, amountCents: order.totalCents, method, description: order.number, payer: { name: order.customerName, email: order.email, phone: order.phone } }),
+          body: JSON.stringify({
+            orderId: order.id,
+            amountCents: order.totalCents,
+            method,
+            description: order.number,
+            payer: {
+              name: order.customerName,
+              email: order.email,
+              phone: order.phone,
+              identityType: order.taxIdType,
+              identityCode: order.taxId,
+            },
+          }),
         });
-        const payload = (await response.json()) as { checkoutUrl?: string; status?: string };
+        const payload = (await response.json()) as { checkoutUrl?: string; formToken?: string; publicKey?: string; error?: string };
+        if (payload.formToken && payload.publicKey && typeof window !== "undefined") {
+          window.sessionStorage.setItem("mifotito-izipay", JSON.stringify({ formToken: payload.formToken, publicKey: payload.publicKey }));
+          router.push("/pago");
+          return;
+        }
         if (payload.checkoutUrl && typeof window !== "undefined") {
           window.location.href = payload.checkoutUrl;
           return;
         }
+        setError(payload.error || "No pudimos abrir el pago.");
+        return;
       }
       setPending(order);
     } catch (err) {
@@ -275,7 +294,7 @@ export default function Checkout() {
         <View style={{ gap: 8 }}>
           {(["yape", "plin", "card"] as const).map((item) => (
             <Pressable key={item} onPress={() => setMethod(item)} style={{ minHeight: 52, borderRadius: 16, padding: 12, justifyContent: "center", backgroundColor: method === item ? colors.ink : colors.white }}>
-              <Text style={{ fontFamily: font.semibold, color: method === item ? "white" : colors.ink }}>{item === "card" ? "Tarjeta · Mercado Pago" : item === "yape" ? "Yape" : "Plin"}</Text>
+              <Text style={{ fontFamily: font.semibold, color: method === item ? "white" : colors.ink }}>{item === "card" ? "Tarjeta" : item === "yape" ? "Yape" : "Plin"}</Text>
             </Pressable>
           ))}
         </View>
