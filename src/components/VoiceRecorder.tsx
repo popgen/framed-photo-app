@@ -3,6 +3,8 @@ import { createElement, useEffect, useRef, useState } from "react";
 import { Platform, Pressable, Text, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { colors, font } from "./theme";
+import { Collapsible } from "./Collapsible";
+import Svg, { Path } from "react-native-svg";
 import { SelfieField } from "./SelfieField";
 import { saveAudioBlob, resolvePhoto } from "../lib/photos";
 import { attachVoiceSelfie, uploadSelfie, uploadVoice } from "../lib/photo-upload";
@@ -124,6 +126,12 @@ export function VoiceRecorder({ value, onChange }: { value: VoiceNote | null; on
   }
 
   return (
+    <Collapsible
+      title="Agrega un mensaje de voz con QR"
+      icon={<MicIcon />}
+      extra={VOICE_ADDON_CENTS > 0 ? <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{formatSoles(VOICE_ADDON_CENTS)}</Text> : null}
+      badge={value ? "Mensaje grabado" : null}
+    >
     <View style={{ gap: 8 }}>
       <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Mensaje de voz con QR · {formatSoles(VOICE_ADDON_CENTS)}</Text>
       <Text style={{ fontFamily: font.body, color: colors.muted }}>Hasta {VOICE_MAX_SECONDS} segundos. Lo escuchan al escanear el QR del marco.</Text>
@@ -199,5 +207,15 @@ export function VoiceRecorder({ value, onChange }: { value: VoiceNote | null; on
       />
       {error ? <Text style={{ fontFamily: font.body, color: colors.bad }}>{error}</Text> : null}
     </View>
+    </Collapsible>
+  );
+}
+
+function MicIcon() {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 24 24">
+      <Path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3Z" fill="none" stroke={colors.ink} strokeWidth={1.8} />
+      <Path d="M6 11a6 6 0 0 0 12 0M12 17v3" fill="none" stroke={colors.ink} strokeWidth={1.8} strokeLinecap="round" />
+    </Svg>
   );
 }

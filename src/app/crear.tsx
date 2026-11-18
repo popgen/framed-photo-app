@@ -229,9 +229,7 @@ export default function Crear() {
         {photo ? <Button label="Cambiar foto" tone="ghost" onPress={() => void pickOne(choosePhoto, setMessage, frame)} /> : null}
         <PhotoImport flags={flags} notice={params.import} frame={frame} onUse={(next) => choosePhoto(next, frame)} />
         {photo ? <TextStyleEditor collapsible label="Agrega texto a tu foto" value={overlay} onChange={setOverlay} maxChars={48} /> : null}
-        <Card>
-          <VoiceRecorder value={voice} onChange={setVoice} />
-        </Card>
+        <VoiceRecorder value={voice} onChange={setVoice} />
         <Pressable onPress={() => router.push("/tarjeta")}>
           <Text style={{ fontFamily: font.semibold, color: colors.ink }}>¿Mejor una tarjeta navideña?</Text>
         </Pressable>

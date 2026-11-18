@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import Animated, { FadeIn, FadeOut, LinearTransition, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
-import Svg, { Path } from "react-native-svg";
-import { useReducedMotion } from "./fx";
+import { Collapsible } from "./Collapsible";
 import { colors, font } from "./theme";
 import { OVERLAY_COLORS, OVERLAY_FONTS, OVERLAY_SIZES, emptyOverlay, placeOverlay, textPresets, type TextOverlay } from "../lib/overlay";
 
@@ -23,19 +21,13 @@ export function TextStyleEditor({
   presets?: string[];
   collapsible?: boolean;
 }) {
-  const reduced = useReducedMotion();
   const userToggled = useRef(false);
   const [open, setOpen] = useState(() => Boolean(collapsible && value?.text));
-  const rotation = useSharedValue(open ? 1 : 0);
   const current = value ?? emptyOverlay();
   useEffect(() => {
     if (!collapsible || userToggled.current || !value?.text) return;
     setOpen(true);
   }, [collapsible, value?.text]);
-  useEffect(() => {
-    rotation.value = withTiming(open ? 1 : 0, { duration: reduced ? 0 : 220 });
-  }, [open, reduced, rotation]);
-  const chevron = useAnimatedStyle(() => ({ transform: [{ rotate: `${rotation.value * 180}deg` }] }));
   function update(partial: Partial<TextOverlay>) {
     const next = placeOverlay({ ...current, ...partial });
     onChange(next.text ? { ...next, text: [...next.text].slice(0, maxChars).join("") } : null);
@@ -107,37 +99,15 @@ export function TextStyleEditor({
   );
   if (!collapsible) return controls;
   return (
-    <Animated.View layout={reduced ? undefined : LinearTransition.duration(240)} style={box}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Agrega texto a tu foto" accessibilityState={{ expanded: open }} onPress={toggle} style={header}>
-        <Text style={{ fontFamily: font.semibold, fontSize: 16, color: colors.ink }}>Agrega texto a tu foto</Text>
-        <Animated.View style={chevron}>
-          <Svg width={18} height={18} viewBox="0 0 24 24">
-            <Path d="M6 9l6 6 6-6" stroke={colors.ink} strokeWidth={2.2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-          </Svg>
-        </Animated.View>
-      </Pressable>
-      {open ? (
-        <Animated.View entering={reduced ? undefined : FadeIn.duration(220)} exiting={reduced ? undefined : FadeOut.duration(160)} style={{ paddingTop: 10 }}>
-          {controls}
-        </Animated.View>
-      ) : null}
-    </Animated.View>
+    <Collapsible title="Agrega texto a tu foto" open={open} onToggle={toggle}>
+      {controls}
+    </Collapsible>
   );
 }
 
 function fontFamily(id: string) {
   return OVERLAY_FONTS.find((item) => item.id === id)?.family ?? font.body;
 }
-
-const box = {
-  backgroundColor: colors.card,
-  borderRadius: 24,
-  padding: 16,
-  borderWidth: 1,
-  borderColor: "rgba(255,255,255,0.7)",
-  overflow: "hidden" as const,
-};
-const header = { minHeight: 44, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 12 };
 
 function chip(on: boolean) {
   return { minHeight: 44, paddingHorizontal: 12, borderRadius: 999, justifyContent: "center" as const, backgroundColor: on ? colors.ink : colors.white, borderWidth: 1, borderColor: colors.line };
