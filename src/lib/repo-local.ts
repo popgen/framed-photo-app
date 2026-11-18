@@ -10,7 +10,7 @@ import { giftCode, referralCodeFrom, uid } from "./ids";
 import { priceCards } from "./cards";
 import { formatOrderNumber } from "./order-number";
 import { sortTracking, toTrackingCard } from "./tracking";
-import { applyStock, expandNeeds, framesAvailable } from "./inventory";
+import { applyStock, expandNeeds, frameLowStock, framesAvailable } from "./inventory";
 import { inquiryFromSize } from "./retablo";
 import { VOICE_ADDON_CENTS } from "./voice";
 import { isEmail, normalizePhone } from "./phone";
@@ -397,7 +397,13 @@ export function createLocalRepo() {
     async listFrames(): Promise<FrameOffer[]> {
       const state = required();
       const stock = stockRecord(state);
-      return frames.map((frame) => ({ ...frame, available: framesAvailable(frame, stock) }));
+      const lowAt = Object.fromEntries(state.inventory.map((item) => [item.sku, item.lowStockAt]));
+      return frames.map((frame) => ({
+        ...frame,
+        available: framesAvailable(frame, stock),
+        lowStock: frameLowStock(frame, stock, lowAt),
+        stockUncertain: false,
+      }));
     },
     async listReviews() {
       return reviews;

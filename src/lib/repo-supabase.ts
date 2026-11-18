@@ -1,7 +1,9 @@
 import { defaultCampaign, type Campaign } from "./campaign";
 import { createLocalRepo } from "./repo-local";
 import { getSupabase } from "./supabase";
+import { frames as catalogFrames } from "./catalog";
 import { mapFrameRow, mapGiftRow, mapInventoryRow, mapOrderRow, mapProfile, mapPromoRow } from "./db-map";
+import { frameLowStock, framesWhenStockUnknown } from "./inventory";
 import { uploadOrderPhotos } from "./photo-upload";
 import { readPhoneSession } from "./phone-session";
 import type { CheckoutInput, CustomerProfile, OrderStatus } from "./types";
@@ -57,13 +59,30 @@ export function createSupabaseRepo() {
       return Boolean(data.session);
     },
     async listFrames() {
-      const [{ data, error }, stock] = await Promise.all([
-        db().from("frames").select("*").order("sort"),
-        db().from("inventory").select("sku, quantity"),
-      ]);
-      if (error) throw new Error(error.message);
-      const quantities = Object.fromEntries((stock.data ?? []).map((row) => [row.sku, row.quantity]));
-      return (data ?? []).map((row) => mapFrameRow(row, quantities));
+      try {
+        const json = await shop("frames", {});
+        if (Array.isArray(json.frames) && json.frames.length && !json.stockUncertain) return json.frames;
+      } catch {
+        // The shop route can be down. Fall through to a direct read, then assume stock is available.
+      }
+      try {
+        const [{ data, error }, stock] = await Promise.all([
+          db().from("frames").select("*").order("sort"),
+          db().from("inventory").select("sku, quantity, low_stock_at"),
+        ]);
+        if (error || !data?.length) return framesWhenStockUnknown(catalogFrames);
+        if (stock.error || !stock.data) {
+          return data.map((row) => ({ ...mapFrameRow(row, {}), available: 99, lowStock: false, stockUncertain: true }));
+        }
+        const quantities = Object.fromEntries(stock.data.map((row) => [row.sku, row.quantity]));
+        const lowAt = Object.fromEntries(stock.data.map((row) => [row.sku, row.low_stock_at ?? 5]));
+        return data.map((row) => {
+          const offer = mapFrameRow(row, quantities);
+          return { ...offer, lowStock: frameLowStock(offer, quantities, lowAt), stockUncertain: false };
+        });
+      } catch {
+        return framesWhenStockUnknown(catalogFrames);
+      }
     },
     async listReviews() {
       const { data, error } = await db().from("reviews").select("*").order("sort");

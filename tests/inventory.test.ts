@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { frameById } from "../src/lib/catalog";
-import { applyStock, expandNeeds, framesAvailable, lowStockItems } from "../src/lib/inventory";
+import { applyStock, expandNeeds, frameLowStock, framesAvailable, lowStockItems } from "../src/lib/inventory";
 
 describe("inventory", () => {
   it("shares the 30x40 body between the wall frame and the matted premium", () => {
@@ -26,5 +26,15 @@ describe("inventory", () => {
     const stock = { "body-30-wood": 3, "mat-white": 1 };
     expect(framesAvailable(frameById("wood-mat"), stock)).toBe(1);
     expect(framesAvailable(frameById("wood-30"), stock)).toBe(3);
+  });
+
+  it("calls a frame low when a part is above zero and at the low-stock line", () => {
+    const gold = frameById("thin-gold-15");
+    const stock = { "body-15-gold": 4 };
+    const lowAt = { "body-15-gold": 5 };
+    expect(framesAvailable(gold, stock)).toBe(4);
+    expect(frameLowStock(gold, stock, lowAt)).toBe(true);
+    expect(frameLowStock(gold, { "body-15-gold": 0 }, lowAt)).toBe(false);
+    expect(frameLowStock(frameById("wood-15"), { "body-15-wood": 18 }, { "body-15-wood": 5 })).toBe(false);
   });
 });

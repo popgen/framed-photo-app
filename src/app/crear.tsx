@@ -27,6 +27,7 @@ export default function Crear() {
   const params = useLocalSearchParams<{ import?: string }>();
   const { width } = useWindowDimensions();
   const reduced = useReducedMotion();
+  const { refresh } = useApp();
   const { data } = useRepo((repo) => repo.listFrames());
   const offers = data ?? [];
   const [index, setIndex] = useState(2);
@@ -132,8 +133,8 @@ export default function Crear() {
         <View>
           <View style={{ paddingHorizontal: 16, paddingTop: 8, backgroundColor: colors.bg }}>
             <Button
-              label={frame.available <= 0 ? "Sin stock" : "Agregar al carrito"}
-              disabled={frame.available <= 0 || !photo || (assessed?.status === "low" && !ack)}
+              label={!frame.stockUncertain && frame.available <= 0 ? "Sin stock" : "Agregar al carrito"}
+              disabled={(!frame.stockUncertain && frame.available <= 0) || !photo || (assessed?.status === "low" && !ack)}
               onPress={() => {
                 if (!photo || !assessed) return;
                 add({
@@ -172,7 +173,18 @@ export default function Crear() {
           <PriceTicker cents={frame.priceCents} />
         </View>
         <Text style={{ fontFamily: font.body, color: colors.muted }}>{frame.blurb} Desliza el marco como un filtro.</Text>
-        {frame.available <= 5 ? <Banner tone={frame.available === 0 ? "bad" : "warn"} text={frame.available === 0 ? "Este marco se agotó." : `Quedan ${frame.available}. El dorado comparte stock con su cuerpo.`} /> : null}
+        {frame.stockUncertain ? (
+          <View style={{ gap: 8 }}>
+            <Banner tone="warn" text="No pudimos leer el stock. Puedes seguir; lo confirmamos al pagar." />
+            <Pressable onPress={refresh} style={{ minHeight: 44, justifyContent: "center" }}>
+              <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Reintentar</Text>
+            </Pressable>
+          </View>
+        ) : frame.available <= 0 ? (
+          <Banner tone="bad" text="Este marco se agotó." />
+        ) : frame.lowStock ? (
+          <Banner tone="warn" text="Pocas unidades" />
+        ) : null}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
           <Pressable onPress={() => { const found = offers.findIndex((item) => item.category === "navidad"); if (found >= 0) shift(found - index); }} style={{ width: 72, alignItems: "center", justifyContent: "center" }}>
             <Text style={{ fontFamily: font.semibold, color: colors.red, textAlign: "center" }}>Navidad</Text>

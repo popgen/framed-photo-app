@@ -1,4 +1,4 @@
-import { mapGiftRow, mapOrderRow, mapProfile, mapPromoRow } from "../src/lib/db-map.ts";
+import { mapFrameRow, mapGiftRow, mapOrderRow, mapProfile, mapPromoRow } from "../src/lib/db-map.ts";
 import { checkOtp, otpDeliveryPlan, otpFailureMessage, otpTemplateBody, prepareSend, publicSendResult, readSession, SESSION_TTL_MS, signSession } from "../src/lib/otp.ts";
 import { evaluateOrder } from "../src/lib/server-order.ts";
 import { serviceSupabase, signingSecret, warnWhatsAppPending, whatsAppOtpReady } from "../src/lib/service-supabase.ts";
@@ -6,6 +6,7 @@ import { maskPhone, maskStreet } from "../src/lib/order-number.ts";
 import { toTrackingCard } from "../src/lib/tracking.ts";
 import { priceCards } from "../src/lib/cards.ts";
 import { frameById } from "../src/lib/catalog.ts";
+import { frameLowStock } from "../src/lib/inventory.ts";
 import { giftCode } from "../src/lib/ids.ts";
 import { normalizePhone } from "../src/lib/phone.ts";
 import { resolveTaxId } from "../src/lib/tax-id.ts";
@@ -29,6 +30,7 @@ export default async function handler(req, res) {
     if (op === "profile") return await profile(req, res);
     if (op === "customers-list") return await customers(req, res);
     if (op === "gift-card") return await giftCard(req, res);
+    if (op === "frames") return await listPublicFrames(req, res);
     if (op === "claim") return await claim(req, res);
     res.status(404).json({ error: "No encontramos esa acción." });
   } catch (error) {
@@ -726,6 +728,30 @@ async function giftCard(req, res) {
     return;
   }
   res.status(200).json(mapGiftRow(data));
+}
+
+async function listPublicFrames(_req, res) {
+  const supabase = serviceSupabase();
+  if (!supabase) {
+    res.status(200).json({ frames: [], stockUncertain: true });
+    return;
+  }
+  const [{ data: frameRows, error: frameError }, { data: stockRows, error: stockError }] = await Promise.all([
+    supabase.from("frames").select("*").order("sort"),
+    supabase.from("inventory").select("sku, quantity, low_stock_at"),
+  ]);
+  if (frameError || stockError || !frameRows?.length) {
+    res.status(200).json({ frames: [], stockUncertain: true });
+    return;
+  }
+  const quantities = Object.fromEntries((stockRows ?? []).map((row) => [row.sku, row.quantity]));
+  const lowAt = Object.fromEntries((stockRows ?? []).map((row) => [row.sku, row.low_stock_at ?? 5]));
+  res.status(200).json({
+    frames: frameRows.map((row) => {
+      const offer = mapFrameRow(row, quantities);
+      return { ...offer, lowStock: frameLowStock(offer, quantities, lowAt), stockUncertain: false };
+    }),
+  });
 }
 
 async function claim(req, res) {
