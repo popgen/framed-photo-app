@@ -147,18 +147,24 @@ function OverlayText({
   live.current = { overlay, onChange, width, height, landscape };
   const family = fontById(overlay.font).family;
   const fontSize = Math.max(10, overlay.size * height);
+  const origin = useRef(overlay);
   const pan = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => Boolean(live.current.onChange),
-      onPanResponderRelease: (_event, gesture) => {
-        const current = live.current;
-        if (!current.onChange) return;
-        const dx = current.landscape ? gesture.dy : gesture.dx;
-        const dy = current.landscape ? -gesture.dx : gesture.dy;
-        current.onChange(placeOverlay({ ...current.overlay, x: current.overlay.x + dx / current.width, y: current.overlay.y + dy / current.height }, true));
+      onPanResponderGrant: () => {
+        origin.current = live.current.overlay;
       },
+      onPanResponderMove: (_event, gesture) => move(gesture, false),
+      onPanResponderRelease: (_event, gesture) => move(gesture, true),
     }),
   ).current;
+  function move(gesture: { dx: number; dy: number }, snap: boolean) {
+    const current = live.current;
+    if (!current.onChange) return;
+    const dx = current.landscape ? gesture.dy : gesture.dx;
+    const dy = current.landscape ? -gesture.dx : gesture.dy;
+    current.onChange(placeOverlay({ ...origin.current, x: origin.current.x + dx / current.width, y: origin.current.y + dy / current.height }, snap));
+  }
   return (
     <View
       {...pan.panHandlers}

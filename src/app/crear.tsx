@@ -17,7 +17,7 @@ import { importFlags } from "../lib/env";
 import { uid } from "../lib/ids";
 import { pickAndSavePhotos, resolvePhoto, samplePhoto } from "../lib/photos";
 import { assessResolution, centeredCrop, refitCrop, type Crop, type Orientation } from "../lib/print-size";
-import type { TextOverlay } from "../lib/overlay";
+import { serializeOverlay, type TextOverlay } from "../lib/overlay";
 import { useCart } from "../lib/store";
 import type { VoiceNote } from "../lib/voice";
 import type { FrameOffer } from "../lib/types";
@@ -147,7 +147,7 @@ export default function Crear() {
                   orientation,
                   dpi: Math.round(assessed.dpi),
                   resolutionStatus: assessed.status,
-                  textOverlay: overlay,
+                  textOverlay: serializeOverlay(overlay),
                   voice,
                 });
                 router.push("/carrito");

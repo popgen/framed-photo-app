@@ -6,7 +6,6 @@ import { Lobster_400Regular } from "@expo-google-fonts/lobster";
 import { Pacifico_400Regular } from "@expo-google-fonts/pacifico";
 import { Satisfy_400Regular } from "@expo-google-fonts/satisfy";
 import { Image } from "react-native";
-import { buildCardPdf } from "./card-pdf";
 import type { CardSnapshot } from "./cards";
 import { fontById, type TextOverlay } from "./overlay";
 import { resolvePhoto } from "./photos";
@@ -75,6 +74,7 @@ export async function downloadCardPdf(card: CardSnapshot, filename: string): Pro
     const response = await fetch(asset.localUri ?? asset.uri);
     fonts[id] = new Uint8Array(await response.arrayBuffer());
   }
+  const { buildCardPdf } = await import("./card-pdf");
   const bytes = await buildCardPdf(card, fonts);
   const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
   const blob = new Blob([buffer], { type: "application/pdf" });

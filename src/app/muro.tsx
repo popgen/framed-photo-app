@@ -2,6 +2,7 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { Pressable, Text, useWindowDimensions, View } from "react-native";
 import { FrameView } from "../components/FrameView";
+import { TextStyleEditor } from "../components/TextStyleEditor";
 import { PriceTicker } from "../components/fx";
 import { Button, Card, Screen, TabBar } from "../components/ui";
 import { colors, font } from "../components/theme";
@@ -11,6 +12,7 @@ import { pickAndSavePhotos, samplePhoto } from "../lib/photos";
 import { quote } from "../lib/pricing";
 import { aspectParts } from "../lib/catalog";
 import { assessResolution, centeredCrop } from "../lib/print-size";
+import { serializeOverlay, type TextOverlay } from "../lib/overlay";
 import { useCart } from "../lib/store";
 import { walls } from "../lib/walls";
 
@@ -19,6 +21,8 @@ export default function Muro() {
   const [layout, setLayout] = useState(walls[0]);
   const [finish, setFinish] = useState(walls[0].finishes[0]);
   const [photos, setPhotos] = useState<{ id: string; width: number; height: number }[]>([]);
+  const [overlays, setOverlays] = useState<(TextOverlay | null)[]>([]);
+  const [slot, setSlot] = useState(0);
   const addMany = useCart((state) => state.addMany);
   const stage = Math.min(width, 480) - 32;
   const priced = quote({ items: finish.frames.map((id) => ({ unitPriceCents: frameById(id).priceCents })) });
@@ -27,6 +31,8 @@ export default function Muro() {
     setLayout(next);
     setFinish(next.finishes[0]);
     setPhotos([]);
+    setOverlays([]);
+    setSlot(0);
   }
 
   return (
@@ -63,6 +69,7 @@ export default function Muro() {
                       resolutionStatus: assessed.status,
                       bundleId,
                       bundleLabel: layout.name,
+                      textOverlay: serializeOverlay(overlays[index]),
                     };
                   }),
                 );
@@ -95,8 +102,8 @@ export default function Muro() {
         <Card>
           <View style={{ backgroundColor: "#E7D9CC", borderRadius: 18, minHeight: 280, padding: 12, flexDirection: "row", flexWrap: "wrap", justifyContent: "center", alignItems: "center", gap: 8 }}>
             {finish.frames.map((frameId, index) => (
-              <Pressable key={`${frameId}-${index}`} onPress={() => void fillSlot(index, photos, setPhotos)} style={{ width: layout.id === "mixed" && index === 1 ? stage * 0.42 : stage * 0.28 }}>
-                <FrameView frame={frameById(frameId)} photoId={photos[index]?.id} crop={photos[index] ? centeredCrop(photos[index].width, photos[index].height, ...aspectParts(frameById(frameId), "portrait")) : null} width={layout.id === "mixed" && index === 1 ? stage * 0.4 : stage * 0.26} />
+              <Pressable key={`${frameId}-${index}`} onPress={() => { setSlot(index); if (!photos[index]) void fillSlot(index, photos, setPhotos); }} style={{ width: layout.id === "mixed" && index === 1 ? stage * 0.42 : stage * 0.28, borderWidth: slot === index ? 2 : 0, borderColor: colors.red, borderRadius: 8 }}>
+                <FrameView frame={frameById(frameId)} photoId={photos[index]?.id} crop={photos[index] ? centeredCrop(photos[index].width, photos[index].height, ...aspectParts(frameById(frameId), "portrait")) : null} width={layout.id === "mixed" && index === 1 ? stage * 0.4 : stage * 0.26} overlay={overlays[index]} onOverlayChange={(next) => setOverlays((current) => { const copy = current.slice(); copy[index] = next; return copy; })} />
               </Pressable>
             ))}
           </View>
@@ -111,6 +118,11 @@ export default function Muro() {
           }}
         />
         <Button label="Usar fotos de ejemplo" tone="ghost" onPress={() => setPhotos(finish.frames.map(() => samplePhoto()))} />
+        {photos[slot] ? (
+          <Card>
+            <TextStyleEditor label={`Texto en la foto ${slot + 1}`} value={overlays[slot] ?? null} onChange={(next) => setOverlays((current) => { const copy = current.slice(); copy[slot] = next; return copy; })} maxChars={48} />
+          </Card>
+        ) : null}
         {priced.frameDiscountLabel ? <Text style={{ fontFamily: font.medium, color: colors.pine }}>{priced.frameDiscountLabel}</Text> : null}
       </View>
     </Screen>
