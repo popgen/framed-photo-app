@@ -7,18 +7,47 @@ import * as Haptics from "expo-haptics";
 import { supportNumber } from "../lib/env";
 import { colors, font } from "./theme";
 
+export function goBack(fallback = "/") {
+  if (router.canGoBack()) router.back();
+  else router.replace(fallback as "/");
+}
+
+function backFallback(path: string) {
+  if (path.startsWith("/checkout")) return "/carrito";
+  if (path.startsWith("/carrito")) return "/crear";
+  if (path.startsWith("/admin/pedido")) return "/admin";
+  return "/";
+}
+
+export function BackButton({ fallback }: { fallback?: string }) {
+  const path = usePathname();
+  const target = fallback ?? backFallback(path);
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel="Volver" onPress={() => goBack(target)} style={styles.back} hitSlop={8}>
+      <Svg width={18} height={18} viewBox="0 0 24 24">
+        <Path d="M15 5 8 12l7 7" stroke={colors.ink} strokeWidth={2.2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      </Svg>
+      <Text style={styles.backText}>Volver</Text>
+    </Pressable>
+  );
+}
+
 export function Screen({
   children,
   footer,
   scroll = true,
   seasonal,
+  back,
 }: {
   children: ReactNode;
   footer?: ReactNode;
   scroll?: boolean;
   seasonal?: ReactNode;
+  back?: boolean;
 }) {
   const insets = useSafeAreaInsets();
+  const path = usePathname();
+  const showBack = back ?? path !== "/";
   const body = scroll ? (
     <ScrollView contentContainerStyle={{ paddingBottom: footer ? 24 : 28 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
       {children}
@@ -30,6 +59,11 @@ export function Screen({
     <View style={[styles.outer, { paddingTop: insets.top }]}>
       <View style={styles.column}>
         {seasonal}
+        {showBack ? (
+          <View style={styles.backBar}>
+            <BackButton />
+          </View>
+        ) : null}
         {body}
         {footer}
       </View>
@@ -164,6 +198,9 @@ export function Banner({ tone, text }: { tone: "warn" | "bad" | "good"; text: st
 const styles = StyleSheet.create({
   outer: { flex: 1, backgroundColor: colors.bgDeep, alignItems: "center" },
   column: { flex: 1, width: "100%", maxWidth: 480, backgroundColor: colors.bg, position: "relative", overflow: "hidden" },
+  backBar: { paddingHorizontal: 8, backgroundColor: colors.bg, zIndex: 2 },
+  back: { minHeight: 44, minWidth: 44, paddingHorizontal: 8, flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 4 },
+  backText: { fontFamily: font.semibold, fontSize: 16, color: colors.ink },
   h1: { fontFamily: font.display, fontSize: 34, lineHeight: 38, color: colors.ink, letterSpacing: -0.6 },
   p: { fontFamily: font.body, color: colors.muted, fontSize: 16, lineHeight: 23 },
   button: { backgroundColor: colors.red, minHeight: 54, borderRadius: 999, alignItems: "center", justifyContent: "center", paddingHorizontal: 18 },

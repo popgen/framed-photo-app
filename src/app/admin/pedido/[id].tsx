@@ -2,7 +2,7 @@ import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useApp, useRepo } from "../../../components/provider";
-import { Banner } from "../../../components/ui";
+import { BackButton, Banner } from "../../../components/ui";
 import { colors, font } from "../../../components/theme";
 import { frameById } from "../../../lib/catalog";
 import { downloadPrint } from "../../../lib/print-export";
@@ -17,7 +17,14 @@ export default function AdminOrder() {
   const [tracking, setTracking] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  if (!order) return <Text style={{ padding: 16, fontFamily: font.body }}>Cargando…</Text>;
+  if (!order) {
+    return (
+      <View style={{ padding: 16 }}>
+        <BackButton fallback="/admin" />
+        <Text style={{ fontFamily: font.body }}>Cargando…</Text>
+      </View>
+    );
+  }
 
   async function run(action: () => Promise<unknown>) {
     try {
@@ -31,6 +38,7 @@ export default function AdminOrder() {
 
   return (
     <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }}>
+      <BackButton fallback="/admin" />
       <Text style={{ fontFamily: font.display, fontSize: 30, color: colors.ink }}>{order.number}</Text>
       <Text style={{ fontFamily: font.body, color: colors.muted }}>
         {order.customerName} · {order.phone} · {order.channel === "whatsapp" ? "WhatsApp" : "Web"}
