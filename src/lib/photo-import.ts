@@ -10,6 +10,10 @@ export function isImportProvider(value: string): value is ImportProvider {
   return PROVIDERS.includes(value as ImportProvider);
 }
 
+export function visibleImportSources(flags: { instagram: boolean; facebook: boolean; googlePhotos: boolean }): ImportProvider[] {
+  return PROVIDERS.filter((provider) => (provider === "google" ? flags.googlePhotos : flags[provider]));
+}
+
 export function authorizeUrl(provider: ImportProvider, input: { clientId: string; redirectUri: string; state: string }): string {
   if (provider === "google") {
     const params = new URLSearchParams({

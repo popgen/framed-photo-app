@@ -4,6 +4,7 @@ import Svg, { Path } from "react-native-svg";
 import { Button } from "./ui";
 import { colors, font } from "./theme";
 import type { ImportFlags } from "../lib/env";
+import { visibleImportSources } from "../lib/photo-import";
 import { savePhotoPair } from "../lib/photos";
 
 const LABELS = { instagram: "Instagram", facebook: "Facebook", google: "Google Photos" } as const;
@@ -81,25 +82,19 @@ export function PhotoImport({
     }
   }
 
-  const buttons = ["instagram", "facebook", "google"] as const;
-  const ready = { instagram: flags.instagram, facebook: flags.facebook, google: flags.googlePhotos };
+  const sources = visibleImportSources(flags);
+  if (!sources.length && !provider && !photos.length && !pickerUri && !message) return null;
 
   return (
     <View style={{ gap: 8 }}>
-      {buttons.map((item) => (
+      {sources.map((item) => (
         <Button
           key={item}
-          label={ready[item] ? LABELS[item] : `${LABELS[item]} · Pronto`}
+          label={LABELS[item]}
           tone="ghost"
           icon={item === "google" ? <GoogleMark /> : undefined}
           surface={item === "google" ? "white" : undefined}
-          onPress={() => {
-            if (!ready[item]) {
-              setMessage("Pronto. Esa opción todavía no está conectada.");
-              return;
-            }
-            start(item);
-          }}
+          onPress={() => start(item)}
         />
       ))}
       {pickerUri ? <Button label="Elegir en Google Fotos" tone="ghost" icon={<GoogleMark />} surface="white" onPress={() => { if (typeof window !== "undefined") window.open(pickerUri, "_blank"); }} /> : null}
