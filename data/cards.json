@@ -1,0 +1,61 @@
+{
+  "unitCents": 1200,
+  "packs": [
+    { "qty": 5, "cents": 5000 },
+    { "qty": 10, "cents": 9000 }
+  ],
+  "bleedMm": 3,
+  "markMm": 4,
+  "dpi": 300,
+  "frontMaxChars": 64,
+  "insideMaxChars": 360,
+  "referencePanelMm": { "width": 105, "height": 148 },
+  "greetings": [
+    "Feliz Navidad",
+    "Próspero Año Nuevo",
+    "Con cariño en estas fiestas",
+    "Que la pasen lindo",
+    "Un abrazo desde Lima",
+    "Felices fiestas"
+  ],
+  "envelopes": [
+    { "id": "white", "name": "Blanco", "color": "#F7F4EF" },
+    { "id": "kraft", "name": "Kraft", "color": "#C4924A" },
+    { "id": "red", "name": "Rojo", "color": "#8E1E2A" }
+  ],
+  "templates": [
+    { "id": "noche", "name": "Noche", "outside": "#14243F", "inside": "#F6EFE6" },
+    { "id": "oro", "name": "Oro", "outside": "#F6E7C4", "inside": "#FFFCF8" },
+    { "id": "aguayo", "name": "Aguayo", "outside": "#7A1E33", "inside": "#FFF8EF" },
+    { "id": "kraft", "name": "Kraft", "outside": "#C4924A", "inside": "#F8F1E6" }
+  ],
+  "sizes": [
+    {
+      "id": "a6",
+      "name": "A6",
+      "panelWmm": 105,
+      "panelHmm": 148,
+      "flatWmm": 315,
+      "flatHmm": 148,
+      "envelopeName": "C6",
+      "envelopeWmm": 114,
+      "envelopeHmm": 162,
+      "printShop": false,
+      "default": true
+    },
+    {
+      "id": "5x7",
+      "name": "5×7 in",
+      "panelWmm": 127,
+      "panelHmm": 177.8,
+      "flatWmm": 381,
+      "flatHmm": 177.8,
+      "envelopeName": "A7",
+      "envelopeWmm": 133.35,
+      "envelopeHmm": 184.15,
+      "printShop": true,
+      "shopFlag": "requires large card stock / print shop",
+      "default": false
+    }
+  ]
+}

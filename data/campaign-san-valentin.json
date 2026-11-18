@@ -1,0 +1,28 @@
+{
+  "id": "san-valentin-2027",
+  "name": "San Valentín 2027",
+  "seasonalMotion": true,
+  "heroEyebrow": "San Valentín 2027",
+  "heroTitle": "Regala el mejor regalo de todos: un recuerdo",
+  "heroSubtitle": "Una foto de los dos, en un marco, a tiempo para el 14 de febrero. Envío incluido.",
+  "cta": "Crear mi marco",
+  "occasionName": "San Valentín",
+  "timezone": "America/Lima",
+  "countdownStartsAt": "2027-01-30T00:00:00-05:00",
+  "cutoffs": {
+    "lima": "2027-02-10T23:59:59-05:00",
+    "provinces": "2027-02-07T23:59:59-05:00"
+  },
+  "nextOccasion": {
+    "name": "el Día de la Madre",
+    "dateLabel": "9 de mayo",
+    "dateISO": "2027-05-09"
+  },
+  "giftWrapFeatured": true,
+  "giftWrapTitle": "Envoltorio de regalo",
+  "giftWrapBody": "Papel rosado, lazo y la caja sin precios.",
+  "guaranteeYes": "Llega para San Valentín",
+  "guaranteeNo": "Puede llegar después de San Valentín",
+  "successTitle": "Tu recuerdo ya va en camino",
+  "successBody": "Te escribimos por WhatsApp cuando esté impreso, enmarcado y en ruta."
+}

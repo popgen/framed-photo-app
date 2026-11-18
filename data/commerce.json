@@ -1,0 +1,72 @@
+{
+  "inventory": [
+    { "sku": "body-15-black", "name": "Cuerpo 15×20 negro", "quantity": 20, "lowStockAt": 5 },
+    { "sku": "body-15-white", "name": "Cuerpo 15×20 blanco", "quantity": 20, "lowStockAt": 5 },
+    { "sku": "body-15-wood", "name": "Cuerpo 15×20 madera", "quantity": 18, "lowStockAt": 5 },
+    { "sku": "body-15-gold", "name": "Cuerpo 15×20 dorado", "quantity": 4, "lowStockAt": 5 },
+    { "sku": "body-30-black", "name": "Cuerpo 30×40 negro", "quantity": 16, "lowStockAt": 5 },
+    { "sku": "body-30-white", "name": "Cuerpo 30×40 blanco", "quantity": 14, "lowStockAt": 5 },
+    { "sku": "body-30-wood", "name": "Cuerpo 30×40 madera", "quantity": 14, "lowStockAt": 5 },
+    { "sku": "body-20-black", "name": "Cuerpo 20×20 negro", "quantity": 20, "lowStockAt": 5 },
+    { "sku": "mat-white", "name": "Paspartú blanco", "quantity": 12, "lowStockAt": 5 },
+    { "sku": "body-navidad-nieve", "name": "Marco Nieve Celeste", "quantity": 16, "lowStockAt": 4 },
+    { "sku": "body-navidad-acebo", "name": "Marco Acebo Clásico", "quantity": 16, "lowStockAt": 4 },
+    { "sku": "body-navidad-oro", "name": "Marco Estrellas de Oro", "quantity": 16, "lowStockAt": 4 },
+    { "sku": "body-navidad-retablo", "name": "Marco Retablo de Ayacucho", "quantity": 16, "lowStockAt": 4 },
+    { "sku": "body-navidad-aguayo", "name": "Marco Aguayo Andino", "quantity": 16, "lowStockAt": 4 },
+    { "sku": "body-navidad-noche", "name": "Marco Noche Nevada", "quantity": 16, "lowStockAt": 4 },
+    { "sku": "body-navidad-pino", "name": "Marco Pino Rústico", "quantity": 16, "lowStockAt": 4 }
+  ],
+  "voiceAddonCents": 500,
+  "promos": [
+    {
+      "code": "NAVIDAD10",
+      "kind": "percent",
+      "value": 10,
+      "expiresAt": "2026-12-25T23:59:59-05:00",
+      "maxUses": 500,
+      "usedCount": 12,
+      "active": true,
+      "note": "10% de Navidad"
+    },
+    {
+      "code": "MARCO20",
+      "kind": "fixed",
+      "value": 2000,
+      "expiresAt": "2027-02-14T23:59:59-05:00",
+      "maxUses": 200,
+      "usedCount": 0,
+      "active": true,
+      "note": "S/ 20 de descuento"
+    }
+  ],
+  "giftCards": [
+    {
+      "code": "HOLANAVIDAD",
+      "initialCents": 5000,
+      "balanceCents": 5000,
+      "buyerName": "Mi Fotito",
+      "buyerPhone": "51999999999",
+      "recipientName": "Invitado",
+      "recipientPhone": "51987654321",
+      "recipientEmail": null,
+      "message": "Para tu primer marco",
+      "status": "active",
+      "createdAt": "2026-11-01T12:00:00-05:00"
+    }
+  ],
+  "referrals": [
+    {
+      "code": "AMIGO1500",
+      "ownerPhone": "51911111111",
+      "ownerName": "Ana",
+      "friendDiscountCents": 1500,
+      "referrerCreditCents": 1500,
+      "redeemedCount": 1,
+      "createdAt": "2026-11-02T12:00:00-05:00"
+    }
+  ],
+  "credits": {
+    "51987654321": 1500
+  }
+}
