@@ -1,7 +1,7 @@
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Platform, Pressable, Text, View } from "react-native";
 import { Cropper } from "../components/Cropper";
 import { PhotoSources } from "../components/PhotoSources";
 import { TextStyleEditor } from "../components/TextStyleEditor";
@@ -215,23 +215,40 @@ function Diptych({
   insideMessage: TextOverlay | null;
   onPress: () => void;
 }) {
-  const panelW = 196;
+  const panelW = 168;
   const panelH = Math.round(panelW * A5_PANEL_RATIO);
   const motion = foldPreview(open, reduced);
-  const timing = {
-    transitionDuration: `${motion.durationMs}ms`,
-    transitionProperty: motion.property,
-    transitionTimingFunction: "cubic-bezier(0.45, 0.05, 0.2, 1)",
-  } as const;
+  const ease = "cubic-bezier(0.45, 0.05, 0.2, 1)";
+  const stage = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const node = stage.current;
+    node?.scrollIntoView({ block: "start", behavior: reduced ? "auto" : "smooth" });
+  }, [open, reduced]);
   return (
-    <View style={{ alignItems: "center", marginTop: !reduced && open ? Math.round(panelH * 0.55) : 0, ...timing }}>
+    <View ref={stage as never} style={{ alignItems: "center" }}>
+      <View
+        style={webStyle({
+          height: Math.round(panelH * motion.liftPxRatio),
+          transitionProperty: "height",
+          transitionDuration: `${motion.durationMs}ms`,
+          transitionTimingFunction: ease,
+        })}
+      />
       <Pressable onPress={onPress} accessibilityLabel={motion.hint}>
-        <View style={{ width: panelW, height: panelH, transform: [{ perspective: 1100 }] }}>
-          <View style={{ position: "absolute", top: 0, left: 0, width: panelW, height: panelH, opacity: motion.insideOpacity, ...timing }}>
+        <View
+          style={webStyle({
+            width: panelW,
+            height: panelH,
+            perspective: motion.perspective,
+            transformStyle: "preserve-3d",
+          })}
+        >
+          <View style={webStyle({ position: "absolute", top: 0, left: 0, width: panelW, height: panelH, opacity: motion.insideOpacity, transitionProperty: "opacity", transitionDuration: `${motion.durationMs}ms` })}>
             <PanelFace width={panelW} height={panelH} color={inside} photo={null} overlay={insideMessage} onLight />
           </View>
           <View
-            style={{
+            style={webStyle({
               position: "absolute",
               top: 0,
               left: 0,
@@ -239,20 +256,47 @@ function Diptych({
               height: panelH,
               zIndex: 2,
               opacity: motion.frontOpacity,
+              transformStyle: "preserve-3d",
               transformOrigin: motion.origin,
-              backfaceVisibility: "hidden",
-              transform: [{ perspective: 1100 }, { rotateX: motion.rotateX }],
-              boxShadow: open && !reduced ? "0 22px 28px rgba(42,27,22,0.28)" : "0 8px 16px rgba(42,27,22,0.16)",
-              ...timing,
-            }}
+              transform: `rotateX(${motion.rotateX})`,
+              transitionProperty: reduced ? "opacity" : "transform",
+              transitionDuration: `${motion.durationMs}ms`,
+              transitionTimingFunction: ease,
+            })}
           >
-            <PanelFace width={panelW} height={panelH} color={outside} photo={frontPhoto} overlay={frontMessage} />
+            <View style={webStyle({ position: "absolute", top: 0, left: 0, width: panelW, height: panelH, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" })}>
+              <PanelFace width={panelW} height={panelH} color={outside} photo={frontPhoto} overlay={frontMessage} />
+            </View>
+            <View
+              style={webStyle({
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: panelW,
+                height: panelH,
+                backfaceVisibility: "hidden",
+                WebkitBackfaceVisibility: "hidden",
+                transform: "rotateX(180deg)",
+                backgroundColor: inside,
+                borderRadius: 10,
+                alignItems: "center",
+                justifyContent: "center",
+                borderWidth: 1,
+                borderColor: "rgba(42,27,22,0.2)",
+              })}
+            >
+              <Text style={{ fontFamily: font.display, fontSize: 22, color: colors.red }}>Mi Fotito</Text>
+            </View>
           </View>
         </View>
       </Pressable>
       <Text style={{ fontFamily: font.medium, color: colors.muted, marginTop: 8 }}>{motion.hint}</Text>
     </View>
   );
+}
+
+function webStyle(style: Record<string, unknown>) {
+  return style as object;
 }
 
 function PanelFace({

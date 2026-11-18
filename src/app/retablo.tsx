@@ -18,7 +18,7 @@ export default function Retablo() {
       inquiryFromSize(size);
       await getRepo().createRetabloInquiry(size);
       const url = retabloMailUrl(size);
-      if (Platform.OS === "web") window.open(url, "_blank", "noopener,noreferrer");
+      if (Platform.OS === "web") window.location.href = url;
       else await Linking.openURL(url);
       setSent(true);
       setError(null);
