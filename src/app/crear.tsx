@@ -214,11 +214,7 @@ export default function Crear() {
         )}
         {photo ? <Button label="Cambiar foto" tone="ghost" onPress={() => void pickOne(choosePhoto, setMessage, frame)} /> : null}
         <PhotoImport flags={flags} notice={params.import} frame={frame} onUse={(next) => choosePhoto(next, frame)} />
-        {photo ? (
-          <Card>
-            <TextStyleEditor label="Texto en la foto" value={overlay} onChange={setOverlay} maxChars={48} />
-          </Card>
-        ) : null}
+        {photo ? <TextStyleEditor collapsible label="Agrega texto a tu foto" value={overlay} onChange={setOverlay} maxChars={48} /> : null}
         <Card>
           <VoiceRecorder value={voice} onChange={setVoice} />
         </Card>
