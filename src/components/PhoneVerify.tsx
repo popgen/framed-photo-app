@@ -15,6 +15,9 @@ export function PhoneVerify({ onVerified, title }: { onVerified: (phone: string)
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
+  const [channel, setChannel] = useState<"whatsapp" | "email" | "support" | "demo" | null>(null);
+  const [hint, setHint] = useState<string | null>(null);
+  const [supportUrl, setSupportUrl] = useState<string | null>(null);
   const [demoCode, setDemoCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [wait, setWait] = useState(0);
@@ -45,6 +48,9 @@ export function PhoneVerify({ onVerified, title }: { onVerified: (phone: string)
       if (response.status >= 500) throw new Error("network");
       setSent(true);
       setDemoCode(json.demoCode ?? null);
+      setHint(json.message ?? null);
+      setSupportUrl(json.supportUrl ?? null);
+      setChannel(json.channel || (json.demoCode ? "demo" : "whatsapp"));
       setWait(60);
     } catch {
       const now = Date.now();
@@ -82,7 +88,7 @@ export function PhoneVerify({ onVerified, title }: { onVerified: (phone: string)
         const response = await fetch("/api/otp-verify", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ phone, code }),
+          body: JSON.stringify({ phone, code, channel: channel === "email" ? "email" : undefined }),
         });
         json = await response.json();
       } catch {
@@ -118,18 +124,52 @@ export function PhoneVerify({ onVerified, title }: { onVerified: (phone: string)
   return (
     <View style={{ gap: 12 }}>
       <Text accessibilityRole="header" style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>{title}</Text>
-      <Text style={{ fontFamily: font.body, color: colors.muted }}>Te escribimos un código por WhatsApp. No hace falta el número de pedido.</Text>
+      <Text style={{ fontFamily: font.body, color: colors.muted }}>Escribe el celular del pedido. Si dejaste un correo, te escribimos ahí. El código por WhatsApp queda para cuando activemos WhatsApp Business.</Text>
       <Field label="Celular" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
-      {sent ? <Field label="Código de 6 dígitos" keyboardType="number-pad" value={code} onChangeText={setCode} maxLength={6} /> : null}
+      {sent && channel !== "support" ? <Field label="Código de 6 dígitos" keyboardType="number-pad" value={code} onChangeText={setCode} maxLength={6} /> : null}
       {demoCode ? <Banner tone="warn" text={`Modo demo. Tu código es ${demoCode}. No se envió por WhatsApp.`} /> : null}
+      {hint && !demoCode ? <Banner tone="warn" text={hint} /> : null}
       {error ? <Banner tone="bad" text={error} /> : null}
-      {!sent ? <Button label={busy ? "Enviando…" : "Enviar código"} onPress={() => void send()} /> : null}
-      {sent ? <Button label={busy ? "Revisando…" : "Ver mis pedidos"} onPress={() => void verify()} /> : null}
-      {sent ? (
+      {channel === "support" && supportUrl ? <Button label="Escríbenos por WhatsApp" onPress={() => openSupport(supportUrl)} /> : null}
+      {channel === "email" ? <Button label={busy ? "Revisando…" : "Ya abrí el enlace del correo"} tone="ghost" onPress={() => void continueWithEmail()} /> : null}
+      {!sent ? <Button label={busy ? "Enviando…" : "Continuar"} onPress={() => void send()} /> : null}
+      {sent && channel !== "support" ? <Button label={busy ? "Revisando…" : "Ver mis pedidos"} onPress={() => void verify()} /> : null}
+      {sent && channel !== "support" ? (
         <Pressable disabled={wait > 0 || busy} onPress={() => void send()} style={{ minHeight: 44, justifyContent: "center" }}>
           <Text style={{ fontFamily: font.semibold, color: wait > 0 ? colors.muted : colors.ink }}>{wait > 0 ? `Reenviar en ${wait}s` : "Reenviar código"}</Text>
         </Pressable>
       ) : null}
     </View>
   );
+
+  async function continueWithEmail() {
+    setBusy(true);
+    setError(null);
+    try {
+      const session = dataMode() === "supabase" ? (await getSupabase().auth.getSession()).data.session : null;
+      if (!session?.access_token) {
+        setError("Abre el enlace del correo en este navegador y vuelve a intentar.");
+        return;
+      }
+      const response = await fetch("/api/otp-verify", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ magic: true }),
+      });
+      const json = await response.json();
+      if (!json.ok || !json.token || !json.phone || !json.exp) {
+        setError(json.error || json.message || otpFailureMessage());
+        if (json.supportUrl) setSupportUrl(json.supportUrl);
+        return;
+      }
+      savePhoneSession({ token: json.token, phone: json.phone, exp: json.exp });
+      onVerified(json.phone);
+    } finally {
+      setBusy(false);
+    }
+  }
+}
+
+function openSupport(url: string) {
+  if (typeof window !== "undefined") window.open(url, "_blank", "noopener,noreferrer");
 }

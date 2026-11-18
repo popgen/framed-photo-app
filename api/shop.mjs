@@ -1,7 +1,7 @@
 import { mapGiftRow, mapOrderRow, mapProfile, mapPromoRow } from "../src/lib/db-map.ts";
-import { checkOtp, otpFailureMessage, otpTemplateBody, prepareSend, publicSendResult, readSession, SESSION_TTL_MS, signSession } from "../src/lib/otp.ts";
+import { checkOtp, otpDeliveryPlan, otpFailureMessage, otpTemplateBody, prepareSend, publicSendResult, readSession, SESSION_TTL_MS, signSession } from "../src/lib/otp.ts";
 import { evaluateOrder } from "../src/lib/server-order.ts";
-import { serviceSupabase, signingSecret, whatsAppConfigured } from "../src/lib/service-supabase.ts";
+import { serviceSupabase, signingSecret, warnWhatsAppPending, whatsAppOtpReady } from "../src/lib/service-supabase.ts";
 import { maskPhone, maskStreet } from "../src/lib/order-number.ts";
 import { toTrackingCard } from "../src/lib/tracking.ts";
 import { priceCards } from "../src/lib/cards.ts";
@@ -116,60 +116,185 @@ async function saveRecord(record) {
   });
 }
 
+function supportLink(text) {
+  const phone = String(process.env.EXPO_PUBLIC_WHATSAPP_SUPPORT_NUMBER || "51999999999").replace(/\D/g, "");
+  return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+}
+
+function supportPayload() {
+  return {
+    ok: true,
+    channel: "support",
+    supportUrl: supportLink("Hola Mi Fotito, quiero ver el estado de mi pedido."),
+    message: "Todavía no podemos enviarte un código. Escríbenos por WhatsApp y te ayudamos a ver tu pedido.",
+  };
+}
+
+async function emailForPhone(supabase, phone) {
+  const customer = await supabase.from("customers").select("email").eq("phone", phone).maybeSingle();
+  const customerEmail = customer.data?.email?.trim();
+  if (customerEmail) return customerEmail;
+  const order = await supabase.from("orders").select("email").eq("phone", phone).not("email", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return order.data?.email?.trim() || null;
+}
+
+async function phoneForEmail(supabase, email) {
+  const customer = await supabase.from("customers").select("phone").ilike("email", email).maybeSingle();
+  if (customer.data?.phone) return customer.data.phone;
+  const order = await supabase.from("orders").select("phone").ilike("email", email).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return order.data?.phone || null;
+}
+
 async function sendCode(req, res) {
-  const now = Date.now();
-  const phone = normalizePhone(req.body?.phone || "");
-  const ip = clientIp(req);
-  const gate = await loadGate(phone || req.body?.phone || "", ip, now);
-  const prepared = await prepareSend({ phone: req.body?.phone || "", now, phoneSends: gate.phoneSends, ipSends: gate.ipSends });
-  if (!prepared.ok) {
-    res.status(200).json(publicSendResult(prepared, false));
-    return;
-  }
-  await saveSend(prepared.record.phone, ip, prepared.record);
-  const demo = process.env.WHATSAPP_OTP_ENABLED !== "true" || !whatsAppConfigured();
-  if (!demo) {
-    const sent = await deliverCode(prepared.record.phone, prepared.code);
-    if (!sent) {
-      res.status(502).json({ ok: false, error: "No pudimos enviar el código. Intenta de nuevo." });
+  try {
+    const now = Date.now();
+    const phone = normalizePhone(req.body?.phone || "");
+    const ip = clientIp(req);
+    const gate = await loadGate(phone || req.body?.phone || "", ip, now);
+    const prepared = await prepareSend({ phone: req.body?.phone || "", now, phoneSends: gate.phoneSends, ipSends: gate.ipSends });
+    if (!prepared.ok) {
+      res.status(200).json(publicSendResult(prepared, false));
       return;
     }
+    await saveSend(prepared.record.phone, ip, prepared.record);
+    if (!whatsAppOtpReady()) {
+      warnWhatsAppPending("otp-send");
+      const supabase = serviceSupabase();
+      if (!supabase) {
+        res.status(200).json(publicSendResult(prepared, true));
+        return;
+      }
+      const email = await emailForPhone(supabase, prepared.record.phone);
+      const plan = otpDeliveryPlan({ whatsAppReady: false, email });
+      if (plan.channel === "email") {
+        const origin = process.env.EXPO_PUBLIC_SITE_URL || process.env.SITE_URL || "https://mifotito.com";
+        const sent = await supabase.auth.signInWithOtp({
+          email: plan.email,
+          options: { shouldCreateUser: true, emailRedirectTo: `${origin.replace(/\/$/, "")}/rastrear` },
+        });
+        if (!sent.error) {
+          res.status(200).json({
+            ok: true,
+            channel: "email",
+            maskedEmail: plan.maskedEmail,
+            message: `Te enviamos un código y un enlace a ${plan.maskedEmail}.`,
+          });
+          return;
+        }
+        console.warn(`[mifotito] No se pudo enviar el correo de acceso a ${plan.maskedEmail}: ${sent.error.message}`);
+      }
+      res.status(200).json(supportPayload());
+      return;
+    }
+    const sent = await deliverCode(prepared.record.phone, prepared.code);
+    if (!sent) {
+      res.status(200).json({ ok: false, error: "No pudimos enviar el código. Intenta de nuevo." });
+      return;
+    }
+    res.status(200).json(publicSendResult(prepared, false));
+  } catch (error) {
+    console.warn("[mifotito] otp-send siguió sin WhatsApp.", error);
+    res.status(200).json(supportPayload());
   }
-  res.status(200).json(publicSendResult(prepared, demo));
 }
 
 async function deliverCode(to, code) {
-  const version = process.env.WHATSAPP_GRAPH_VERSION || "v21.0";
-  const response = await fetch(`https://graph.facebook.com/${version}/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify(otpTemplateBody(to, code)),
-  });
-  if (!response.ok) console.error(await response.text());
-  return response.ok;
+  if (!process.env.WHATSAPP_TOKEN || !process.env.WHATSAPP_PHONE_NUMBER_ID) {
+    warnWhatsAppPending("otp-deliver");
+    return false;
+  }
+  try {
+    const version = process.env.WHATSAPP_GRAPH_VERSION || "v21.0";
+    const response = await fetch(`https://graph.facebook.com/${version}/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify(otpTemplateBody(to, code)),
+    });
+    if (!response.ok) console.warn(`[mifotito] WhatsApp rechazó el código: ${await response.text()}`);
+    return response.ok;
+  } catch (error) {
+    console.warn("[mifotito] WhatsApp Cloud API no respondió.", error);
+    return false;
+  }
+}
+
+async function finishPhoneSession(res, phone, authUserId) {
+  const supabase = serviceSupabase();
+  const exp = Date.now() + SESSION_TTL_MS;
+  const token = await signSession(phone, signingSecret(), exp);
+  let tokenHash = null;
+  if (supabase) {
+    if (authUserId) {
+      await supabase.from("customers").upsert({ phone, auth_user_id: authUserId, updated_at: new Date().toISOString() }, { onConflict: "phone" });
+    } else {
+      tokenHash = await linkAuth(supabase, phone);
+    }
+    await supabase.from("phone_otps").delete().eq("phone", phone);
+  } else {
+    memory().records.delete(phone);
+  }
+  res.status(200).json({ ok: true, token, phone, exp, tokenHash });
 }
 
 async function verifyCode(req, res) {
-  const phone = normalizePhone(req.body?.phone || "");
-  if (!phone) {
+  try {
+    const supabase = serviceSupabase();
+    if (req.body?.magic) {
+      if (!supabase) {
+        res.status(200).json({ ok: false, error: otpFailureMessage() });
+        return;
+      }
+      const user = await supabase.auth.getUser(bearer(req));
+      const email = user.data.user?.email;
+      if (!email || email.endsWith("@phone.mifotito.com")) {
+        res.status(200).json({ ok: false, error: "Abre el enlace del correo en este navegador." });
+        return;
+      }
+      const phone = await phoneForEmail(supabase, email);
+      if (!phone) {
+        res.status(200).json(supportPayload());
+        return;
+      }
+      await finishPhoneSession(res, phone, user.data.user.id);
+      return;
+    }
+    const phone = normalizePhone(req.body?.phone || "");
+    if (!phone) {
+      res.status(200).json({ ok: false, error: otpFailureMessage() });
+      return;
+    }
+    if (req.body?.channel === "email") {
+      if (!supabase) {
+        res.status(200).json({ ok: false, error: otpFailureMessage() });
+        return;
+      }
+      const email = await emailForPhone(supabase, phone);
+      if (!email) {
+        res.status(200).json(supportPayload());
+        return;
+      }
+      const code = String(req.body?.code || "").trim();
+      let check = await supabase.auth.verifyOtp({ email, token: code, type: "email" });
+      if (check.error) check = await supabase.auth.verifyOtp({ email, token: code, type: "magiclink" });
+      if (check.error || !check.data.user) {
+        res.status(200).json({ ok: false, error: otpFailureMessage() });
+        return;
+      }
+      await finishPhoneSession(res, phone, check.data.user.id);
+      return;
+    }
+    const now = Date.now();
+    const result = await checkOtp(await loadRecord(phone), String(req.body?.code || ""), now);
+    if (result.record) await saveRecord(result.record);
+    if (!result.ok) {
+      res.status(200).json({ ok: false, error: otpFailureMessage() });
+      return;
+    }
+    await finishPhoneSession(res, phone, null);
+  } catch (error) {
+    console.warn("[mifotito] otp-verify siguió sin WhatsApp.", error);
     res.status(200).json({ ok: false, error: otpFailureMessage() });
-    return;
   }
-  const now = Date.now();
-  const result = await checkOtp(await loadRecord(phone), String(req.body?.code || ""), now);
-  if (result.record) await saveRecord(result.record);
-  if (!result.ok) {
-    res.status(200).json({ ok: false, error: otpFailureMessage() });
-    return;
-  }
-  const supabase = serviceSupabase();
-  if (supabase) await supabase.from("phone_otps").delete().eq("phone", phone);
-  else memory().records.delete(phone);
-  const exp = now + SESSION_TTL_MS;
-  const token = await signSession(phone, signingSecret(), exp);
-  let tokenHash = null;
-  if (supabase) tokenHash = await linkAuth(supabase, phone);
-  res.status(200).json({ ok: true, token, phone, exp, tokenHash });
 }
 
 async function linkAuth(supabase, phone) {

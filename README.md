@@ -68,9 +68,9 @@ Copia `.env.example` a `.env`. No subas `.env`.
 | `MERCADOPAGO_ACCESS_TOKEN` | servidor | Checkout Pro para tarjeta y Yape |
 | `YAPE_PHONE` | servidor | referencia del comercio |
 | `PLIN_PHONE` | servidor | número que se muestra al cliente |
-| `WHATSAPP_TOKEN` | servidor | token de Cloud API |
-| `WHATSAPP_PHONE_NUMBER_ID` | servidor | id del número de WhatsApp |
-| `WHATSAPP_VERIFY_TOKEN` | servidor | el que pones en el webhook de Meta |
+| `WHATSAPP_TOKEN` | servidor | pendiente. Déjalo vacío; sin él no se llama a la Cloud API |
+| `WHATSAPP_PHONE_NUMBER_ID` | servidor | pendiente, igual que el token |
+| `WHATSAPP_VERIFY_TOKEN` | servidor | pendiente, para cuando se active el webhook |
 | `WHATSAPP_GRAPH_VERSION` | servidor | por defecto `v21.0` |
 | `RESEND_API_KEY` | servidor | correo opcional |
 | `EMAIL_FROM` | servidor | remitente |
@@ -97,9 +97,22 @@ El modo `local` no necesita esto. Con `supabase`, el admin entra con Auth y la t
 
 En `mock`, Yape, Plin y tarjeta abren una hoja de sandbox y el pedido queda pagado. En `live`, la web llama `POST /api/payments/create`. Tarjeta y Yape crean una preferencia de Mercado Pago. Plin responde con el celular de `PLIN_PHONE` para confirmar a mano.
 
+## Pendiente: WhatsApp Business
+
+Lucas deja para después la cuenta de WhatsApp Business. En Netlify quedan **sin valor** `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_OTP_TEMPLATE` y `WHATSAPP_OTP_TEMPLATE_LANG`.
+
+Mientras falten:
+
+- Rastrear un pedido y Mi cuenta no piden un código de WhatsApp. Si el celular ya tiene un correo en el pedido o en la cuenta, Supabase manda un enlace y un código a ese correo. Si no hay correo, la pantalla dice «Escríbenos por WhatsApp» y abre `wa.me` con el número de soporte. No aparece un error 500.
+- El webhook `/api/webhooks/whatsapp` y `/api/notify` no llaman a Graph. Escriben una advertencia en el log y responden 200. Un POST real, sin `mock: true`, responde «próximamente».
+- El admin, en WhatsApp, muestra «Pedidos por el bot: próximamente» y un botón al chat. La vista previa local sigue ahí para probar el flujo sin Meta.
+- El botón verde de la tienda ya abre `wa.me`. No usa la Cloud API.
+
+Cuando Meta apruebe la plantilla `mifotito_codigo`, se completan esas cuatro variables y `WHATSAPP_OTP_ENABLED=true`.
+
 ## WhatsApp
 
-El cliente puede mandar una foto al número de WhatsApp Business.
+El cliente podrá mandar una foto al número de WhatsApp Business. Hoy ese bot está pendiente; los pasos de abajo quedan listos para cuando se active.
 
 1. En Meta crea una app de WhatsApp, un número de prueba y un token permanente.
 2. Webhook: `https://tu-dominio/api/webhooks/whatsapp`. Verificación: el `WHATSAPP_VERIFY_TOKEN`. Suscribe el campo `messages`.
@@ -169,15 +182,15 @@ No hace falta ninguna para el demo. Para cobrar y escribir de verdad, en Site co
 | `EXPO_PUBLIC_WHATSAPP_SUPPORT_NUMBER` | celular de soporte, `51999…` |
 | `SUPABASE_URL` | igual que la URL pública, solo en el servidor |
 | `SUPABASE_SERVICE_ROLE_KEY` | funciones de Netlify: pedidos, fotos firmadas, códigos. Nunca en el cliente |
-| `OTP_SIGNING_SECRET` | firma la sesión de 30 minutos tras el código de WhatsApp |
-| `WHATSAPP_OTP_TEMPLATE` | plantilla de autenticación. Por defecto `mifotito_codigo` |
-| `WHATSAPP_OTP_TEMPLATE_LANG` | `es` |
+| `OTP_SIGNING_SECRET` | firma la sesión de 30 minutos tras confirmar el celular |
+| `WHATSAPP_OTP_TEMPLATE` | pendiente. Vacío hasta que Meta apruebe `mifotito_codigo` |
+| `WHATSAPP_OTP_TEMPLATE_LANG` | pendiente. Será `es` |
 | `PAYMENTS_MODE` | `live` |
 | `MERCADOPAGO_ACCESS_TOKEN` | tarjeta y Yape |
 | `PLIN_PHONE` | número Plin del comercio |
 | `YAPE_PHONE` | referencia Yape |
-| `WHATSAPP_TOKEN` | Cloud API |
-| `WHATSAPP_PHONE_NUMBER_ID` | id del número |
+| `WHATSAPP_TOKEN` | pendiente. Vacío en Netlify por ahora |
+| `WHATSAPP_PHONE_NUMBER_ID` | pendiente. Vacío en Netlify por ahora |
 | `WHATSAPP_VERIFY_TOKEN` | verificación del webhook de Meta |
 | `SITE_URL` | `https://mifotito.com` |
 
@@ -209,10 +222,10 @@ El rastreo pide solo el celular, luego el código de WhatsApp, y entonces lista 
 3. SQL editor, en este orden: `supabase/migrations/20261118120000_init.sql`, `20261118143000_cards_voice_retablo.sql`, `20261118180000_shared_backend.sql`, `20261118190000_photo_size_limit.sql`, luego `supabase/seed.sql`. No renombres el init y no corras otro archivo de números de pedido: el que está en el repo es el que vale.
 4. Storage: el bucket privado `photos` lo crea la primera migración. No lo hagas público.
 5. Authentication → Users: crea el admin y copia su UUID a `admin_users`.
-6. WhatsApp Manager: plantilla de **autenticación** llamada `mifotito_codigo`, idioma español, con el botón de copiar código. Meta tiene que aprobarla. El cuerpo usa el texto estándar de autenticación; el código va como parámetro.
-7. En Netlify, Environment variables: `EXPO_PUBLIC_DATA_MODE=supabase`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL` (la misma URL), `SUPABASE_SERVICE_ROLE_KEY`, `OTP_SIGNING_SECRET`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_OTP_ENABLED=false`, `WHATSAPP_OTP_TEMPLATE=mifotito_codigo`, `WHATSAPP_OTP_TEMPLATE_LANG=es`. Pasa `WHATSAPP_OTP_ENABLED` a `true` solo cuando Meta apruebe la plantilla. La service role y el secreto del código no llevan prefijo `EXPO_PUBLIC_`.
+6. WhatsApp Business queda pendiente. No hace falta crear la plantilla `mifotito_codigo` todavía. Cuando Meta la apruebe, el código de rastreo podrá salir por WhatsApp.
+7. En Netlify, Environment variables: `EXPO_PUBLIC_DATA_MODE=supabase`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL` (la misma URL), `SUPABASE_SERVICE_ROLE_KEY`, `OTP_SIGNING_SECRET`. Deja sin valor `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_OTP_TEMPLATE` y `WHATSAPP_OTP_TEMPLATE_LANG`. La service role no lleva prefijo `EXPO_PUBLIC_`.
 
-Sin token de WhatsApp el sitio muestra el código en pantalla con la nota de modo demo.
+Sin esas variables de WhatsApp, rastrear y Mi cuenta usan el correo del pedido o el enlace de soporte. El modo demo (sin Supabase) sigue mostrando el código en la pantalla.
 
 ### DNS en Porkbun
 

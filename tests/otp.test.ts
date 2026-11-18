@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkOtp, hashCode, OTP_MAX_ATTEMPTS, OTP_TTL_MS, otpTemplateBody, prepareSend, publicSendResult, readSession, signSession } from "../src/lib/otp";
+import { checkOtp, hashCode, maskEmail, OTP_MAX_ATTEMPTS, OTP_TTL_MS, otpDeliveryPlan, otpTemplateBody, prepareSend, publicSendResult, readSession, signSession } from "../src/lib/otp";
 import { shouldWarnLocalMode } from "../src/lib/hosted";
 import { formatOrderNumber } from "../src/lib/order-number";
 import { toTrackingCard } from "../src/lib/tracking";
@@ -17,6 +17,19 @@ describe("order numbers", () => {
     expect(shouldWarnLocalMode("mifotito.netlify.app", "local")).toBe(true);
     expect(shouldWarnLocalMode("mifotito.com", "supabase")).toBe(false);
     expect(shouldWarnLocalMode("localhost", "local")).toBe(false);
+  });
+});
+
+describe("access without WhatsApp Business", () => {
+  it("uses the email on file, and otherwise asks the customer to write on WhatsApp", () => {
+    expect(maskEmail("ana@example.com")).toBe("a***@example.com");
+    expect(otpDeliveryPlan({ whatsAppReady: true, email: "ana@example.com" })).toEqual({ channel: "whatsapp" });
+    expect(otpDeliveryPlan({ whatsAppReady: false, email: "ana@example.com" })).toEqual({
+      channel: "email",
+      email: "ana@example.com",
+      maskedEmail: "a***@example.com",
+    });
+    expect(otpDeliveryPlan({ whatsAppReady: false, email: "" })).toEqual({ channel: "support" });
   });
 });
 

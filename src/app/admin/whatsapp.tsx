@@ -49,8 +49,11 @@ export default function WhatsAppSandbox() {
 
   return (
     <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }}>
-      <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>WhatsApp sandbox</Text>
-      <Text style={{ fontFamily: font.body, color: colors.muted }}>Sin credenciales de Meta, el webhook responde este mismo flujo y lo deja en el log. Aquí puedes verlo y crear el pedido.</Text>
+      <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>WhatsApp</Text>
+      <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Pedidos por el bot: próximamente</Text>
+      <Text style={{ fontFamily: font.body, color: colors.muted }}>WhatsApp Business todavía no está conectado. El chat abre una conversación normal, sin la Cloud API.</Text>
+      <Pressable onPress={() => openSupportChat()} style={button}><Text style={buttonText}>Escribir por WhatsApp</Text></Pressable>
+      <Text style={{ fontFamily: font.display, fontSize: 24, color: colors.ink }}>Vista previa local</Text>
       <Pressable onPress={() => sendImage(false)} style={button}><Text style={buttonText}>Enviar foto nítida</Text></Pressable>
       <Pressable onPress={() => sendImage(true)} style={button}><Text style={buttonText}>Enviar foto chica</Text></Pressable>
       {replies.map((reply, index) => (
@@ -66,6 +69,11 @@ export default function WhatsAppSandbox() {
       {link ? <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{link}</Text> : null}
     </ScrollView>
   );
+
+  function openSupportChat() {
+    const url = `https://wa.me/${supportNumber()}?text=${encodeURIComponent("Hola Mi Fotito, quiero armar un marco.")}`;
+    if (typeof window !== "undefined") window.open(url, "_blank", "noopener,noreferrer");
+  }
 
   function sendImage(small: boolean) {
     const photo = samplePhoto(small ? "sample-small" : "sample");

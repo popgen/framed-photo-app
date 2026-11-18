@@ -60,6 +60,22 @@ export async function prepareSend(input: { phone: string; now: number; phoneSend
   return { ok: true as const, code, record };
 }
 
+export function maskEmail(email: string): string {
+  const [name, domain] = email.trim().split("@");
+  if (!name || !domain) return "tu correo";
+  return `${name.slice(0, 1)}***@${domain}`;
+}
+
+export function otpDeliveryPlan(input: { whatsAppReady: boolean; email?: string | null }):
+  | { channel: "whatsapp" }
+  | { channel: "email"; email: string; maskedEmail: string }
+  | { channel: "support" } {
+  if (input.whatsAppReady) return { channel: "whatsapp" };
+  const email = input.email?.trim() ?? "";
+  if (email.includes("@")) return { channel: "email", email, maskedEmail: maskEmail(email) };
+  return { channel: "support" };
+}
+
 export function publicSendResult(prepared: Awaited<ReturnType<typeof prepareSend>>, demo: boolean) {
   if (!prepared.ok) return { ok: false as const, error: prepared.error, retryAt: "retryAt" in prepared ? prepared.retryAt : undefined };
   if (demo) {

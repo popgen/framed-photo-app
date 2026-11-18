@@ -5,10 +5,19 @@ import { reduceWa } from "../../src/lib/whatsapp/flow.mjs";
 const sessions = new Map();
 
 export default async function handler(req, res) {
+  const token = process.env.WHATSAPP_TOKEN;
+  const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  if (!token || !phoneId) {
+    console.warn("[mifotito] WhatsApp Business pendiente (webhook). Faltan WHATSAPP_TOKEN o WHATSAPP_PHONE_NUMBER_ID. No se llama a la Cloud API.");
+  }
   if (req.method === "GET") {
     const mode = req.query["hub.mode"];
     const token = req.query["hub.verify_token"];
     const challenge = req.query["hub.challenge"];
+    if (!process.env.WHATSAPP_VERIFY_TOKEN) {
+      res.status(200).json({ pending: true, message: "WhatsApp Business próximamente." });
+      return;
+    }
     if (mode === "subscribe" && token && token === process.env.WHATSAPP_VERIFY_TOKEN) {
       res.status(200).send(challenge);
       return;
@@ -21,6 +30,19 @@ export default async function handler(req, res) {
     return;
   }
   const body = req.body ?? {};
+  if ((!token || !phoneId) && !body.mock) {
+    res.status(200).json({ pending: true, mock: true, message: "WhatsApp Business próximamente." });
+    return;
+  }
+  try {
+  await handleIncoming(req, res, body);
+  } catch (error) {
+    console.warn("[mifotito] El webhook de WhatsApp no pudo completar el mensaje.", error);
+    res.status(200).json({ pending: true, mock: !token, message: "WhatsApp Business próximamente." });
+  }
+}
+
+async function handleIncoming(req, res, body) {
   const incoming = extract(body);
   const catalog = JSON.parse(await readFrames()).map((frame) => ({
     id: frame.id,
