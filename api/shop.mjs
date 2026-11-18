@@ -24,6 +24,7 @@ export default async function handler(req, res) {
     if (op === "orders-mark-paid") return await markPaid(req, res);
     if (op === "photos-sign") return await signPhoto(req, res);
     if (op === "voice-url") return await voiceUrl(req, res);
+    if (op === "voice-selfie") return await voiceSelfie(req, res);
     if (op === "profile") return await profile(req, res);
     if (op === "customers-list") return await customers(req, res);
     if (op === "gift-card") return await giftCard(req, res);
@@ -588,13 +589,46 @@ async function voiceUrl(req, res) {
     return;
   }
   const token = String(req.query.token || req.body?.token || "");
-  const { data } = await supabase.from("voice_notes").select("storage_path").eq("token", token).maybeSingle();
+  let lookup = await supabase.from("voice_notes").select("storage_path, selfie_path, sender_name").eq("token", token).maybeSingle();
+  if (lookup.error) lookup = await supabase.from("voice_notes").select("storage_path").eq("token", token).maybeSingle();
+  const data = lookup.data;
   if (!data?.storage_path) {
     res.status(404).json({ error: "Sin audio." });
     return;
   }
   const signed = await supabase.storage.from("photos").createSignedUrl(data.storage_path, 60 * 30);
-  res.status(200).json({ url: signed.data?.signedUrl ?? null });
+  let selfieUrl = null;
+  if (data.selfie_path && String(data.selfie_path).startsWith("uploads/selfies/")) {
+    const selfie = await supabase.storage.from("photos").createSignedUrl(data.selfie_path, 60 * 30);
+    selfieUrl = selfie.data?.signedUrl ?? null;
+  }
+  res.status(200).json({ url: signed.data?.signedUrl ?? null, selfieUrl, senderName: data.sender_name || null });
+}
+
+async function voiceSelfie(req, res) {
+  const supabase = serviceSupabase();
+  if (!supabase) {
+    res.status(200).json({ ok: false });
+    return;
+  }
+  const token = String(req.body?.token || "");
+  if (!/^[a-z0-9]{8,64}$/i.test(token)) {
+    res.status(400).json({ error: "Nota inválida." });
+    return;
+  }
+  const path = req.body?.selfiePath == null || req.body.selfiePath === "" ? null : String(req.body.selfiePath);
+  if (path && !/^uploads\/selfies\/[0-9a-f-]{36}\.jpg$/i.test(path)) {
+    res.status(400).json({ error: "Ruta inválida." });
+    return;
+  }
+  const senderName = String(req.body?.senderName || "").trim().slice(0, 40);
+  const { error } = await supabase.from("voice_notes").update({ selfie_path: path, sender_name: senderName || null }).eq("token", token);
+  if (error) {
+    console.warn(`[mifotito] No se guardó la selfie de la voz: ${error.message}`);
+    res.status(200).json({ ok: false });
+    return;
+  }
+  res.status(200).json({ ok: true });
 }
 
 async function customers(req, res) {

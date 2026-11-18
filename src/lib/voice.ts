@@ -13,6 +13,9 @@ export type VoiceNote = {
   seconds: number;
   mime: string;
   addonCents: number;
+  selfieId?: string | null;
+  selfiePath?: string | null;
+  senderName?: string | null;
 };
 
 const KEY = "recuerdo-voice-";
