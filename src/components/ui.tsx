@@ -97,11 +97,15 @@ export function Button({
   onPress,
   tone = "primary",
   disabled,
+  icon,
+  surface,
 }: {
   label: string;
   onPress: () => void;
   tone?: "primary" | "ghost" | "pine";
   disabled?: boolean;
+  icon?: ReactNode;
+  surface?: "white";
 }) {
   return (
     <Pressable
@@ -116,11 +120,15 @@ export function Button({
         styles.button,
         tone === "ghost" && styles.ghost,
         tone === "pine" && styles.pine,
+        surface === "white" && { backgroundColor: colors.white },
         disabled && styles.disabled,
         pressed && !disabled && { transform: [{ scale: 0.98 }] },
       ]}
     >
-      <Text style={[styles.buttonText, tone === "ghost" && { color: colors.ink }]}>{label}</Text>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }}>
+        {icon}
+        <Text style={[styles.buttonText, tone === "ghost" && { color: colors.ink }]}>{label}</Text>
+      </View>
     </Pressable>
   );
 }
