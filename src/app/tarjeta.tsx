@@ -9,6 +9,7 @@ import { useReducedMotion } from "../components/fx";
 import { Button, Card, Screen, TabBar } from "../components/ui";
 import { colors, font } from "../components/theme";
 import { layoutCardText, CARD_TEXT_MIN_PX } from "../lib/card-text";
+import { A5_PANEL_RATIO, foldPreview } from "../lib/card-preview";
 import { cardGreetings, cardSheetCopy, cardSizes, cardTemplates, DEFAULT_ENVELOPE, defaultCardSize, messageLimits, offeredCardSizes, priceCards, type CardSnapshot } from "../lib/cards";
 import { importFlags } from "../lib/env";
 import { formatSoles } from "../lib/money";
@@ -199,7 +200,7 @@ function Diptych({
   outside,
   inside,
   frontPhoto,
-  insidePhoto,
+  insidePhoto: _insidePhoto,
   frontMessage,
   insideMessage,
   onPress,
@@ -214,53 +215,42 @@ function Diptych({
   insideMessage: TextOverlay | null;
   onPress: () => void;
 }) {
-  const panelW = 210;
-  const panelH = Math.round(panelW * (148 / 105));
-  const motion = {
-    transitionDuration: reduced ? "0ms" : "1000ms",
-    transitionProperty: "transform, top, opacity",
-    transformOrigin: "top center",
+  const panelW = 196;
+  const panelH = Math.round(panelW * A5_PANEL_RATIO);
+  const motion = foldPreview(open, reduced);
+  const timing = {
+    transitionDuration: `${motion.durationMs}ms`,
+    transitionProperty: motion.property,
+    transitionTimingFunction: "cubic-bezier(0.45, 0.05, 0.2, 1)",
   } as const;
   return (
-    <View style={{ alignItems: "center" }}>
-      <Pressable onPress={onPress} accessibilityLabel={open ? "Cerrar la tarjeta" : "Abrir la tarjeta"}>
-        <View style={{ width: panelW, height: open ? panelH * 2 + 12 : panelH }}>
-          <View
-            style={{
-              position: "absolute",
-              top: open ? panelH + 12 : 0,
-              width: panelW,
-              height: panelH,
-              opacity: open ? 1 : 0,
-              borderRadius: 10,
-              overflow: "hidden",
-              ...motion,
-            }}
-          >
-            <PanelFace width={panelW} height={panelH} color={inside} photo={insidePhoto} overlay={insideMessage} />
-          </View>
-          <View style={{ position: "absolute", top: 0, width: panelW, height: panelH, borderRadius: 10, backgroundColor: "#F7F4EF", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(42,27,22,0.28)", boxShadow: "0 10px 24px rgba(42,27,22,0.12)" }}>
-            <Text style={{ fontFamily: font.display, fontSize: 22, color: colors.red }}>Mi Fotito</Text>
+    <View style={{ alignItems: "center", marginTop: !reduced && open ? Math.round(panelH * 0.55) : 0, ...timing }}>
+      <Pressable onPress={onPress} accessibilityLabel={motion.hint}>
+        <View style={{ width: panelW, height: panelH, transform: [{ perspective: 1100 }] }}>
+          <View style={{ position: "absolute", top: 0, left: 0, width: panelW, height: panelH, opacity: motion.insideOpacity, ...timing }}>
+            <PanelFace width={panelW} height={panelH} color={inside} photo={null} overlay={insideMessage} onLight />
           </View>
           <View
             style={{
               position: "absolute",
               top: 0,
+              left: 0,
               width: panelW,
               height: panelH,
               zIndex: 2,
-              borderRadius: 10,
-              overflow: "hidden",
+              opacity: motion.frontOpacity,
+              transformOrigin: motion.origin,
               backfaceVisibility: "hidden",
-              transform: [{ perspective: 900 }, { rotateX: open ? "-172deg" : "0deg" }],
-              ...motion,
+              transform: [{ perspective: 1100 }, { rotateX: motion.rotateX }],
+              boxShadow: open && !reduced ? "0 22px 28px rgba(42,27,22,0.28)" : "0 8px 16px rgba(42,27,22,0.16)",
+              ...timing,
             }}
           >
             <PanelFace width={panelW} height={panelH} color={outside} photo={frontPhoto} overlay={frontMessage} />
           </View>
         </View>
       </Pressable>
-      <Text style={{ fontFamily: font.medium, color: colors.muted, marginTop: 6 }}>{open ? "Interior" : "Portada"} · toca para {open ? "cerrar" : "abrir"}</Text>
+      <Text style={{ fontFamily: font.medium, color: colors.muted, marginTop: 8 }}>{motion.hint}</Text>
     </View>
   );
 }
@@ -271,12 +261,14 @@ function PanelFace({
   color,
   photo,
   overlay,
+  onLight = false,
 }: {
   width: number;
   height: number;
   color: string;
   photo: PanelPhoto | null;
   overlay: TextOverlay | null;
+  onLight?: boolean;
 }) {
   const crop = photo?.crop;
   const source = photo?.source?.source ?? (photo?.source?.uri ? { uri: photo.source.uri } : null);
@@ -314,7 +306,7 @@ function PanelFace({
       ) : null}
       {fitted && overlay ? (
         <View style={{ position: "absolute", left: width * 0.08, top, width: width * 0.84 }}>
-          <Text style={{ fontFamily: fontById(overlay.font).family, fontSize: fitted.size, lineHeight: fitted.leading, color: overlay.color, textAlign: "center" }}>{fitted.lines.join("\n")}</Text>
+          <Text style={{ fontFamily: fontById(overlay.font).family, fontSize: fitted.size, lineHeight: fitted.leading, color: onLight && overlay.color.toLowerCase() === "#ffffff" ? colors.ink : overlay.color, textAlign: "center" }}>{fitted.lines.join("\n")}</Text>
         </View>
       ) : null}
     </View>
