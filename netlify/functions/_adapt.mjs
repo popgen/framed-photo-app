@@ -39,10 +39,15 @@ export function netlifyHandler(routeHandler) {
         headers = { "content-type": "text/plain; charset=utf-8" };
         return res;
       },
-      redirect(url) {
+      redirect(url, extra = {}) {
         status = 303;
         payload = "";
-        headers = { location: url };
+        headers = { location: url, ...extra };
+        return res;
+      },
+      bytes(data, type) {
+        payload = data;
+        headers = { "content-type": type, "cache-control": "private, max-age=60" };
         return res;
       },
     };

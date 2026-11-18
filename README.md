@@ -136,9 +136,9 @@ El flujo, en español: recibe la foto, avisa si no llega a 150 dpi y sugiere el 
 
 En el teléfono, «Desde tu iPhone / iCloud» abre el selector del sistema. En Safari de iPhone eso incluye la fototeca de iCloud. HEIC se convierte a JPEG y, si la foto es enorme, se recorta al lado largo de la impresión (4724 px) antes de guardarla.
 
-Instagram, Facebook y Google Photos no se muestran hasta que el flag esté en `true` y exista el id público. Los secretos (`META_APP_SECRET`, `GOOGLE_PHOTOS_CLIENT_SECRET`) se quedan en el servidor.
+Instagram, Facebook y Google Photos no se muestran hasta que el flag esté en `true` y exista el id público. Los secretos (`META_APP_SECRET`, `GOOGLE_PHOTOS_CLIENT_SECRET`) se quedan en el servidor. El redirect de OAuth es `https://mifotito.com/api/imports/callback`.
 
-Para Google Photos hace falta el Picker API (`photospicker.googleapis.com`) y el scope `photospicker.mediaitems.readonly`: activa la API en Google Cloud, crea un cliente OAuth web y autoriza el redirect del dominio. Meta pide revisión de `instagram_business_basic` o `user_photos` antes de que alguien fuera de los testers vea sus fotos. Hasta esa aprobación, déjalos apagados. El enlace de OAuth y la descarga en alta de esas dos redes es el siguiente paso; el selector del teléfono ya está listo.
+Al tocar el botón, `/api/imports/start` manda a la red. Al volver, la sesión queda en una cookie httpOnly de 10 minutos y `/crear` lista las fotos. La descarga usa la imagen más grande: Facebook elige el `source` de mayor ancho, Instagram usa `media_url`, y Google Photos usa el Picker API (`photospicker.googleapis.com`, scope `photospicker.mediaitems.readonly`) con `=d` para el original. Meta sigue pidiendo revisión de `instagram_business_basic` o `user_photos` antes de que alguien fuera de los testers vea sus fotos. Hasta esa aprobación, déjalos apagados.
 
 ## Campaña
 

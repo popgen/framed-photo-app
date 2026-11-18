@@ -1,9 +1,10 @@
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { PanResponder, Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { Cropper } from "../components/Cropper";
+import { PhotoImport } from "../components/PhotoImport";
 import { FrameView } from "../components/FrameView";
 import { TextStyleEditor } from "../components/TextStyleEditor";
 import { VoiceRecorder } from "../components/VoiceRecorder";
@@ -23,6 +24,7 @@ import type { VoiceNote } from "../lib/voice";
 import type { FrameOffer } from "../lib/types";
 
 export default function Crear() {
+  const params = useLocalSearchParams<{ import?: string }>();
   const { width } = useWindowDimensions();
   const reduced = useReducedMotion();
   const { data } = useRepo((repo) => repo.listFrames());
@@ -123,11 +125,6 @@ export default function Crear() {
       })
     : null;
   const flags = importFlags();
-  const imports = [
-    flags.instagram ? "Instagram" : null,
-    flags.facebook ? "Facebook" : null,
-    flags.googlePhotos ? "Google Photos" : null,
-  ].filter(Boolean);
 
   return (
     <Screen
@@ -216,9 +213,7 @@ export default function Crear() {
           </Card>
         )}
         {photo ? <Button label="Cambiar foto" tone="ghost" onPress={() => void pickOne(choosePhoto, setMessage, frame)} /> : null}
-        {imports.length ? (
-          <Text style={{ fontFamily: font.medium, color: colors.muted }}>También puedes importar desde {imports.join(", ")}. Esas cuentas se configuran con las variables del README.</Text>
-        ) : null}
+        <PhotoImport flags={flags} notice={params.import} frame={frame} onUse={(next) => choosePhoto(next, frame)} />
         {photo ? (
           <Card>
             <TextStyleEditor label="Texto en la foto" value={overlay} onChange={setOverlay} maxChars={48} />
