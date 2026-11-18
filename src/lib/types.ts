@@ -163,6 +163,14 @@ export type CustomerProfile = {
   addresses: SavedAddress[];
 };
 
+export type CustomerRow = {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  createdAt: string;
+};
+
 export type RetabloInquiry = {
   id: string;
   size: string;

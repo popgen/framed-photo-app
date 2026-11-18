@@ -22,7 +22,7 @@ export default function VoicePage() {
           return;
         }
       }
-      const response = await fetch(`/api/shop?op=voice-url&token=${encodeURIComponent(key)}`).catch(() => null);
+      const response = await fetch(`/api/voice-url?token=${encodeURIComponent(key)}`).catch(() => null);
       const json = response ? await response.json().catch(() => null) : null;
       if (live && json?.url) setUri(json.url);
     }

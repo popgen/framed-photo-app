@@ -85,12 +85,13 @@ export function VoiceRecorder({ value, onChange }: { value: VoiceNote | null; on
       mime: blob.type || "audio/webm",
       addonCents: VOICE_ADDON_CENTS,
     };
-    publishVoice(note);
-    void uploadVoice(note.token, blob).catch(() => null);
+    const storagePath = await uploadVoice(note.token, blob).catch(() => null);
+    const ready = storagePath ? { ...note, storagePath } : note;
+    publishVoice(ready);
     setPreview(URL.createObjectURL(blob));
-    setQr(await voiceQrDataUrl(note.token));
+    setQr(await voiceQrDataUrl(ready.token));
     setError(null);
-    onChange(note);
+    onChange(ready);
   }
 
   async function onFile(file: File) {

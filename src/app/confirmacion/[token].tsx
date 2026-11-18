@@ -42,9 +42,8 @@ export default function Confirmacion() {
     <Screen>
       <View style={{ padding: 20, gap: 14 }}>
         <GiftSuccess title={campaignTitle} body={campaignBody} />
-        <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink, textAlign: "center" }}>{order.number}</Text>
-        <Text style={{ fontFamily: font.semibold, color: colors.ink, textAlign: "center" }}>{formatSoles(order.totalCents)}</Text>
-        <Text style={{ fontFamily: font.medium, color: colors.muted, textAlign: "center" }}>Guarda este número. Para ver el pedido después, entra con tu celular.</Text>
+        <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink, textAlign: "center" }}>{formatSoles(order.totalCents)}</Text>
+        <Text style={{ fontFamily: font.medium, color: colors.muted, textAlign: "center" }}>Para ver el pedido después, entra con tu celular.</Text>
         <Text style={{ fontFamily: font.body, color: colors.muted, textAlign: "center" }}>{order.etaLabel}. {order.christmasNote}</Text>
         {order.referralCodeIssued ? (
           <View style={{ backgroundColor: colors.white, borderRadius: 18, padding: 14 }}>

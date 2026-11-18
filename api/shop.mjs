@@ -3,7 +3,7 @@ import { checkOtp, otpFailureMessage, otpTemplateBody, prepareSend, publicSendRe
 import { evaluateOrder } from "../src/lib/server-order.ts";
 import { serviceSupabase, signingSecret, whatsAppConfigured } from "../src/lib/service-supabase.ts";
 import { maskPhone, maskStreet } from "../src/lib/order-number.ts";
-import { toTrackingCard } from "../src/lib/tracking.ts";
+import { customerOrder, toTrackingCard } from "../src/lib/tracking.ts";
 import { priceCards } from "../src/lib/cards.ts";
 import { frameById } from "../src/lib/catalog.ts";
 import { giftCode } from "../src/lib/ids.ts";
@@ -20,7 +20,9 @@ export default async function handler(req, res) {
     if (op === "otp-verify") return await verifyCode(req, res);
     if (op === "orders-by-phone") return await ordersByPhone(req, res);
     if (op === "orders-by-token") return await orderByToken(req, res);
+    if (op === "orders-preview") return await previewOrder(req, res);
     if (op === "orders-create") return await createOrder(req, res);
+    if (op === "orders-update") return await updateOrder(req, res);
     if (op === "orders-mark-paid") return await markPaid(req, res);
     if (op === "photos-sign") return await signPhoto(req, res);
     if (op === "voice-url") return await voiceUrl(req, res);
@@ -80,7 +82,7 @@ async function saveSend(phone, ip, record) {
     store.sends.push({ phone, ip, at: Date.now() });
     return;
   }
-  await supabase.from("phone_otps").upsert({
+  const saved = await supabase.from("phone_otps").upsert({
     phone,
     code_hash: record.codeHash,
     salt: record.salt,
@@ -88,14 +90,21 @@ async function saveSend(phone, ip, record) {
     attempts: record.attempts,
     updated_at: new Date().toISOString(),
   });
+  if (saved.error) {
+    const store = memory();
+    store.records.set(phone, record);
+    store.sends.push({ phone, ip, at: Date.now() });
+    return;
+  }
   await supabase.from("otp_sends").insert({ phone, ip });
 }
 
 async function loadRecord(phone) {
   const supabase = serviceSupabase();
   if (!supabase) return memory().records.get(phone) ?? null;
-  const { data } = await supabase.from("phone_otps").select("*").eq("phone", phone).maybeSingle();
-  if (!data) return null;
+  const { data, error } = await supabase.from("phone_otps").select("*").eq("phone", phone).maybeSingle();
+  if (error) return memory().records.get(phone) ?? null;
+  if (!data) return memory().records.get(phone) ?? null;
   return { phone: data.phone, codeHash: data.code_hash, salt: data.salt, expiresAt: Date.parse(data.expires_at), attempts: data.attempts };
 }
 
@@ -105,7 +114,7 @@ async function saveRecord(record) {
     memory().records.set(record.phone, record);
     return;
   }
-  await supabase.from("phone_otps").upsert({
+  const saved = await supabase.from("phone_otps").upsert({
     phone: record.phone,
     code_hash: record.codeHash,
     salt: record.salt,
@@ -113,6 +122,7 @@ async function saveRecord(record) {
     attempts: record.attempts,
     updated_at: new Date().toISOString(),
   });
+  if (saved.error) memory().records.set(record.phone, record);
 }
 
 async function sendCode(req, res) {
@@ -126,7 +136,7 @@ async function sendCode(req, res) {
     return;
   }
   await saveSend(prepared.record.phone, ip, prepared.record);
-  const demo = !whatsAppConfigured();
+  const demo = process.env.WHATSAPP_OTP_ENABLED !== "true" || !whatsAppConfigured();
   if (!demo) {
     const sent = await deliverCode(prepared.record.phone, prepared.code);
     if (!sent) {
@@ -177,7 +187,7 @@ async function linkAuth(supabase, phone) {
   const linked = await supabase.auth.admin.generateLink({ type: "magiclink", email });
   const userId = linked.data?.user?.id;
   if (userId) {
-    await supabase.from("customers").upsert({ phone, auth_user_id: userId, updated_at: new Date().toISOString() }, { onConflict: "phone" });
+    await supabase.from("customers").upsert({ phone, user_id: userId, updated_at: new Date().toISOString() }, { onConflict: "phone" });
   }
   return linked.data?.properties?.hashed_token ?? null;
 }
@@ -200,7 +210,7 @@ async function ordersByPhone(req, res) {
     return;
   }
   const { data } = await supabase.from("orders").select("*, order_items(*)").eq("phone", session.phone).order("created_at", { ascending: false });
-  res.status(200).json({ orders: (data ?? []).map((row) => toTrackingCard(mapOrderRow(row))) });
+  res.status(200).json({ orders: (data ?? []).map((row) => customerOrder(toTrackingCard(mapOrderRow(row)))) });
 }
 
 async function orderByToken(req, res) {
@@ -219,12 +229,103 @@ async function orderByToken(req, res) {
     res.status(200).json({ order: null });
     return;
   }
-  const order = mapOrderRow(data);
+  const order = customerOrder(mapOrderRow(data));
   order.addressLine = maskStreet(order.addressLine, order.district, order.department);
   order.reference = null;
   order.email = null;
   order.recipientPhone = maskPhone(order.recipientPhone);
   res.status(200).json({ order });
+}
+
+const UPLOAD_PATH = /^uploads\/[0-9a-f-]{36}\.[a-z0-9]{1,8}$/i;
+
+function clip(value, max) {
+  return String(value ?? "").trim().slice(0, max);
+}
+
+function orderProblem(body, preview) {
+  if (!Array.isArray(body?.items) || body.items.length < 1 || body.items.length > 12) return "Revisa el carrito.";
+  if (!preview) {
+    if (clip(body.customerName, 80).length < 2) return "Escribe tu nombre.";
+    if (!normalizePhone(body.phone || "")) return "Revisa el celular.";
+    if (!clip(body.addressLine, 160) || !clip(body.district, 80) || !clip(body.province, 80) || !clip(body.department, 80)) return "Completa la dirección.";
+    const email = clip(body.email, 120);
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "Revisa el correo.";
+  }
+  for (const item of body.items) {
+    for (const path of [item.photoPrintPath, item.photoOriginalPath]) {
+      if (path && !UPLOAD_PATH.test(String(path))) return "La foto no tiene una ruta válida.";
+    }
+  }
+  return null;
+}
+
+async function loadPricing(supabase, body) {
+  const [{ data: promos }, { data: stockRows }, { data: referrals }, { data: gifts }, { data: credits }, { data: frames }] = await Promise.all([
+    supabase.from("promo_codes").select("*"),
+    supabase.from("inventory").select("sku, quantity"),
+    supabase.from("referrals").select("*"),
+    supabase.from("gift_cards").select("*"),
+    supabase.from("credits").select("phone, balance_cents"),
+    supabase.from("frames").select("id, price_cents"),
+  ]);
+  const tracked = Object.fromEntries((stockRows ?? []).map((row) => [row.sku, row.quantity]));
+  const stock = { ...tracked };
+  try {
+    const { stockNeeds } = await import("../src/lib/server-order.ts");
+    for (const sku of Object.keys(stockNeeds(body))) {
+      if (!(sku in tracked)) stock[sku] = 1_000_000;
+    }
+  } catch {
+    // An unknown frame fails inside evaluateOrder.
+  }
+  return {
+    tracked,
+    ctx: {
+      promos: (promos ?? []).map(mapPromoRow),
+      stock,
+      referrals: (referrals ?? []).map((row) => ({ code: row.code, ownerPhone: row.owner_phone, ownerName: row.owner_name ?? "", friendDiscountCents: row.friend_discount_cents, referrerCreditCents: row.referrer_credit_cents, redeemedCount: row.redeemed_count, createdAt: row.created_at })),
+      giftCards: (gifts ?? []).map(mapGiftRow),
+      credits: Object.fromEntries((credits ?? []).map((row) => [row.phone, row.balance_cents])),
+      prices: Object.fromEntries((frames ?? []).map((row) => [row.id, row.price_cents])),
+    },
+  };
+}
+
+async function previewOrder(req, res) {
+  const supabase = serviceSupabase();
+  if (!supabase) {
+    res.status(503).json({ error: "Supabase no está configurado." });
+    return;
+  }
+  const problem = orderProblem(req.body ?? {}, true);
+  if (problem) {
+    res.status(400).json({ error: problem });
+    return;
+  }
+  const phone = normalizePhone(req.body?.phone || "") || "900000000";
+  const { ctx } = await loadPricing(supabase, { ...req.body, phone });
+  let evaluated;
+  try {
+    evaluated = evaluateOrder({ ...req.body, phone, useCredit: Boolean(req.body?.useCredit) && phone !== "900000000" }, ctx);
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : "No pudimos cotizar." });
+    return;
+  }
+  if (evaluated.error || !evaluated.priced) {
+    res.status(400).json({ error: evaluated.error || "No pudimos cotizar." });
+    return;
+  }
+  res.status(200).json({
+    ...evaluated.priced,
+    zone: evaluated.zone,
+    stockError: null,
+    christmasNote: evaluated.christmasNote,
+    etaLabel: evaluated.etaLabel,
+    etaMin: evaluated.etaMin,
+    etaMax: evaluated.etaMax,
+    christmasGuaranteed: evaluated.christmasGuaranteed,
+  });
 }
 
 async function createOrder(req, res) {
@@ -233,55 +334,50 @@ async function createOrder(req, res) {
     res.status(503).json({ error: "Supabase no está configurado." });
     return;
   }
-  const [{ data: promos }, { data: stockRows }, { data: referrals }, { data: gifts }, { data: credits }] = await Promise.all([
-    supabase.from("promo_codes").select("*"),
-    supabase.from("inventory").select("sku, quantity"),
-    supabase.from("referrals").select("*"),
-    supabase.from("gift_cards").select("*"),
-    supabase.from("credits").select("phone, balance_cents"),
-  ]);
-  const stock = Object.fromEntries((stockRows ?? []).map((row) => [row.sku, row.quantity]));
-  const evaluated = evaluateOrder(req.body, {
-    promos: (promos ?? []).map(mapPromoRow),
-    stock,
-    referrals: (referrals ?? []).map((row) => ({ code: row.code, ownerPhone: row.owner_phone, ownerName: row.owner_name ?? "", friendDiscountCents: row.friend_discount_cents, referrerCreditCents: row.referrer_credit_cents, redeemedCount: row.redeemed_count, createdAt: row.created_at })),
-    giftCards: (gifts ?? []).map(mapGiftRow),
-    credits: Object.fromEntries((credits ?? []).map((row) => [row.phone, row.balance_cents])),
-  });
+  const problem = orderProblem(req.body ?? {}, false);
+  if (problem) {
+    res.status(400).json({ error: problem });
+    return;
+  }
+  const { ctx } = await loadPricing(supabase, req.body);
+  let evaluated;
+  try {
+    evaluated = evaluateOrder(req.body, ctx);
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : "No pudimos cotizar." });
+    return;
+  }
   if (evaluated.error || !evaluated.priced) {
     res.status(400).json({ error: evaluated.error || "No pudimos cotizar." });
     return;
   }
-  const { data: number, error: numberError } = await supabase.rpc("next_order_number");
-  if (numberError || !number) {
-    res.status(500).json({ error: numberError?.message || "No pudimos numerar el pedido." });
-    return;
-  }
-  const { data: customer } = await supabase
+  const { data: customer, error: customerError } = await supabase
     .from("customers")
-    .upsert({ phone: evaluated.phone, name: req.body.customerName, email: req.body.email || null, updated_at: new Date().toISOString() }, { onConflict: "phone" })
+    .upsert({ phone: evaluated.phone, name: clip(req.body.customerName, 80), email: clip(req.body.email, 120) || null, updated_at: new Date().toISOString() }, { onConflict: "phone" })
     .select("id")
     .single();
+  if (customerError) {
+    res.status(500).json({ error: customerError.message });
+    return;
+  }
   const now = new Date().toISOString();
   const { data: inserted, error } = await supabase
     .from("orders")
     .insert({
-      public_token: crypto.randomUUID().replace(/-/g, "").slice(0, 12),
-      number,
       status: "pending_payment",
-      customer_name: String(req.body.customerName || "").trim(),
+      customer_name: clip(req.body.customerName, 80),
       phone: evaluated.phone,
-      email: req.body.email || null,
-      recipient_name: req.body.recipientName || null,
+      email: clip(req.body.email, 120) || null,
+      recipient_name: clip(req.body.recipientName, 80) || null,
       recipient_phone: normalizePhone(req.body.recipientPhone || "") || null,
-      gift_note: req.body.giftNote || null,
-      gift_wrap: Boolean(req.body.giftWrap),
-      address_line: req.body.addressLine,
-      district: req.body.district,
-      province: req.body.province,
-      city: req.body.city || req.body.district,
-      department: req.body.department,
-      reference: req.body.reference || null,
+      gift_note: clip(req.body.giftNote, 280) || null,
+      gift_wrap: Boolean(req.body.giftWrap) && evaluated.priced.giftWrapCents > 0,
+      address_line: clip(req.body.addressLine, 160),
+      district: clip(req.body.district, 80),
+      province: clip(req.body.province, 80),
+      city: clip(req.body.city || req.body.district, 80),
+      department: clip(req.body.department, 80),
+      reference: clip(req.body.reference, 160) || null,
       zone: evaluated.zone,
       subtotal_cents: evaluated.priced.subtotalCents,
       frame_discount_cents: evaluated.priced.frameDiscountCents,
@@ -291,7 +387,7 @@ async function createOrder(req, res) {
       referral_code: evaluated.priced.referralDiscountCents > 0 ? evaluated.referral?.code ?? null : null,
       referral_discount_cents: evaluated.priced.referralDiscountCents,
       credit_applied_cents: evaluated.priced.creditAppliedCents,
-      gift_card_code: evaluated.priced.giftCardAppliedCents > 0 ? req.body.giftCardCode || null : null,
+      gift_card_code: evaluated.priced.giftCardAppliedCents > 0 ? clip(req.body.giftCardCode, 40) || null : null,
       gift_card_applied_cents: evaluated.priced.giftCardAppliedCents,
       gift_wrap_cents: evaluated.priced.giftWrapCents,
       total_cents: evaluated.priced.totalCents,
@@ -302,54 +398,150 @@ async function createOrder(req, res) {
       eta_min: evaluated.etaMin,
       eta_max: evaluated.etaMax,
       eta_label: evaluated.etaLabel,
-      channel: req.body.channel || "web",
+      channel: req.body.channel === "whatsapp" ? "whatsapp" : "web",
       customer_id: customer?.id ?? null,
       created_at: now,
       updated_at: now,
     })
-    .select("id, public_token")
+    .select("public_token")
     .single();
-  if (error || !inserted) {
+  if (error || !inserted?.public_token) {
     res.status(500).json({ error: error?.message || "No pudimos guardar el pedido." });
     return;
   }
-  if ((req.body.items ?? []).length) {
-    const { error: itemError } = await supabase.from("order_items").insert(
-      req.body.items.map((item) => ({
-        order_id: inserted.id,
-        frame_id: item.frameId || "card",
-        photo_path: item.photoPrintPath || null,
-        original_path: item.photoOriginalPath || null,
-        print_path: item.photoPrintPath || null,
-        crop: item.crop ?? {},
-        orientation: item.orientation || "portrait",
-        quantity: 1,
-        unit_price_cents: linePrice(item),
-        dpi: item.dpi || null,
-        resolution_status: item.resolutionStatus || null,
-        text_overlay: item.textOverlay || null,
-        card: item.card || null,
-        voice: item.voice || null,
-        bundle_id: item.bundleId || null,
-        bundle_label: item.bundleLabel || null,
-      })),
-    );
-    if (itemError) {
-      res.status(500).json({ error: itemError.message });
-      return;
-    }
+  const { data: created } = await supabase.from("orders").select("id").eq("public_token", inserted.public_token).single();
+  const rows = (req.body.items ?? []).map((item) => ({
+    order_id: created.id,
+    frame_id: item.card?.sizeId || item.frameId,
+    photo_path: item.photoPrintPath || item.photoOriginalPath || null,
+    crop: item.crop ?? {},
+    orientation: item.orientation === "landscape" ? "landscape" : "portrait",
+    quantity: 1,
+    unit_price_cents: linePrice(item, ctx.prices),
+    dpi: Number.isFinite(item.dpi) ? item.dpi : null,
+    resolution_status: item.resolutionStatus || null,
+    text_overlay: item.textOverlay || null,
+    card: item.card || null,
+    voice: item.voice ? { ...item.voice, storagePath: item.voice.storagePath || item.photoPrintPath || null } : null,
+    bundle_id: item.bundleId || null,
+    bundle_label: item.bundleLabel || null,
+  }));
+  let itemError = (await supabase.from("order_items").insert(rows)).error;
+  if (itemError && /text_overlay|card|voice|schema cache/i.test(itemError.message)) {
+    itemError = (await supabase.from("order_items").insert(rows.map(({ text_overlay, card, voice, ...rest }) => rest))).error;
   }
-  const { data } = await supabase.from("orders").select("*, order_items(*)").eq("id", inserted.id).single();
-  res.status(200).json(mapOrderRow(data));
+  if (itemError) {
+    await supabase.from("orders").delete().eq("id", created.id);
+    const missing = /foreign key|frames/i.test(itemError.message);
+    res.status(500).json({ error: missing ? "Falta aplicar la migración 20261118193000_shop_extras.sql para ese producto." : itemError.message });
+    return;
+  }
+  res.status(200).json({ token: inserted.public_token });
 }
 
-function linePrice(item) {
+function linePrice(item, prices) {
   if (item.card) return priceCards(item.card.quantity).cents;
+  if (prices?.[item.frameId] != null) return prices[item.frameId];
   try {
-    return frameById(item.frameId).priceCents + (item.voice ? item.voice.addonCents || 0 : 0);
+    return frameById(item.frameId).priceCents;
   } catch {
     return 0;
   }
+}
+
+async function updateOrder(req, res) {
+  const supabase = serviceSupabase();
+  if (!supabase) {
+    res.status(503).json({ error: "Supabase no está configurado." });
+    return;
+  }
+  const key = String(req.body?.orderToken || "");
+  if (!/^[0-9a-f-]{8,40}$/i.test(key)) {
+    res.status(404).json({ error: "No encontramos el pedido." });
+    return;
+  }
+  const problem = orderProblem(req.body ?? {}, false);
+  if (problem) {
+    res.status(400).json({ error: problem });
+    return;
+  }
+  const { data: existing } = key.includes("-")
+    ? await supabase.from("orders").select("id, public_token, payment_status").eq("id", key).maybeSingle()
+    : await supabase.from("orders").select("id, public_token, payment_status").eq("public_token", key).maybeSingle();
+  if (!existing) {
+    res.status(404).json({ error: "No encontramos el pedido." });
+    return;
+  }
+  if (existing.payment_status === "approved") {
+    res.status(409).json({ error: "Ese pedido ya está pagado." });
+    return;
+  }
+  const { ctx } = await loadPricing(supabase, req.body);
+  let evaluated;
+  try {
+    evaluated = evaluateOrder(req.body, ctx);
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : "No pudimos cotizar." });
+    return;
+  }
+  if (evaluated.error || !evaluated.priced) {
+    res.status(400).json({ error: evaluated.error || "No pudimos cotizar." });
+    return;
+  }
+  const { error } = await supabase.from("orders").update({
+    customer_name: clip(req.body.customerName, 80),
+    phone: evaluated.phone,
+    email: clip(req.body.email, 120) || null,
+    address_line: clip(req.body.addressLine, 160),
+    district: clip(req.body.district, 80),
+    province: clip(req.body.province, 80),
+    city: clip(req.body.city || req.body.district, 80),
+    department: clip(req.body.department, 80),
+    reference: clip(req.body.reference, 160) || null,
+    zone: evaluated.zone,
+    subtotal_cents: evaluated.priced.subtotalCents,
+    frame_discount_cents: evaluated.priced.frameDiscountCents,
+    frame_discount_label: evaluated.priced.frameDiscountLabel,
+    promo_discount_cents: evaluated.priced.promoDiscountCents,
+    referral_discount_cents: evaluated.priced.referralDiscountCents,
+    credit_applied_cents: evaluated.priced.creditAppliedCents,
+    gift_card_applied_cents: evaluated.priced.giftCardAppliedCents,
+    gift_wrap_cents: evaluated.priced.giftWrapCents,
+    total_cents: evaluated.priced.totalCents,
+    christmas_guaranteed: evaluated.christmasGuaranteed,
+    christmas_note: evaluated.christmasNote,
+    eta_min: evaluated.etaMin,
+    eta_max: evaluated.etaMax,
+    eta_label: evaluated.etaLabel,
+    updated_at: new Date().toISOString(),
+  }).eq("id", existing.id);
+  if (error) {
+    res.status(500).json({ error: error.message });
+    return;
+  }
+  await supabase.from("order_items").delete().eq("order_id", existing.id);
+  const rows = (req.body.items ?? []).map((item) => ({
+    order_id: existing.id,
+    frame_id: item.card?.sizeId || item.frameId,
+    photo_path: item.photoPrintPath || null,
+    crop: item.crop ?? {},
+    orientation: item.orientation === "landscape" ? "landscape" : "portrait",
+    quantity: 1,
+    unit_price_cents: linePrice(item, ctx.prices),
+    dpi: Number.isFinite(item.dpi) ? item.dpi : null,
+    resolution_status: item.resolutionStatus || null,
+    text_overlay: item.textOverlay || null,
+    card: item.card || null,
+    voice: item.voice || null,
+    bundle_id: item.bundleId || null,
+    bundle_label: item.bundleLabel || null,
+  }));
+  const itemError = (await supabase.from("order_items").insert(rows)).error;
+  if (itemError) {
+    res.status(500).json({ error: itemError.message });
+    return;
+  }
+  res.status(200).json({ token: existing.public_token });
 }
 
 async function markPaid(req, res) {
@@ -358,7 +550,15 @@ async function markPaid(req, res) {
     res.status(503).json({ error: "Supabase no está configurado." });
     return;
   }
-  const { data: row } = await supabase.from("orders").select("*, order_items(*)").eq("id", req.body?.orderId).single();
+  const key = String(req.body?.token || req.body?.orderId || "");
+  if (!/^[0-9a-f-]{8,40}$/i.test(key)) {
+    res.status(400).json({ error: "No encontramos el pedido." });
+    return;
+  }
+  const lookup = key.includes("-")
+    ? supabase.from("orders").select("*, order_items(*)").eq("id", key).maybeSingle()
+    : supabase.from("orders").select("*, order_items(*)").eq("public_token", key).maybeSingle();
+  const { data: row } = await lookup;
   if (!row) {
     res.status(404).json({ error: "No encontramos el pedido." });
     return;
@@ -381,7 +581,8 @@ async function markPaid(req, res) {
       }
       for (const part of frame.consumes) {
         const current = stock[part.sku];
-        if (!current || current.quantity < part.qty) {
+        if (!current) continue;
+        if (current.quantity < part.qty) {
           res.status(409).json({ error: `Sin stock al confirmar (${part.sku}).` });
           return;
         }
@@ -422,7 +623,7 @@ async function markPaid(req, res) {
     }).eq("id", row.id);
   }
   const { data } = await supabase.from("orders").select("*, order_items(*)").eq("id", row.id).single();
-  res.status(200).json(mapOrderRow(data));
+  res.status(200).json(customerOrder(mapOrderRow(data)));
 }
 
 async function signPhoto(req, res) {
@@ -483,40 +684,71 @@ async function profile(req, res) {
     return;
   }
   if (req.method === "GET" || req.body?.read) {
-    const { data } = await supabase.from("customers").select("*, customer_addresses(*)").eq("phone", session.phone).maybeSingle();
-    res.status(200).json({ profile: mapProfile(data, data?.customer_addresses ?? []) });
+    res.status(200).json(await readAccount(supabase, session.phone));
     return;
   }
   const body = req.body?.profile ?? {};
-  const { data: customer } = await supabase
-    .from("customers")
-    .upsert({ phone: session.phone, name: body.name || null, email: body.email || null, updated_at: new Date().toISOString() }, { onConflict: "phone" })
-    .select("id")
-    .single();
-  if (customer && Array.isArray(body.addresses)) {
-    await supabase.from("customer_addresses").delete().eq("customer_id", customer.id);
-    if (body.addresses.length) {
-      await supabase.from("customer_addresses").insert(
-        body.addresses.map((item) => ({
-          customer_id: customer.id,
-          address_line: item.addressLine,
-          district: item.district,
-          province: item.province,
-          department: item.department,
-          city: item.city,
-          reference: item.reference || null,
-        })),
-      );
+  const name = clip(body.name, 80);
+  const email = clip(body.email, 120);
+  if (name && name.length < 2) {
+    res.status(400).json({ error: "Escribe tu nombre." });
+    return;
+  }
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    res.status(400).json({ error: "Revisa el correo." });
+    return;
+  }
+  const addresses = Array.isArray(body.addresses) ? body.addresses.slice(0, 5) : [];
+  for (const item of addresses) {
+    if (!clip(item.addressLine, 160) || !clip(item.district, 80) || !clip(item.province, 80) || !clip(item.department, 80)) {
+      res.status(400).json({ error: "Completa la dirección." });
+      return;
     }
   }
-  const { data } = await supabase.from("customers").select("*, customer_addresses(*)").eq("phone", session.phone).maybeSingle();
-  res.status(200).json({ profile: mapProfile(data, data?.customer_addresses ?? []) });
+  const { data: customer, error } = await supabase
+    .from("customers")
+    .upsert({ phone: session.phone, name: name || null, email: email || null, updated_at: new Date().toISOString() }, { onConflict: "phone" })
+    .select("id")
+    .single();
+  if (error || !customer) {
+    res.status(400).json({ error: error?.message || "No pudimos guardar la cuenta." });
+    return;
+  }
+  await supabase.from("customer_addresses").delete().eq("customer_id", customer.id);
+  if (addresses.length) {
+    const inserted = await supabase.from("customer_addresses").insert(
+      addresses.map((item) => ({
+        customer_id: customer.id,
+        address_line: clip(item.addressLine, 160),
+        district: clip(item.district, 80),
+        province: clip(item.province, 80),
+        department: clip(item.department, 80),
+        city: clip(item.city || item.district, 80),
+        reference: clip(item.reference, 160) || null,
+      })),
+    );
+    if (inserted.error && !/customer_addresses|schema cache/i.test(inserted.error.message)) {
+      res.status(400).json({ error: inserted.error.message });
+      return;
+    }
+  }
+  res.status(200).json(await readAccount(supabase, session.phone));
+}
+
+async function readAccount(supabase, phone) {
+  const { data } = await supabase.from("customers").select("*, customer_addresses(*)").eq("phone", phone).maybeSingle();
+  const { data: credit } = await supabase.from("credits").select("balance_cents").eq("phone", phone).maybeSingle();
+  return { profile: mapProfile(data, data?.customer_addresses ?? []), creditCents: credit?.balance_cents ?? 0 };
 }
 
 async function giftCard(req, res) {
   const supabase = serviceSupabase();
   if (!supabase) {
     res.status(503).json({ error: "Supabase no está configurado." });
+    return;
+  }
+  if (!(await adminSession(req, supabase))) {
+    res.status(401).json({ error: "Solo el admin puede crear gift cards." });
     return;
   }
   const code = giftCode();
@@ -561,5 +793,5 @@ async function claim(req, res) {
     res.status(400).json({ error: error.message });
     return;
   }
-  res.status(200).json({ id: data.id, orderId: order.id, orderNumber: order.number, phone: session.phone, note: data.note, status: data.status, createdAt: data.created_at });
+  res.status(200).json({ id: data.id, orderId: order.id, phone: session.phone, note: data.note, status: data.status, createdAt: data.created_at });
 }

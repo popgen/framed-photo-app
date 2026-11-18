@@ -7,22 +7,22 @@ function firstName(name: string): string {
 }
 
 export function paidMessage(order: Pick<Order, "number" | "customerName" | "totalCents" | "christmasNote" | "publicToken">): string {
-  return `Hola ${firstName(order.customerName)}, recibimos tu pedido ${order.number} en Mi Fotito (${formatSoles(order.totalCents)}). ${order.christmasNote} Sigue el estado: ${siteUrl()}/pedido/${order.publicToken}`;
+  return `Hola ${firstName(order.customerName)}, recibimos tu pedido en Mi Fotito (${formatSoles(order.totalCents)}). ${order.christmasNote} Sigue el estado: ${siteUrl()}/pedido/${order.publicToken}`;
 }
 
 export function statusMessage(order: Pick<Order, "number" | "customerName" | "publicToken" | "trackingNumber">, status: OrderStatus): string {
   const name = firstName(order.customerName);
   const link = `${siteUrl()}/pedido/${order.publicToken}`;
-  if (status === "in_review") return `Hola ${name}, estamos revisando la foto de tu pedido ${order.number} antes de imprimir. ${link}`;
-  if (status === "printed") return `Hola ${name}, la foto de tu pedido ${order.number} ya está impresa. ${link}`;
-  if (status === "framed") return `Hola ${name}, tu marco ${order.number} ya está armado. ${link}`;
-  if (status === "shipped") return `Hola ${name}, tu pedido ${order.number} ya va en camino${order.trackingNumber ? `. Guía: ${order.trackingNumber}` : ""}. ${link}`;
-  if (status === "delivered") return `Hola ${name}, tu recuerdo ${order.number} figura como entregado. Si llegó dañado, pide la reposición en ${link}`;
-  return `Hola ${name}, tu pedido ${order.number} ahora está: ${STATUS_LABEL[status]}. ${link}`;
+  if (status === "in_review") return `Hola ${name}, estamos revisando tu foto antes de imprimir. ${link}`;
+  if (status === "printed") return `Hola ${name}, tu foto ya está impresa. ${link}`;
+  if (status === "framed") return `Hola ${name}, tu marco ya está armado. ${link}`;
+  if (status === "shipped") return `Hola ${name}, tu pedido ya va en camino${order.trackingNumber ? `. Guía: ${order.trackingNumber}` : ""}. ${link}`;
+  if (status === "delivered") return `Hola ${name}, tu recuerdo figura como entregado. Si llegó dañado, pide la reposición en ${link}`;
+  return `Hola ${name}, tu pedido ahora está: ${STATUS_LABEL[status]}. ${link}`;
 }
 
 export function blurryMessage(order: Pick<Order, "number" | "customerName">, note: string): string {
-  return `Hola ${firstName(order.customerName)}, revisamos la foto de tu pedido ${order.number} y se ve borrosa para imprimirla bien. ${note.trim()} ¿Nos puedes enviar una más nítida por aquí?`;
+  return `Hola ${firstName(order.customerName)}, revisamos tu foto y se ve borrosa para imprimirla bien. ${note.trim()} ¿Nos puedes enviar una más nítida por aquí?`;
 }
 
 export function referralMessage(name: string, code: string): string {
@@ -35,5 +35,5 @@ export function giftCardMessage(card: { code: string; initialCents: number; reci
 }
 
 export function replacementMessage(order: Pick<Order, "number" | "customerName" | "publicToken">): string {
-  return `Hola ${firstName(order.customerName)}, vamos a reponer tu marco sin costo. El nuevo pedido es ${order.number}. ${siteUrl()}/pedido/${order.publicToken}`;
+  return `Hola ${firstName(order.customerName)}, vamos a reponer tu marco sin costo. ${siteUrl()}/pedido/${order.publicToken}`;
 }

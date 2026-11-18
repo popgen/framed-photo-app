@@ -37,7 +37,7 @@ export default function Pedido() {
           </>
         ) : (
           <>
-            <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{order.number} · {STATUS_LABEL[order.status]}</Text>
+            <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{STATUS_LABEL[order.status]}</Text>
             {order.channel === "whatsapp" ? <Banner tone="good" text="Pedido que empezó por WhatsApp." /> : null}
             <Text style={{ fontFamily: font.body, color: colors.muted }}>{order.etaLabel}</Text>
             <Text style={{ fontFamily: font.body, color: colors.ink }}>{order.christmasNote}</Text>

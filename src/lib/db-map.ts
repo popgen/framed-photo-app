@@ -1,4 +1,5 @@
-import type { CustomerProfile, GiftCard, InventoryItem, Order, OrderItem, Promo, SavedAddress } from "./types";
+import { framesAvailable } from "./inventory";
+import type { CustomerProfile, FrameOffer, GiftCard, InventoryItem, Order, OrderItem, Promo, SavedAddress } from "./types";
 
 export function mapOrderRow(row: Record<string, any>): Order {
   const items = (row.order_items ?? []).map(mapItemRow);
@@ -74,6 +75,35 @@ export function mapItemRow(row: Record<string, any>): OrderItem {
     photoOriginalPath: row.original_path,
     photoPrintPath: row.print_path ?? row.photo_path,
   };
+}
+
+export function mapFrameRow(row: Record<string, any>, stock: Record<string, number>): FrameOffer {
+  const frame = {
+    id: row.id,
+    name: row.name,
+    sizeLabel: row.size_label,
+    tier: row.tier,
+    tierLabel: row.tier_label,
+    priceCents: row.price_cents,
+    printWcm: Number(row.print_w_cm),
+    printHcm: Number(row.print_h_cm),
+    outerWcm: Number(row.outer_w_cm),
+    outerHcm: Number(row.outer_h_cm),
+    mouldingCm: Number(row.moulding_cm),
+    aspect: row.aspect,
+    material: row.material,
+    mat: Boolean(row.mat),
+    stand: Boolean(row.stand),
+    hanging: Boolean(row.hanging),
+    consumes: row.consumes ?? [],
+    blurb: row.blurb ?? "",
+    sort: row.sort ?? 0,
+    category: row.category ?? undefined,
+    style: row.style ?? undefined,
+    border: row.border ?? undefined,
+  };
+  const tracked = Object.keys(stock).length > 0;
+  return { ...frame, available: tracked ? framesAvailable(frame, stock) : 99 };
 }
 
 export function mapPromoRow(row: Record<string, any>): Promo {

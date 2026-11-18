@@ -62,7 +62,7 @@ export default function Cuenta() {
     const latest = orders[0];
     if (!support.trim()) return;
     if (latest) await getRepo().createClaim({ token: latest.publicToken, phone, note: support.trim() });
-    const url = `https://wa.me/${supportNumber()}?text=${encodeURIComponent(`Hola Mi Fotito, sobre mi pedido ${latest?.number ?? ""}. ${support.trim()}`)}`;
+    const url = `https://wa.me/${supportNumber()}?text=${encodeURIComponent(`Hola Mi Fotito, escribo por mi pedido. ${support.trim()}`)}`;
     if (Platform.OS === "web") window.open(url, "_blank", "noopener,noreferrer");
     else await Linking.openURL(url);
     setSupport("");
@@ -124,7 +124,7 @@ export default function Cuenta() {
 function OrderCard({ order, onOpen, onReorder }: { order: TrackingCard; onOpen: () => void; onReorder?: () => void }) {
   return (
     <Card>
-      <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{STATUS_LABEL[order.status]} · {order.number}</Text>
+      <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{STATUS_LABEL[order.status]}</Text>
       <Text style={{ fontFamily: font.body, color: colors.muted }}>{order.etaLabel}{order.trackingNumber ? ` · Guía ${order.trackingNumber}` : ""}</Text>
       <View style={{ gap: 2, marginVertical: 6 }}>
         {STATUS_FLOW.map((status) => {

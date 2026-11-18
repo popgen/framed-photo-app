@@ -13,6 +13,7 @@ export type VoiceNote = {
   seconds: number;
   mime: string;
   addonCents: number;
+  storagePath?: string | null;
 };
 
 const KEY = "recuerdo-voice-";

@@ -239,8 +239,8 @@ create policy "admin notes" on public.notification_log for all to authenticated 
 create policy "admin stock" on public.inventory for update to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy "admin campaign" on public.campaigns for update to authenticated using (public.is_admin()) with check (public.is_admin());
 
-insert into storage.buckets (id, name, public, file_size_limit) values ('photos', 'photos', false, 10485760)
-on conflict (id) do update set file_size_limit = excluded.file_size_limit;
+insert into storage.buckets (id, name, public) values ('photos', 'photos', false)
+on conflict (id) do nothing;
 
 create policy "anon uploads" on storage.objects for insert to anon
 with check (bucket_id = 'photos' and name like 'uploads/%');

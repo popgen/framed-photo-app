@@ -56,6 +56,66 @@
   status = 200
   force = true
 
+[[redirects]]
+  from = "/api/create-order"
+  to = "/.netlify/functions/create-order"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/track-orders"
+  to = "/.netlify/functions/track-orders"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/otp-send"
+  to = "/.netlify/functions/otp-send"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/otp-verify"
+  to = "/.netlify/functions/otp-verify"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/account"
+  to = "/.netlify/functions/account"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/mark-paid"
+  to = "/.netlify/functions/mark-paid"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/sign-photo"
+  to = "/.netlify/functions/sign-photo"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/voice-url"
+  to = "/.netlify/functions/voice-url"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/claim"
+  to = "/.netlify/functions/claim"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/gift-card"
+  to = "/.netlify/functions/gift-card"
+  status = 200
+  force = true
+
 # Expo single-page export: client routes fall back to index.html.
 [[redirects]]
   from = "/*"
