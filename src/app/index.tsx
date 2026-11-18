@@ -40,7 +40,7 @@ export default function Home() {
         <P>{active.heroSubtitle}</P>
         {countdownVisible(now, active) ? <Countdown target={countdownTarget(now, null, active)} now={now} /> : null}
         <GuaranteeNote guarantee={guarantee} />
-        <View style={{ flexDirection: "row", gap: 8 }}>
+        <View style={{ alignItems: "center" }}>
           <Button label={active.cta} onPress={() => router.push("/crear")} />
         </View>
         <Animated.View entering={reduced ? undefined : FadeInDown.springify().damping(14)} style={{ alignItems: "center", paddingTop: 8 }}>
