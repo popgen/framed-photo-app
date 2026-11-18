@@ -1,6 +1,6 @@
 import { router } from "expo-router";
-import { useState } from "react";
-import { Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Platform, Text, View } from "react-native";
 import { PhoneVerify } from "../components/PhoneVerify";
 import { Button, Screen } from "../components/ui";
 import { colors, font } from "../components/theme";
@@ -13,6 +13,10 @@ import type { TrackingCard } from "../lib/tracking";
 export default function Rastrear() {
   const [orders, setOrders] = useState<TrackingCard[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS === "web") document.title = "Rastrea tu pedido";
+  }, []);
 
   async function load(phone: string) {
     const normalized = normalizePhone(phone) || readPhoneSession()?.phone || phone;
