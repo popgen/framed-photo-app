@@ -1,57 +1,148 @@
+import { router } from "expo-router";
 import { useState } from "react";
-import { Text, View } from "react-native";
+import { Linking, Platform, Pressable, Text, TextInput, View } from "react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { PhoneVerify } from "../components/PhoneVerify";
-import { Button, Field, Screen } from "../components/ui";
+import { useReducedMotion } from "../components/fx";
+import { Button, Card, Field, Screen } from "../components/ui";
 import { colors, font } from "../components/theme";
+import { supportNumber } from "../lib/env";
 import { getRepo } from "../lib/repo";
-import type { CustomerProfile } from "../lib/types";
+import { useCart } from "../lib/store";
+import { STATUS_FLOW, STATUS_LABEL, type CustomerProfile, type OrderStatus } from "../lib/types";
 import type { TrackingCard } from "../lib/tracking";
+import { DEPARTMENTS, districtsFor, provincesFor } from "../lib/zone";
+
+const DONE = new Set<OrderStatus>(["delivered", "cancelled"]);
 
 export default function Cuenta() {
+  const reduced = useReducedMotion();
+  const addMany = useCart((state) => state.addMany);
+  const [phone, setPhone] = useState("");
   const [ready, setReady] = useState(false);
   const [profile, setProfile] = useState<CustomerProfile>({ name: "", phone: "", email: "", addresses: [] });
   const [orders, setOrders] = useState<TrackingCard[]>([]);
   const [note, setNote] = useState<string | null>(null);
+  const [support, setSupport] = useState("");
+  const [picker, setPicker] = useState<"department" | "province" | "district" | null>(null);
 
-  async function enter(phone: string) {
+  const address = profile.addresses[0] ?? emptyAddress();
+  const provinces = provincesFor(address.department);
+  const districts = districtsFor(address.department, address.province);
+  const ongoing = orders.filter((order) => !DONE.has(order.status));
+  const past = orders.filter((order) => DONE.has(order.status));
+
+  async function enter(nextPhone: string) {
     const repo = getRepo();
     const saved = await repo.getProfile();
-    setProfile(saved ?? { name: "", phone, email: "", addresses: [] });
-    setOrders(await repo.listOrdersByPhone(phone));
+    setPhone(nextPhone);
+    setProfile(saved?.phone ? { ...saved, phone: saved.phone || nextPhone } : { name: "", phone: nextPhone, email: "", addresses: [] });
+    setOrders(await repo.listOrdersByPhone(nextPhone));
     setReady(true);
   }
 
+  function patchAddress(partial: Partial<typeof address>) {
+    setProfile({ ...profile, addresses: [{ ...address, ...partial }] });
+  }
+
   async function save() {
-    const next = await getRepo().saveProfile(profile);
+    const next = await getRepo().saveProfile({ ...profile, phone });
     setProfile(next);
     setNote("Guardamos tu cuenta.");
   }
 
+  async function reorder(card: TrackingCard) {
+    const order = await getRepo().getOrderByToken(card.publicToken, phone);
+    if (!order?.items.length) return;
+    addMany(order.items.map((item) => ({ ...item, id: `${item.id}-re` })));
+    router.push("/carrito");
+  }
+
+  async function sendSupport() {
+    const latest = orders[0];
+    if (!support.trim()) return;
+    if (latest) await getRepo().createClaim({ token: latest.publicToken, phone, note: support.trim() });
+    const url = `https://wa.me/${supportNumber()}?text=${encodeURIComponent(`Hola Mi Fotito, sobre mi pedido ${latest?.number ?? ""}. ${support.trim()}`)}`;
+    if (Platform.OS === "web") window.open(url, "_blank", "noopener,noreferrer");
+    else await Linking.openURL(url);
+    setSupport("");
+    setNote("Enviamos tu mensaje. También se abrió WhatsApp.");
+  }
+
   return (
     <Screen>
-      <View style={{ padding: 16, gap: 12 }}>
-        {!ready ? <PhoneVerify title="Mi cuenta" onVerified={(phone) => void enter(phone)} /> : null}
+      <View style={{ padding: 16, gap: 14 }}>
+        {!ready ? <PhoneVerify title="Mi cuenta" onVerified={(value) => void enter(value)} /> : null}
         {ready ? (
           <>
-            <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>Mi cuenta</Text>
-            <Field label="Nombre" value={profile.name} onChangeText={(name) => setProfile({ ...profile, name })} />
-            <Field label="Correo" value={profile.email} onChangeText={(email) => setProfile({ ...profile, email })} keyboardType="email-address" />
-            <Field label="Celular" value={profile.phone} editable={false} />
-            <Field
-              label="Dirección"
-              value={profile.addresses[0]?.addressLine ?? ""}
-              onChangeText={(addressLine) => setProfile({ ...profile, addresses: [{ id: profile.addresses[0]?.id ?? "addr", addressLine, district: profile.addresses[0]?.district ?? "", province: profile.addresses[0]?.province ?? "", department: profile.addresses[0]?.department ?? "", city: profile.addresses[0]?.city ?? "" }] })}
-            />
+            <Animated.View entering={reduced ? undefined : FadeInDown.springify().damping(16)}>
+              <Text accessibilityRole="header" style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>Mi cuenta</Text>
+            </Animated.View>
+            <Card>
+              <Field label="Nombre" value={profile.name} onChangeText={(name) => setProfile({ ...profile, name })} />
+              <View style={{ height: 8 }} />
+              <Field label="Correo" value={profile.email} onChangeText={(email) => setProfile({ ...profile, email })} keyboardType="email-address" autoCapitalize="none" />
+              <View style={{ height: 8 }} />
+              <Field label="Celular" value={profile.phone} editable={false} />
+            </Card>
+            <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Dirección</Text>
+            <Pressable onPress={() => setPicker("department")} style={choice}><Text style={choiceLabel}>Departamento</Text><Text style={choiceValue}>{address.department || "Elegir"}</Text></Pressable>
+            <Pressable onPress={() => address.department && setPicker("province")} style={choice}><Text style={choiceLabel}>Provincia</Text><Text style={choiceValue}>{address.province || "Elegir"}</Text></Pressable>
+            <Pressable onPress={() => address.province && setPicker("district")} style={choice}><Text style={choiceLabel}>Distrito</Text><Text style={choiceValue}>{address.district || "Elegir"}</Text></Pressable>
+            <Field label="Dirección" value={address.addressLine} onChangeText={(addressLine) => patchAddress({ addressLine })} />
+            <Field label="Referencia" value={address.reference ?? ""} onChangeText={(reference) => patchAddress({ reference })} />
             <Button label="Guardar" onPress={() => void save()} />
             {note ? <Text style={{ fontFamily: font.body, color: colors.pine }}>{note}</Text> : null}
-            <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Pedidos</Text>
-            {orders.length === 0 ? <Text style={{ fontFamily: font.body, color: colors.muted }}>Todavía no hay pedidos con este celular.</Text> : null}
-            {orders.map((order) => (
-              <Text key={order.publicToken} style={{ fontFamily: font.body, color: colors.ink }}>{order.number} · {order.status}{order.trackingNumber ? ` · guía ${order.trackingNumber}` : ""}</Text>
-            ))}
+            <Text style={{ fontFamily: font.semibold, color: colors.ink }}>En camino</Text>
+            {ongoing.length === 0 ? <Text style={{ fontFamily: font.body, color: colors.muted }}>No tienes pedidos abiertos.</Text> : null}
+            {ongoing.map((order) => <OrderCard key={order.publicToken} order={order} onOpen={() => router.push(`/pedido/${order.publicToken}`)} />)}
+            <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Anteriores</Text>
+            {past.length === 0 ? <Text style={{ fontFamily: font.body, color: colors.muted }}>Todavía no hay pedidos entregados.</Text> : null}
+            {past.map((order) => <OrderCard key={order.publicToken} order={order} onOpen={() => router.push(`/pedido/${order.publicToken}`)} onReorder={() => void reorder(order)} />)}
+            <Card>
+              <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Hablar con Mi Fotito</Text>
+              <TextInput value={support} onChangeText={setSupport} placeholder="Cuéntanos en qué te ayudamos" placeholderTextColor="#A89488" multiline style={{ minHeight: 80, marginTop: 8, backgroundColor: colors.bg, borderRadius: 12, padding: 12, fontFamily: font.body }} />
+              <View style={{ height: 8 }} />
+              <Button label="Enviar y abrir WhatsApp" onPress={() => void sendSupport()} />
+            </Card>
           </>
+        ) : null}
+        {picker ? (
+          <View style={{ backgroundColor: colors.white, borderRadius: 16, padding: 12, gap: 8 }}>
+            {(picker === "department" ? DEPARTMENTS : picker === "province" ? provinces : districts).map((item) => (
+              <Pressable key={item} onPress={() => { if (picker === "department") patchAddress({ department: item, province: "", district: "", city: "" }); else if (picker === "province") patchAddress({ province: item, district: "", city: "" }); else patchAddress({ district: item, city: item }); setPicker(null); }} style={{ minHeight: 44, justifyContent: "center" }}>
+                <Text style={{ fontFamily: font.medium, color: colors.ink }}>{item}</Text>
+              </Pressable>
+            ))}
+          </View>
         ) : null}
       </View>
     </Screen>
   );
 }
+
+function OrderCard({ order, onOpen, onReorder }: { order: TrackingCard; onOpen: () => void; onReorder?: () => void }) {
+  return (
+    <Card>
+      <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{STATUS_LABEL[order.status]} · {order.number}</Text>
+      <Text style={{ fontFamily: font.body, color: colors.muted }}>{order.etaLabel}{order.trackingNumber ? ` · Guía ${order.trackingNumber}` : ""}</Text>
+      <View style={{ gap: 2, marginVertical: 6 }}>
+        {STATUS_FLOW.map((status) => {
+          const reached = STATUS_FLOW.indexOf(status) <= STATUS_FLOW.indexOf(order.status);
+          return <Text key={status} style={{ fontFamily: font.medium, color: reached ? colors.pine : colors.muted }}>{reached ? "●" : "○"} {STATUS_LABEL[status]}</Text>;
+        })}
+      </View>
+      <Button label="Ver estado" tone="ghost" onPress={onOpen} />
+      {onReorder ? <View style={{ height: 8 }} /> : null}
+      {onReorder ? <Button label="Pedir de nuevo" tone="ghost" onPress={onReorder} /> : null}
+    </Card>
+  );
+}
+
+function emptyAddress() {
+  return { id: "addr", addressLine: "", district: "", province: "", department: "", city: "", reference: "" };
+}
+
+const choice = { minHeight: 52, borderRadius: 14, backgroundColor: colors.white, paddingHorizontal: 14, justifyContent: "center" as const };
+const choiceLabel = { fontFamily: font.medium, fontSize: 12, color: colors.muted };
+const choiceValue = { fontFamily: font.semibold, color: colors.ink };

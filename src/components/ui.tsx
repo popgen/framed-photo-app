@@ -66,8 +66,38 @@ export function Screen({
         ) : null}
         {body}
         {footer}
+        {path.startsWith("/admin") || path === "/cuenta" ? null : <AccountButton />}
       </View>
     </View>
+  );
+}
+
+export function AccountButton() {
+  const insets = useSafeAreaInsets();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Mi cuenta"
+      onPress={() => router.push("/cuenta")}
+      style={{
+        position: "absolute",
+        right: 16,
+        bottom: Math.max(insets.bottom, 10) + 132,
+        zIndex: 6,
+        minHeight: 44,
+        paddingHorizontal: 14,
+        borderRadius: 999,
+        backgroundColor: colors.ink,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+      }}
+    >
+      <Svg width={18} height={18} viewBox="0 0 24 24">
+        <Path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm-7 8a7 7 0 0 1 14 0" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
+      </Svg>
+      <Text style={{ color: "white", fontFamily: font.bold, fontSize: 14 }}>Mi cuenta</Text>
+    </Pressable>
   );
 }
 
