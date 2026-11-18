@@ -15,7 +15,7 @@ export function notifyMode(): "mock" | "live" {
 }
 
 export function siteUrl(): string {
-  return (process.env.EXPO_PUBLIC_SITE_URL || "http://localhost:8081").replace(/\/$/, "");
+  return (process.env.EXPO_PUBLIC_SITE_URL || "https://mifotito.com").replace(/\/$/, "");
 }
 
 export function supportNumber(): string {

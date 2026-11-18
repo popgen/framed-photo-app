@@ -1,7 +1,10 @@
+import type { CardSnapshot } from "./cards";
 import type { FrameDef } from "./catalog";
 import type { Zone } from "./cutoff";
+import type { TextOverlay } from "./overlay";
 import type { Crop, Orientation, ResolutionStatus } from "./print-size";
 import type { PromoRule } from "./pricing";
+import type { VoiceNote } from "./voice";
 
 export type OrderStatus =
   | "pending_payment"
@@ -40,6 +43,11 @@ export type OrderItem = {
   resolutionStatus: ResolutionStatus;
   blurry: boolean;
   blurryNote?: string | null;
+  textOverlay?: TextOverlay | null;
+  card?: CardSnapshot | null;
+  voice?: VoiceNote | null;
+  photoOriginalPath?: string | null;
+  photoPrintPath?: string | null;
 };
 
 export type Order = {
@@ -138,6 +146,30 @@ export type Claim = {
   createdAt: string;
 };
 
+export type SavedAddress = {
+  id: string;
+  addressLine: string;
+  district: string;
+  province: string;
+  department: string;
+  city: string;
+  reference?: string | null;
+};
+
+export type CustomerProfile = {
+  name: string;
+  phone: string;
+  email: string;
+  addresses: SavedAddress[];
+};
+
+export type RetabloInquiry = {
+  id: string;
+  size: string;
+  status: "new" | "contacted" | "closed";
+  createdAt: string;
+};
+
 export type Notice = {
   id: string;
   orderId?: string | null;
@@ -158,6 +190,11 @@ export type CheckoutInput = {
     resolutionStatus: ResolutionStatus;
     bundleId?: string | null;
     bundleLabel?: string | null;
+    textOverlay?: TextOverlay | null;
+    card?: CardSnapshot | null;
+    voice?: VoiceNote | null;
+    photoOriginalPath?: string | null;
+    photoPrintPath?: string | null;
   }[];
   customerName: string;
   phone: string;

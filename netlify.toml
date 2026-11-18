@@ -2,12 +2,87 @@
   command = "npm run build:web"
   publish = "dist"
 
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
+[build.environment]
+  NODE_VERSION = "22"
+  CI = "true"
+  EXPO_PUBLIC_SITE_URL = "https://mifotito.com"
 
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+  included_files = ["data/frames.json"]
+
+# www and http → https://mifotito.com
+[[redirects]]
+  from = "https://www.mifotito.com/*"
+  to = "https://mifotito.com/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "http://www.mifotito.com/*"
+  to = "https://mifotito.com/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "http://mifotito.com/*"
+  to = "https://mifotito.com/:splat"
+  status = 301
+  force = true
+
+# /api/* → Netlify Functions. These must stay above the SPA fallback.
+[[redirects]]
+  from = "/api/payments/create"
+  to = "/.netlify/functions/payments-create"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/notify"
+  to = "/.netlify/functions/notify"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/webhooks/whatsapp"
+  to = "/.netlify/functions/webhooks-whatsapp"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/shop"
+  to = "/.netlify/functions/shop"
+  status = 200
+  force = true
+
+# Expo single-page export: client routes fall back to index.html.
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+    X-XSS-Protection = "0"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/_expo/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

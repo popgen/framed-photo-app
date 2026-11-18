@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useApp, useRepo } from "../../components/provider";
 import { colors, font } from "../../components/theme";
 import { defaultCampaign } from "../../lib/campaign";
@@ -12,6 +12,7 @@ const FILTERS = ["all", "paid", "in_review", "printed", "framed", "shipped", "de
 export default function AdminHome() {
   const { refresh } = useApp();
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
+  const [query, setQuery] = useState("");
   const [urgent, setUrgent] = useState(true);
   const { data: orders } = useRepo((repo) => repo.listOrders(filter === "all" ? undefined : filter), [filter]);
   const { data: campaign } = useRepo((repo) => repo.getCampaign());
@@ -25,6 +26,7 @@ export default function AdminHome() {
   return (
     <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }}>
       <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>Pedidos</Text>
+      <TextInput value={query} onChangeText={setQuery} placeholder="Buscar MF-26-1004" placeholderTextColor="#A89488" style={{ minHeight: 48, borderRadius: 12, backgroundColor: colors.white, paddingHorizontal: 12, fontFamily: font.body }} />
       <Pressable onPress={() => void getToggle(active.seasonalMotion, refresh)} style={{ minHeight: 44, justifyContent: "center" }}>
         <Text style={{ fontFamily: font.medium, color: colors.ink }}>{active.seasonalMotion ? "☑" : "☐"} Movimiento de {active.occasionName}</Text>
       </Pressable>
@@ -38,7 +40,7 @@ export default function AdminHome() {
           </Pressable>
         ))}
       </ScrollView>
-      {rows.map((order) => (
+      {rows.filter((order) => !query.trim() || order.number.toLowerCase().includes(query.trim().toLowerCase()) || order.customerName.toLowerCase().includes(query.trim().toLowerCase())).map((order) => (
         <Pressable key={order.id} onPress={() => router.push(`/admin/pedido/${order.id}`)} style={{ minHeight: 72, backgroundColor: colors.white, borderRadius: 16, padding: 12, justifyContent: "center" }}>
           <Text style={{ fontFamily: font.semibold, color: colors.ink }}>
             {order.number} · {STATUS_LABEL[order.status]} {order.channel === "whatsapp" ? "· WhatsApp" : ""}

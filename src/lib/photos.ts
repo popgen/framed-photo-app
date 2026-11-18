@@ -52,6 +52,51 @@ async function measure(blob: Blob): Promise<{ width: number; height: number }> {
   }
 }
 
+export async function saveAudioBlob(blob: Blob): Promise<{ id: string }> {
+  const id = uid("au_");
+  if (typeof indexedDB !== "undefined") {
+    const database = await openDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = database.transaction("photos", "readwrite");
+      tx.objectStore("photos").put(blob, id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+  memory.set(id, { url: URL.createObjectURL(blob), width: 0, height: 0 });
+  return { id };
+}
+
+export async function readPhotoBlob(id: string): Promise<Blob | null> {
+  if (typeof indexedDB === "undefined") return null;
+  const database = await openDb();
+  const blob = await new Promise<Blob | undefined>((resolve, reject) => {
+    const tx = database.transaction("photos", "readonly");
+    const request = tx.objectStore("photos").get(id);
+    request.onsuccess = () => resolve(request.result as Blob | undefined);
+    request.onerror = () => reject(request.error);
+  });
+  return blob ?? null;
+}
+
+async function putBlob(id: string, blob: Blob) {
+  if (typeof indexedDB === "undefined") return;
+  const database = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = database.transaction("photos", "readwrite");
+    tx.objectStore("photos").put(blob, id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function savePhotoPair(original: Blob): Promise<{ id: string; width: number; height: number }> {
+  const print = await resizeForPrint(original);
+  const saved = await savePhotoBlob(print);
+  await putBlob(`${saved.id}:original`, original);
+  return saved;
+}
+
 export async function savePhotoBlob(blob: Blob): Promise<{ id: string; width: number; height: number }> {
   const id = uid("ph_");
   const size = await measure(blob);
@@ -109,7 +154,7 @@ export async function pickAndSavePhotos(multiple = false): Promise<{ id: string;
   if (Platform.OS === "web") {
     const files = await pickPhotoFiles(multiple);
     const saved = [];
-    for (const file of files) saved.push(await savePhotoBlob(await resizeForPrint(await fileToJpegBlob(file))));
+    for (const file of files) saved.push(await savePhotoPair(await fileToJpegBlob(file)));
     return saved;
   }
   const ImagePicker = await import("expo-image-picker");

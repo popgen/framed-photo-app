@@ -1,8 +1,9 @@
 import { Image } from "expo-image";
-import { useEffect, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { PanResponder, StyleSheet, Text, View } from "react-native";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { openingOf, type FrameDef } from "../lib/catalog";
+import { fontById, placeOverlay, type TextOverlay } from "../lib/overlay";
 import { resolvePhoto } from "../lib/photos";
 import type { Crop, Orientation } from "../lib/print-size";
 
@@ -17,6 +18,13 @@ const ART: Record<string, number> = {
   "black-mat": require("../../assets/frames/black-mat.png"),
   "wood-mat": require("../../assets/frames/wood-mat.png"),
   "square-black-20": require("../../assets/frames/square-black-20.png"),
+  "nieve-celeste": require("../../assets/frames/nieve-celeste.png"),
+  "acebo-clasico": require("../../assets/frames/acebo-clasico.png"),
+  "estrellas-oro": require("../../assets/frames/estrellas-oro.png"),
+  "retablo-ayacucho": require("../../assets/frames/retablo-ayacucho.png"),
+  "aguayo-andino": require("../../assets/frames/aguayo-andino.png"),
+  "noche-nevada": require("../../assets/frames/noche-nevada.png"),
+  "pino-rustico": require("../../assets/frames/pino-rustico.png"),
 };
 
 export function FrameView({
@@ -25,12 +33,16 @@ export function FrameView({
   crop,
   orientation = "portrait",
   width,
+  overlay,
+  onOverlayChange,
 }: {
   frame: FrameDef;
   photoId?: string | null;
   crop?: Crop | null;
   orientation?: Orientation;
   width: number;
+  overlay?: TextOverlay | null;
+  onOverlayChange?: (next: TextOverlay) => void;
 }) {
   const [photo, setPhoto] = useState<{ uri?: string; source?: number } | null>(null);
   useEffect(() => {
@@ -91,6 +103,15 @@ export function FrameView({
             ) : (
               <View style={styles.empty} />
             )}
+            {overlay?.text ? (
+              <OverlayText
+                overlay={overlay}
+                width={openingW}
+                height={openingH}
+                landscape={landscape}
+                onChange={onOverlayChange}
+              />
+            ) : null}
             <Svg width={openingW} height={openingH} style={StyleSheet.absoluteFill} pointerEvents="none">
               <Defs>
                 <LinearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
@@ -105,6 +126,53 @@ export function FrameView({
           <Image source={ART[frame.id]} style={StyleSheet.absoluteFill} contentFit="fill" pointerEvents="none" />
         </View>
       </View>
+    </View>
+  );
+}
+
+function OverlayText({
+  overlay,
+  width,
+  height,
+  landscape,
+  onChange,
+}: {
+  overlay: TextOverlay;
+  width: number;
+  height: number;
+  landscape: boolean;
+  onChange?: (next: TextOverlay) => void;
+}) {
+  const live = useRef({ overlay, onChange, width, height, landscape });
+  live.current = { overlay, onChange, width, height, landscape };
+  const family = fontById(overlay.font).family;
+  const fontSize = Math.max(10, overlay.size * height);
+  const pan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => Boolean(live.current.onChange),
+      onPanResponderRelease: (_event, gesture) => {
+        const current = live.current;
+        if (!current.onChange) return;
+        const dx = current.landscape ? gesture.dy : gesture.dx;
+        const dy = current.landscape ? -gesture.dx : gesture.dy;
+        current.onChange(placeOverlay({ ...current.overlay, x: current.overlay.x + dx / current.width, y: current.overlay.y + dy / current.height }, true));
+      },
+    }),
+  ).current;
+  return (
+    <View
+      {...pan.panHandlers}
+      style={{
+        position: "absolute",
+        left: overlay.x * width - width * 0.35,
+        top: overlay.y * height - fontSize,
+        width: width * 0.7,
+        transform: [{ rotate: `${overlay.rotation}deg` }],
+      }}
+    >
+      <Text style={{ fontFamily: family, fontSize, lineHeight: fontSize * 1.15, color: overlay.color, textAlign: "center", textShadowColor: "rgba(0,0,0,0.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }}>
+        {overlay.text}
+      </Text>
     </View>
   );
 }

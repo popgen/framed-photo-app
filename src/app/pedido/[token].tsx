@@ -1,31 +1,29 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Text, View } from "react-native";
-import { Banner, Button, Field, Screen } from "../../components/ui";
+import { PhoneVerify } from "../../components/PhoneVerify";
+import { Banner, Button, Screen } from "../../components/ui";
 import { colors, font } from "../../components/theme";
+import { readPhoneSession } from "../../lib/phone-session";
 import { getRepo } from "../../lib/repo";
 import { STATUS_FLOW, STATUS_LABEL, type Order } from "../../lib/types";
 
 export default function Pedido() {
   const { token } = useLocalSearchParams<{ token: string }>();
-  const [phone, setPhone] = useState("");
   const [order, setOrder] = useState<Order | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   return (
     <Screen>
       <View style={{ padding: 16, gap: 12 }}>
-        <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>Tu pedido</Text>
         {!order ? (
           <>
-            <Text style={{ fontFamily: font.body, color: colors.muted }}>Escribe el celular del pedido para ver el estado.</Text>
-            <Field label="Celular" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
-            {error ? <Banner tone="bad" text={error} /> : null}
-            <Button
-              label="Ver estado"
-              onPress={() => {
+            <PhoneVerify
+              title="Tu pedido"
+              onVerified={(verified) => {
+                const sessionPhone = readPhoneSession()?.phone || verified;
                 void getRepo()
-                  .getOrderByToken(String(token), phone)
+                  .getOrderByToken(String(token), sessionPhone)
                   .then((found) => {
                     if (!found) setError("No coincide el pedido con ese celular.");
                     else {
@@ -35,6 +33,7 @@ export default function Pedido() {
                   });
               }}
             />
+            {error ? <Banner tone="bad" text={error} /> : null}
           </>
         ) : (
           <>

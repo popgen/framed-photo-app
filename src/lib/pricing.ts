@@ -17,7 +17,7 @@ export type PromoRule = {
   active: boolean;
 };
 
-export type QuoteItem = { unitPriceCents: number; quantity?: number };
+export type QuoteItem = { unitPriceCents: number; quantity?: number; kind?: "frame" | "plain" };
 
 export type QuoteInput = {
   items: QuoteItem[];
@@ -51,23 +51,32 @@ export type Quote = {
 
 export function quote(input: QuoteInput): Quote {
   const now = input.now ?? new Date();
-  let subtotal = 0;
+  let frameSubtotal = 0;
+  let plainSubtotal = 0;
+  let frameUnits = 0;
   let units = 0;
   let cheaper = Number.POSITIVE_INFINITY;
   for (const item of input.items) {
     const qty = item.quantity ?? 1;
     if (qty < 1) continue;
-    subtotal += item.unitPriceCents * qty;
+    const line = item.unitPriceCents * qty;
     units += qty;
+    if ((item.kind ?? "frame") === "plain") {
+      plainSubtotal += line;
+      continue;
+    }
+    frameSubtotal += line;
+    frameUnits += qty;
     if (item.unitPriceCents < cheaper) cheaper = item.unitPriceCents;
   }
+  const subtotal = frameSubtotal + plainSubtotal;
 
   let frameDiscount = 0;
   let frameLabel: string | null = null;
-  if (units >= 3) {
-    frameDiscount = Math.round((subtotal * SET_PERCENT) / 100);
+  if (frameUnits >= 3) {
+    frameDiscount = Math.round((frameSubtotal * SET_PERCENT) / 100);
     frameLabel = "Set de 3 o más al 15%";
-  } else if (units === 2 && Number.isFinite(cheaper)) {
+  } else if (frameUnits === 2 && Number.isFinite(cheaper)) {
     frameDiscount = Math.round((cheaper * SECOND_FRAME_PERCENT) / 100);
     frameLabel = "Segundo marco al 20%";
   }

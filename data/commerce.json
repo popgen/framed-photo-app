@@ -8,8 +8,16 @@
     { "sku": "body-30-white", "name": "Cuerpo 30×40 blanco", "quantity": 14, "lowStockAt": 5 },
     { "sku": "body-30-wood", "name": "Cuerpo 30×40 madera", "quantity": 14, "lowStockAt": 5 },
     { "sku": "body-20-black", "name": "Cuerpo 20×20 negro", "quantity": 20, "lowStockAt": 5 },
-    { "sku": "mat-white", "name": "Paspartú blanco", "quantity": 12, "lowStockAt": 5 }
+    { "sku": "mat-white", "name": "Paspartú blanco", "quantity": 12, "lowStockAt": 5 },
+    { "sku": "body-navidad-nieve", "name": "Marco Nieve Celeste", "quantity": 16, "lowStockAt": 4 },
+    { "sku": "body-navidad-acebo", "name": "Marco Acebo Clásico", "quantity": 16, "lowStockAt": 4 },
+    { "sku": "body-navidad-oro", "name": "Marco Estrellas de Oro", "quantity": 16, "lowStockAt": 4 },
+    { "sku": "body-navidad-retablo", "name": "Marco Retablo de Ayacucho", "quantity": 16, "lowStockAt": 4 },
+    { "sku": "body-navidad-aguayo", "name": "Marco Aguayo Andino", "quantity": 16, "lowStockAt": 4 },
+    { "sku": "body-navidad-noche", "name": "Marco Noche Nevada", "quantity": 16, "lowStockAt": 4 },
+    { "sku": "body-navidad-pino", "name": "Marco Pino Rústico", "quantity": 16, "lowStockAt": 4 }
   ],
+  "voiceAddonCents": 500,
   "promos": [
     {
       "code": "NAVIDAD10",

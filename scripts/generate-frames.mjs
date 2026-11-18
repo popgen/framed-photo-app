@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
+import { christmasSvg } from "./christmas-art.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const frames = JSON.parse(await readFile(path.join(root, "data/frames.json"), "utf8"));
@@ -122,7 +123,7 @@ function sceneSvg(w, h) {
 }
 
 for (const frame of frames) {
-  const svg = frameSvg(frame);
+  const svg = frame.category === "navidad" ? christmasSvg(frame) : frameSvg(frame);
   const file = path.join(outDir, `${frame.id}.png`);
   await sharp(Buffer.from(svg)).png({ compressionLevel: 9 }).toFile(file);
   const meta = await sharp(file).metadata();

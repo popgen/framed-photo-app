@@ -1,3 +1,5 @@
+import { borderOf, type FrameDef } from "./catalog";
+
 export const DPI_GOOD = 300;
 export const DPI_ACCEPT = 150;
 export const CM_PER_INCH = 2.54;
@@ -23,6 +25,16 @@ export type SizeOption = {
 
 export function cmToPx(cm: number, dpi = DPI_GOOD): number {
   return Math.round((cm / CM_PER_INCH) * dpi);
+}
+
+export function borderPixels(frame: FrameDef, dpi = DPI_GOOD) {
+  const border = borderOf(frame);
+  return {
+    top: cmToPx(border.top, dpi),
+    right: cmToPx(border.right, dpi),
+    bottom: cmToPx(border.bottom, dpi),
+    left: cmToPx(border.left, dpi),
+  };
 }
 
 export function targetPixels(printWcm: number, printHcm: number, orientation: Orientation, dpi = DPI_GOOD) {

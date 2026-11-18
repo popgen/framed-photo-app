@@ -22,7 +22,7 @@ export default async function handler(req, res) {
   }
   const body = req.body ?? {};
   const incoming = extract(body);
-  const catalog = JSON.parse(await readFile(new URL("../../data/frames.json", import.meta.url), "utf8")).map((frame) => ({
+  const catalog = JSON.parse(await readFrames()).map((frame) => ({
     id: frame.id,
     name: frame.name,
     priceCents: frame.priceCents,
@@ -38,7 +38,7 @@ export default async function handler(req, res) {
       : { type: message.choice ? "select" : "text", id: message.choice, text: message.text, phone: message.from };
     const result = reduceWa(sessions.get(message.from), event, {
       catalog,
-      origin: process.env.EXPO_PUBLIC_SITE_URL || process.env.SITE_URL || "http://localhost:8081",
+      origin: process.env.EXPO_PUBLIC_SITE_URL || process.env.SITE_URL || "https://mifotito.com",
       supportNumber: process.env.EXPO_PUBLIC_WHATSAPP_SUPPORT_NUMBER || process.env.WHATSAPP_SUPPORT_NUMBER || "",
     });
     sessions.set(message.from, result.session);
@@ -50,6 +50,22 @@ export default async function handler(req, res) {
     mock: !process.env.WHATSAPP_TOKEN,
     replies,
   });
+}
+
+async function readFrames() {
+  const candidates = [
+    path.join(process.cwd(), "data", "frames.json"),
+    new URL("../../data/frames.json", import.meta.url),
+  ];
+  let lastError;
+  for (const candidate of candidates) {
+    try {
+      return await readFile(candidate, "utf8");
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
 }
 
 function extract(body) {

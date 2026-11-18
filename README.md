@@ -51,7 +51,7 @@ Copia `.env.example` a `.env`. No subas `.env`.
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | cliente | clave anon |
 | `EXPO_PUBLIC_PAYMENTS_MODE` | cliente | `mock` o `live` |
 | `EXPO_PUBLIC_NOTIFY_MODE` | cliente | `mock` o `live` |
-| `EXPO_PUBLIC_SITE_URL` | cliente | origen público, sin barra final |
+| `EXPO_PUBLIC_SITE_URL` | cliente | origen público, sin barra final. Por defecto `https://mifotito.com` |
 | `EXPO_PUBLIC_WHATSAPP_SUPPORT_NUMBER` | cliente | botón de soporte, formato `51999…` |
 | `EXPO_PUBLIC_SEASONAL_MOTION` | cliente | `true` / `false`. Vacío usa la campaña |
 | `EXPO_PUBLIC_COUNTDOWN` | cliente | `true` fuerza el reloj, `false` lo apaga. Vacío usa `countdownStartsAt` |
@@ -137,17 +137,98 @@ Los días de entrega están en `src/lib/delivery.ts`: Lima 2–3 días hábiles,
 
 La columna mide como máximo 480 px. Los botones pasan de 44 px, el CTA de crear, muro, carrito y pago queda fijo abajo, y el marco se cambia deslizando. Las fotos se redimensionan en el cliente al lado más largo de la impresión (4724 px) antes de guardarlas. `prefers-reduced-motion` apaga ornamentos, confeti y el contador animado del precio.
 
-## Publicar la web
+## Deploy
 
-```bash
-npm run build:web
-```
+Producción es Netlify, en https://mifotito.com. El push a `main` lo despliega la integración de GitHub de Netlify. Los pull requests generan un Deploy Preview. El workflow `.github/workflows/ci.yml` corre `npm ci`, typecheck, tests y `npm run build:web`; no despliega.
 
-Eso deja un sitio estático en `dist/`.
+El sitio funciona en modo demo sin ningún secreto: pagos sandbox, WhatsApp solo en el log, y los datos en el navegador.
 
-Vercel: el `vercel.json` ya publica `dist` y deja pasar `/api/*` a las funciones. Netlify: `netlify.toml` publica `dist` y reescribe el resto a `index.html`.
+### Ajustes del sitio en Netlify
 
-En ambos, define las variables de servidor en el panel. No marques como públicas el token de Mercado Pago, el de WhatsApp ni la service role.
+- Repositorio: este repo de GitHub. Rama de producción: `main`.
+- Build command: `npm run build:web`
+- Publish directory: `dist`
+- Node: `22` (ya está en `netlify.toml` como `NODE_VERSION`)
+- Functions directory: `netlify/functions` (ya está en `netlify.toml`)
+- Dominios: `mifotito.com` (primary) y `www.mifotito.com`
+
+`netlify.toml` redirige `www` y `http` a `https://mifotito.com`, manda `/api/payments/create`, `/api/notify` y `/api/webhooks/whatsapp` a las funciones, y el resto de rutas del cliente a `/index.html`. Los archivos con hash en `/_expo/static/` y `/assets/` se cachean un año. `index.html` no.
+
+### Variables en Netlify
+
+No hace falta ninguna para el demo. Para cobrar y escribir de verdad, en Site configuration → Environment variables:
+
+| Variable | Para qué |
+| --- | --- |
+| `EXPO_PUBLIC_SITE_URL` | `https://mifotito.com` (el toml ya la pone en el build) |
+| `EXPO_PUBLIC_DATA_MODE` | `supabase` |
+| `EXPO_PUBLIC_SUPABASE_URL` | URL del proyecto |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | clave anon |
+| `EXPO_PUBLIC_PAYMENTS_MODE` | `live` |
+| `EXPO_PUBLIC_NOTIFY_MODE` | `live` |
+| `EXPO_PUBLIC_WHATSAPP_SUPPORT_NUMBER` | celular de soporte, `51999…` |
+| `SUPABASE_URL` | igual que la URL pública, solo en el servidor |
+| `SUPABASE_SERVICE_ROLE_KEY` | funciones de Netlify: pedidos, fotos firmadas, códigos. Nunca en el cliente |
+| `OTP_SIGNING_SECRET` | firma la sesión de 30 minutos tras el código de WhatsApp |
+| `WHATSAPP_OTP_TEMPLATE` | plantilla de autenticación. Por defecto `mifotito_codigo` |
+| `WHATSAPP_OTP_TEMPLATE_LANG` | `es` |
+| `PAYMENTS_MODE` | `live` |
+| `MERCADOPAGO_ACCESS_TOKEN` | tarjeta y Yape |
+| `PLIN_PHONE` | número Plin del comercio |
+| `YAPE_PHONE` | referencia Yape |
+| `WHATSAPP_TOKEN` | Cloud API |
+| `WHATSAPP_PHONE_NUMBER_ID` | id del número |
+| `WHATSAPP_VERIFY_TOKEN` | verificación del webhook de Meta |
+| `SITE_URL` | `https://mifotito.com` |
+
+Las que empiezan con `EXPO_PUBLIC_` quedan dentro del JavaScript. No pongas ahí el token de Mercado Pago, el de WhatsApp ni la service role.
+
+El webhook de Meta es `https://mifotito.com/api/webhooks/whatsapp`.
+
+## Dónde vive cada dato
+
+Sin `EXPO_PUBLIC_DATA_MODE=supabase` todo sigue en el navegador (demo). Con Supabase, lo compartido pasa al proyecto:
+
+| Dato | Dónde |
+| --- | --- |
+| Pedidos y líneas (marcos y tarjetas), número `MF-26-1004` | Postgres `orders` / `order_items`. El número sale de la secuencia `order_number_seq` (empieza en 1001) |
+| Foto original y foto de imprenta | Bucket privado `photos`, rutas `uploads/<id>/original.jpg` y `print.jpg`. El admin las abre con URL firmada |
+| Perfil: nombre, celular, correo, direcciones | `customers` y `customer_addresses`, ligados a `auth.users` tras el código de WhatsApp. RLS: cada quien ve solo lo suyo |
+| Stock, promos, gift cards, referidos, créditos | Tablas `inventory`, `promo_codes`, `gift_cards`, `referrals`, `credits` |
+| Reclamos y consultas de retablo | `claims`, `retablo_inquiries` |
+| Mensaje de voz | `voice_notes` + archivo en `photos/uploads/voice/<token>` |
+| Código de WhatsApp | Solo el hash en `phone_otps` (10 min, 5 intentos) y los envíos en `otp_sends` |
+| Carrito y recibo de la pestaña | Siguen en el navegador hasta pagar |
+
+El rastreo pide solo el celular, luego el código de WhatsApp, y entonces lista los pedidos. El número `MF-…` se ve en el admin y como referencia chica; no se pide para rastrear.
+
+### Checklist de Supabase
+
+1. Crea un proyecto en supabase.com.
+2. Authentication → Providers: activa Email. No hace falta SMS. Site URL `https://mifotito.com` y redirect `https://mifotito.com/**`.
+3. SQL editor, en este orden: `supabase/migrations/20261118120000_init.sql`, `20261118143000_cards_voice_retablo.sql`, `20261118180000_shared_backend.sql`, luego `supabase/seed.sql`.
+4. Storage: el bucket privado `photos` lo crea la primera migración. No lo hagas público.
+5. Authentication → Users: crea el admin y copia su UUID a `admin_users`.
+6. WhatsApp Manager: plantilla de **autenticación** llamada `mifotito_codigo`, idioma español, con el botón de copiar código. Meta tiene que aprobarla. El cuerpo usa el texto estándar de autenticación; el código va como parámetro.
+7. En Netlify, Environment variables: `EXPO_PUBLIC_DATA_MODE=supabase`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL` (la misma URL), `SUPABASE_SERVICE_ROLE_KEY`, `OTP_SIGNING_SECRET`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_OTP_TEMPLATE=mifotito_codigo`, `WHATSAPP_OTP_TEMPLATE_LANG=es`. La service role y el secreto del código no llevan prefijo `EXPO_PUBLIC_`.
+
+Sin token de WhatsApp el sitio muestra el código en pantalla con la nota de modo demo.
+
+### DNS en Porkbun
+
+En el dominio `mifotito.com`:
+
+- Apex (`@`): registro **ALIAS** a `apex-loadbalancer.netlify.com`. Si Porkbun no ofrece ALIAS, un **A** a `75.2.60.5`.
+- `www`: **CNAME** a `<sitio>.netlify.app` (el subdominio que Netlify muestra en Domain management, por ejemplo `mifotito.netlify.app`).
+
+Quita otros A o CNAME que apunten el apex o `www` a otro lado. En Netlify, Domain management → Add domain → `mifotito.com`, y marca HTTPS.
+
+### Verificar
+
+1. `npm ci && npm test && npm run typecheck && npm run build:web` termina con `dist/index.html`.
+2. El check de GitHub Actions en el PR está en verde.
+3. Tras el merge a `main`, https://mifotito.com abre la tienda y https://www.mifotito.com redirige ahí.
+4. Sin secretos, un pago de prueba en el sitio responde aprobado (sandbox). `POST /api/payments/create` con `{"orderId":"demo","amountCents":5900,"method":"yape"}` devuelve `"mock": true`.
 
 ## iOS y Android
 

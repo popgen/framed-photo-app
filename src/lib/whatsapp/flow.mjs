@@ -72,7 +72,7 @@ function linkFor(origin, token, pago) {
 
 export function reduceWa(session, event, ctx) {
   const catalog = ctx.catalog;
-  const origin = ctx.origin || "http://localhost:8081";
+  const origin = ctx.origin || "https://mifotito.com";
   const current = session ? { ...session, photos: [...session.photos] } : emptySession(event.phone || "", event.token || `wa${Date.now().toString(36)}`);
   if (event.phone) current.phone = event.phone;
   const replies = [];

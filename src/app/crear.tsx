@@ -5,6 +5,8 @@ import { PanResponder, Pressable, ScrollView, Text, useWindowDimensions, View } 
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { Cropper } from "../components/Cropper";
 import { FrameView } from "../components/FrameView";
+import { TextStyleEditor } from "../components/TextStyleEditor";
+import { VoiceRecorder } from "../components/VoiceRecorder";
 import { PriceTicker, useReducedMotion } from "../components/fx";
 import { useApp, useRepo } from "../components/provider";
 import { Banner, Button, Card, Progress, Screen, TabBar, WhatsAppButton } from "../components/ui";
@@ -15,7 +17,9 @@ import { importFlags } from "../lib/env";
 import { uid } from "../lib/ids";
 import { pickAndSavePhotos, resolvePhoto, samplePhoto } from "../lib/photos";
 import { assessResolution, centeredCrop, refitCrop, type Crop, type Orientation } from "../lib/print-size";
+import type { TextOverlay } from "../lib/overlay";
 import { useCart } from "../lib/store";
+import type { VoiceNote } from "../lib/voice";
 import type { FrameOffer } from "../lib/types";
 
 export default function Crear() {
@@ -30,6 +34,8 @@ export default function Crear() {
   const [source, setSource] = useState<{ uri?: string; source?: number } | null>(null);
   const [ack, setAck] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [overlay, setOverlay] = useState<TextOverlay | null>(null);
+  const [voice, setVoice] = useState<VoiceNote | null>(null);
   const add = useCart((state) => state.add);
   const frame = offers[index] ?? offers[0];
   const contentWidth = Math.min(width, 480) - 32;
@@ -141,6 +147,8 @@ export default function Crear() {
                   orientation,
                   dpi: Math.round(assessed.dpi),
                   resolutionStatus: assessed.status,
+                  textOverlay: overlay,
+                  voice,
                 });
                 router.push("/carrito");
               }}
@@ -155,7 +163,7 @@ export default function Crear() {
         <View {...pan.panHandlers}>
           <Animated.View key={`${frame.id}-${orientation}`} entering={reduced ? undefined : FadeInDown.springify().damping(16)}>
             <View style={{ alignItems: "center" }}>
-              <FrameView frame={frame} photoId={photo?.id} crop={photo ? activeCrop : null} orientation={orientation} width={Math.min(260, contentWidth - 20)} />
+              <FrameView frame={frame} photoId={photo?.id} crop={photo ? activeCrop : null} orientation={orientation} width={Math.min(260, contentWidth - 20)} overlay={overlay} onOverlayChange={setOverlay} />
             </View>
           </Animated.View>
         </View>
@@ -169,6 +177,9 @@ export default function Crear() {
         <Text style={{ fontFamily: font.body, color: colors.muted }}>{frame.blurb} Desliza el marco como un filtro.</Text>
         {frame.available <= 5 ? <Banner tone={frame.available === 0 ? "bad" : "warn"} text={frame.available === 0 ? "Este marco se agotó." : `Quedan ${frame.available}. El dorado comparte stock con su cuerpo.`} /> : null}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
+          <Pressable onPress={() => { const found = offers.findIndex((item) => item.category === "navidad"); if (found >= 0) shift(found - index); }} style={{ width: 72, alignItems: "center", justifyContent: "center" }}>
+            <Text style={{ fontFamily: font.semibold, color: colors.red, textAlign: "center" }}>Navidad</Text>
+          </Pressable>
           {offers.map((item, itemIndex) => (
             <Pressable key={item.id} onPress={() => shift(itemIndex - index)} style={{ width: 72, alignItems: "center", opacity: itemIndex === index ? 1 : 0.55 }}>
               <FrameView frame={item} width={64} />
@@ -208,6 +219,20 @@ export default function Crear() {
         {imports.length ? (
           <Text style={{ fontFamily: font.medium, color: colors.muted }}>También puedes importar desde {imports.join(", ")}. Esas cuentas se configuran con las variables del README.</Text>
         ) : null}
+        {photo ? (
+          <Card>
+            <TextStyleEditor label="Texto en la foto" value={overlay} onChange={setOverlay} maxChars={48} />
+          </Card>
+        ) : null}
+        <Card>
+          <VoiceRecorder value={voice} onChange={setVoice} />
+        </Card>
+        <Pressable onPress={() => router.push("/tarjeta")}>
+          <Text style={{ fontFamily: font.semibold, color: colors.ink }}>¿Mejor una tarjeta navideña?</Text>
+        </Pressable>
+        <Pressable onPress={() => router.push("/retablo")}>
+          <Text style={{ fontFamily: font.semibold, color: colors.pine }}>¿Quieres un retablo de verdad?</Text>
+        </Pressable>
         {message ? <Banner tone="bad" text={message} /> : null}
       </View>
       <WhatsAppButton />

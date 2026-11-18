@@ -7,9 +7,14 @@ import { guaranteeFor, type Zone } from "./cutoff";
 import { estimateDelivery } from "./delivery";
 import { notifyMode } from "./env";
 import { giftCode, referralCodeFrom, uid } from "./ids";
+import { priceCards } from "./cards";
+import { formatOrderNumber } from "./order-number";
+import { sortTracking, toTrackingCard } from "./tracking";
 import { applyStock, expandNeeds, framesAvailable } from "./inventory";
+import { inquiryFromSize } from "./retablo";
+import { VOICE_ADDON_CENTS } from "./voice";
 import { isEmail, normalizePhone } from "./phone";
-import { REFERRAL_FRIEND_CENTS, REFERRAL_REWARD_CENTS, quote } from "./pricing";
+import { REFERRAL_FRIEND_CENTS, REFERRAL_REWARD_CENTS, quote, type QuoteItem } from "./pricing";
 import { assessResolution, centeredCrop } from "./print-size";
 import { districtsFor, shippingZone } from "./zone";
 import {
@@ -48,6 +53,7 @@ type DB = {
   notifications: Notice[];
   campaign: Campaign;
   waDrafts: import("./types").WaDraft[];
+  inquiries: import("./types").RetabloInquiry[];
   seq: number;
 };
 
@@ -102,6 +108,9 @@ function sampleItem(frameId: string, id: string): OrderItem {
     dpi: Math.round(assessed.dpi),
     resolutionStatus: assessed.status,
     blurry: false,
+    textOverlay: null,
+    card: null,
+    voice: null,
   };
 }
 
@@ -118,7 +127,7 @@ function festive(zone: Zone, when: Date, campaign: Campaign) {
 }
 
 function seed(): DB {
-  const commerce = structuredClone(commerceSeed) as unknown as Omit<DB, "orders" | "claims" | "notifications" | "campaign" | "seq" | "waDrafts">;
+  const commerce = structuredClone(commerceSeed) as unknown as Omit<DB, "orders" | "claims" | "notifications" | "campaign" | "seq" | "waDrafts" | "inquiries">;
   const campaign = structuredClone(defaultCampaign);
   const limaWhen = new Date("2026-11-17T15:00:00-05:00");
   const cuscoWhen = new Date("2026-11-16T11:00:00-05:00");
@@ -130,7 +139,7 @@ function seed(): DB {
     {
       id: "ord_seed_lima",
       publicToken: "demo-lima",
-      number: "R-26-1001",
+      number: "MF-26-1001",
       status: "in_review",
       customerName: "Ana Flores",
       phone: "51987654321",
@@ -165,7 +174,7 @@ function seed(): DB {
     {
       id: "ord_seed_cusco",
       publicToken: "demo-cusco",
-      number: "R-26-1002",
+      number: "MF-26-1002",
       status: "paid",
       customerName: "Mateo Quispe",
       phone: "51922222222",
@@ -197,7 +206,7 @@ function seed(): DB {
     {
       id: "ord_seed_done",
       publicToken: "demo-listo",
-      number: "R-26-1003",
+      number: "MF-26-1003",
       status: "delivered",
       customerName: "Lucía Paredes",
       phone: "51933333333",
@@ -235,7 +244,7 @@ function seed(): DB {
       {
         id: "clm_seed",
         orderId: "ord_seed_done",
-        orderNumber: "R-26-1003",
+        orderNumber: "MF-26-1003",
         phone: "51933333333",
         note: "El acrílico llegó rayado en una esquina.",
         photoId: "asset:sample",
@@ -256,6 +265,7 @@ function seed(): DB {
     ],
     campaign,
     waDrafts: [],
+    inquiries: [],
     seq: 1004,
   };
   return state;
@@ -282,7 +292,13 @@ async function notify(state: DB, notice: Omit<Notice, "id" | "createdAt">) {
 }
 
 function priceInput(state: DB, input: CheckoutInput, phone: string | null) {
-  const items = input.items.map((item) => ({ unitPriceCents: frameById(item.frameId).priceCents, quantity: 1 }));
+  const items: QuoteItem[] = input.items.flatMap((item) => {
+    const lines: QuoteItem[] = item.card
+      ? [{ unitPriceCents: priceCards(item.card.quantity).cents, quantity: 1, kind: "plain" }]
+      : [{ unitPriceCents: frameById(item.frameId).priceCents, quantity: 1, kind: "frame" }];
+    if (item.voice) lines.push({ unitPriceCents: item.voice.addonCents || VOICE_ADDON_CENTS, quantity: 1, kind: "plain" });
+    return lines;
+  });
   const promoCode = input.promoCode?.trim() || null;
   const promo = promoCode ? (state.promos.find((item) => item.code.toUpperCase() === promoCode.toUpperCase()) ?? null) : null;
   let referralDiscount: number | null = null;
@@ -304,7 +320,7 @@ function priceInput(state: DB, input: CheckoutInput, phone: string | null) {
   }
   const priced = quote({
     items,
-    giftWrap: input.giftWrap,
+    giftWrap: input.giftWrap && input.items.some((item) => !item.card),
     promo,
     promoCode,
     referralDiscountCents: referralDiscount,
@@ -314,7 +330,7 @@ function priceInput(state: DB, input: CheckoutInput, phone: string | null) {
     giftCardBalanceCents: giftCardBalance,
     giftCardError,
   });
-  const needs = expandNeeds(input.items.map((item) => ({ consumes: frameById(item.frameId).consumes, quantity: 1 })));
+  const needs = expandNeeds(input.items.filter((item) => !item.card).map((item) => ({ consumes: frameById(item.frameId).consumes, quantity: 1 })));
   const stock = applyStock(stockRecord(state), needs);
   const stockError = stock.ok ? null : `No hay stock suficiente (${stock.missing.join(", ")}).`;
   return { priced, stockError, promo, phone };
@@ -346,7 +362,7 @@ function buildOrder(state: DB, input: CheckoutInput, phone: string, status: Orde
   const zone = shippingZone(input.department, input.province, input.district);
   const now = new Date();
   const fest = festive(zone, now, state.campaign);
-  const number = `R-26-${String(state.seq).padStart(4, "0")}`;
+  const number = formatOrderNumber(state.seq, now);
   state.seq += 1;
   const items: OrderItem[] = input.items.map((item) => ({
     id: uid("it_"),
@@ -355,12 +371,15 @@ function buildOrder(state: DB, input: CheckoutInput, phone: string, status: Orde
     crop: item.crop,
     orientation: item.orientation,
     quantity: 1,
-    unitPriceCents: frameById(item.frameId).priceCents,
+    unitPriceCents: item.card ? priceCards(item.card.quantity).cents : frameById(item.frameId).priceCents,
     bundleId: item.bundleId,
     bundleLabel: item.bundleLabel,
     dpi: Math.round(item.dpi),
     resolutionStatus: item.resolutionStatus,
     blurry: false,
+    textOverlay: item.textOverlay ?? null,
+    card: item.card ?? null,
+    voice: item.voice ?? null,
   }));
   return {
     id: uid("ord_"),
@@ -409,6 +428,7 @@ export function createLocalRepo() {
     async init() {
       const stored = load();
       db = stored?.waDrafts ? stored : seed();
+      ensureCommerce(db);
       if (!stored?.waDrafts) persist(db);
     },
     async listFrames(): Promise<FrameOffer[]> {
@@ -502,6 +522,11 @@ export function createLocalRepo() {
     },
     async getOrder(id: string) {
       return required().orders.find((item) => item.id === id) ?? null;
+    },
+    async listOrdersByPhone(phone: string) {
+      const normalized = normalizePhone(phone);
+      if (!normalized) return [];
+      return sortTracking(required().orders.filter((item) => item.phone === normalized).map(toTrackingCard));
     },
     async getOrderByToken(token: string, phone: string) {
       const normalized = normalizePhone(phone);
@@ -643,7 +668,7 @@ export function createLocalRepo() {
         ...source,
         id: uid("ord_"),
         publicToken: uid("").replace(/-/g, "").slice(0, 12),
-        number: `R-26-${String(state.seq).padStart(4, "0")}`,
+        number: formatOrderNumber(state.seq),
         status: "in_review",
         subtotalCents: 0,
         frameDiscountCents: 0,
@@ -786,12 +811,55 @@ export function createLocalRepo() {
       persist(state);
       return order;
     },
+    async listRetabloInquiries() {
+      return required().inquiries ?? [];
+    },
+    async createRetabloInquiry(size: string) {
+      const state = required();
+      const row = { ...inquiryFromSize(size), id: uid("ret_") };
+      state.inquiries = [row, ...(state.inquiries ?? [])];
+      persist(state);
+      return row;
+    },
+    async setRetabloInquiryStatus(id: string, status: "new" | "contacted" | "closed") {
+      const state = required();
+      const row = (state.inquiries ?? []).find((item) => item.id === id);
+      if (!row) throw new AppError("No encontramos la consulta.");
+      row.status = status;
+      persist(state);
+      return row;
+    },
+    async getProfile() {
+      if (typeof localStorage === "undefined") return null;
+      const raw = localStorage.getItem("recuerdo-profile");
+      if (!raw) return null;
+      try {
+        return JSON.parse(raw) as import("./types").CustomerProfile;
+      } catch {
+        return null;
+      }
+    },
+    async saveProfile(profile: import("./types").CustomerProfile) {
+      if (typeof localStorage !== "undefined") localStorage.setItem("recuerdo-profile", JSON.stringify(profile));
+      return profile;
+    },
+    async signPhoto(_path: string): Promise<string> {
+      throw new AppError("Las fotos de imprenta se abren con Supabase.");
+    },
     async resetDemo() {
       db = seed();
       persist(db);
       if (typeof localStorage !== "undefined") localStorage.setItem(ADMIN_KEY, "0");
     },
   };
+}
+
+function ensureCommerce(state: DB) {
+  const skus = new Set(state.inventory.map((item) => item.sku));
+  for (const item of commerceSeed.inventory) {
+    if (!skus.has(item.sku)) state.inventory.push(structuredClone(item));
+  }
+  if (!state.inquiries) state.inquiries = [];
 }
 
 function required(): DB {

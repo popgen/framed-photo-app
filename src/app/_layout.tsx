@@ -1,6 +1,11 @@
 import { Fraunces_600SemiBold, Fraunces_700Bold, useFonts } from "@expo-google-fonts/fraunces";
 import { Outfit_400Regular, Outfit_500Medium, Outfit_600SemiBold, Outfit_700Bold } from "@expo-google-fonts/outfit";
+import { AmaticSC_700Bold } from "@expo-google-fonts/amatic-sc";
+import { DancingScript_600SemiBold } from "@expo-google-fonts/dancing-script";
+import { GreatVibes_400Regular } from "@expo-google-fonts/great-vibes";
+import { Lobster_400Regular } from "@expo-google-fonts/lobster";
 import { Pacifico_400Regular } from "@expo-google-fonts/pacifico";
+import { Satisfy_400Regular } from "@expo-google-fonts/satisfy";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
@@ -20,6 +25,11 @@ export default function RootLayout() {
     Outfit_600SemiBold,
     Outfit_700Bold,
     Pacifico_400Regular,
+    DancingScript_600SemiBold,
+    GreatVibes_400Regular,
+    Lobster_400Regular,
+    Satisfy_400Regular,
+    AmaticSC_700Bold,
   });
   useEffect(() => {
     if (Platform.OS === "web") document.title = "Mi Fotito — marcos impresos en Perú";

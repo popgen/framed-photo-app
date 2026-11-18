@@ -5,7 +5,7 @@ import { useApp, useRepo } from "../../../components/provider";
 import { BackButton, Banner } from "../../../components/ui";
 import { colors, font } from "../../../components/theme";
 import { frameById } from "../../../lib/catalog";
-import { downloadPrint } from "../../../lib/print-export";
+import { downloadCardPdf, downloadPrint } from "../../../lib/print-export";
 import { getRepo } from "../../../lib/repo";
 import { STATUS_FLOW, STATUS_LABEL, type OrderStatus } from "../../../lib/types";
 
@@ -57,26 +57,43 @@ export default function AdminOrder() {
       </View>
       {order.items.map((item) => (
         <View key={item.id} style={{ backgroundColor: colors.white, borderRadius: 16, padding: 12, gap: 8 }}>
-          <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{frameById(item.frameId).name} · {item.dpi} dpi</Text>
+          <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{item.card ? `Tarjeta ${item.card.sizeId}` : `${frameById(item.frameId).name} · ${item.dpi} dpi`}</Text>
+          {item.textOverlay?.text ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Texto: {item.textOverlay.text}</Text> : null}
+          {item.card?.frontMessage?.text ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Portada: {item.card.frontMessage.text}</Text> : null}
+          {item.card?.insideMessage?.text ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Interior: {item.card.insideMessage.text}</Text> : null}
+          {item.card?.sizeId === "5x7" ? <Text style={{ fontFamily: font.semibold, color: colors.bad }}>requires large card stock / print shop</Text> : null}
+          {item.voice ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Voz {item.voice.seconds}s · /v/{item.voice.token}</Text> : null}
+          {item.photoPrintPath ? (
+            <Pressable onPress={() => void getRepo().signPhoto(item.photoPrintPath || "").then((url) => window.open(url, "_blank")).catch((err: Error) => setError(err.message))} style={chip(false)}>
+              <Text style={chipText(false)}>Abrir foto de imprenta</Text>
+            </Pressable>
+          ) : null}
           {item.blurry ? <Banner tone="warn" text={item.blurryNote || "Marcada como borrosa"} /> : null}
           <Pressable onPress={() => void run(() => getRepo().flagBlurry(order.id, item.id, "La foto se ve borrosa para el tamaño elegido."))} style={chip(false)}>
             <Text style={chipText(false)}>Pedir otra foto</Text>
           </Pressable>
-          <Pressable
-            onPress={() =>
-              void downloadPrint({
-                photoId: item.photoId,
-                crop: item.crop,
-                printWcm: frameById(item.frameId).printWcm,
-                printHcm: frameById(item.frameId).printHcm,
-                orientation: item.orientation,
-                filename: `${order.number}-${item.id}.jpg`,
-              }).catch((err: Error) => setError(err.message))
-            }
-            style={chip(false)}
-          >
-            <Text style={chipText(false)}>Descargar impresión</Text>
-          </Pressable>
+          {item.card ? (
+            <Pressable onPress={() => void downloadCardPdf(item.card!, `${order.number}-tarjeta.pdf`).catch((err: Error) => setError(err.message))} style={chip(false)}>
+              <Text style={chipText(false)}>Descargar PDF</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={() =>
+                void downloadPrint({
+                  photoId: item.photoId,
+                  crop: item.crop,
+                  printWcm: frameById(item.frameId).printWcm,
+                  printHcm: frameById(item.frameId).printHcm,
+                  orientation: item.orientation,
+                  filename: `${order.number}-${item.id}.jpg`,
+                  overlay: item.textOverlay,
+                }).catch((err: Error) => setError(err.message))
+              }
+              style={chip(false)}
+            >
+              <Text style={chipText(false)}>Descargar impresión</Text>
+            </Pressable>
+          )}
         </View>
       ))}
       <TextInput value={tracking} onChangeText={setTracking} placeholder="Número de guía" placeholderTextColor="#A89488" style={{ minHeight: 48, borderRadius: 12, backgroundColor: colors.white, paddingHorizontal: 12, fontFamily: font.body }} />

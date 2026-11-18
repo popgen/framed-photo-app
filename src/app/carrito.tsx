@@ -4,15 +4,25 @@ import { FrameView } from "../components/FrameView";
 import { PriceTicker } from "../components/fx";
 import { Button, Card, Progress, Screen, TabBar } from "../components/ui";
 import { colors, font } from "../components/theme";
+import { priceCards } from "../lib/cards";
 import { frameById } from "../lib/catalog";
 import { formatSoles } from "../lib/money";
-import { quote } from "../lib/pricing";
+import { quote, type QuoteItem } from "../lib/pricing";
+import { VOICE_ADDON_CENTS } from "../lib/voice";
 import { useCart } from "../lib/store";
 
 export default function Carrito() {
   const items = useCart((state) => state.items);
   const remove = useCart((state) => state.remove);
-  const priced = quote({ items: items.map((item) => ({ unitPriceCents: frameById(item.frameId).priceCents })) });
+  const priced = quote({
+    items: items.flatMap((item): QuoteItem[] => {
+      const lines: QuoteItem[] = item.card
+        ? [{ unitPriceCents: priceCards(item.card.quantity).cents, quantity: 1, kind: "plain" }]
+        : [{ unitPriceCents: frameById(item.frameId).priceCents, quantity: 1, kind: "frame" }];
+      if (item.voice) lines.push({ unitPriceCents: item.voice.addonCents || VOICE_ADDON_CENTS, quantity: 1, kind: "plain" });
+      return lines;
+    }),
+  });
   return (
     <Screen
       footer={
@@ -30,11 +40,25 @@ export default function Carrito() {
         <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>Tu carrito</Text>
         {!items.length ? <Text style={{ fontFamily: font.body, color: colors.muted }}>Todavía no hay marcos. Arma el primero.</Text> : null}
         {items.map((item) => {
+          if (item.card) {
+            const price = priceCards(item.card.quantity);
+            return (
+              <Card key={item.id}>
+                <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Tarjeta {item.card.sizeId}</Text>
+                <Text style={{ fontFamily: font.body, color: colors.muted }}>{item.card.frontMessage?.text || "Sin mensaje de portada"}</Text>
+                <Text style={{ fontFamily: font.body, color: colors.muted }}>{item.card.insideMessage?.text || "Sin mensaje interior"}</Text>
+                <Text style={{ fontFamily: font.bold, color: colors.ink }}>{formatSoles(price.cents)}</Text>
+                <Pressable onPress={() => remove(item.id)} style={{ minHeight: 44, justifyContent: "center" }}>
+                  <Text style={{ fontFamily: font.semibold, color: colors.bad }}>Quitar</Text>
+                </Pressable>
+              </Card>
+            );
+          }
           const frame = frameById(item.frameId);
           return (
             <Card key={item.id}>
               <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
-                <FrameView frame={frame} photoId={item.photoId} crop={item.crop} orientation={item.orientation} width={78} />
+                <FrameView frame={frame} photoId={item.photoId} crop={item.crop} orientation={item.orientation} width={78} overlay={item.textOverlay} />
                 <View style={{ flex: 1, gap: 4 }}>
                   <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{frame.name}</Text>
                   <Text style={{ fontFamily: font.body, color: colors.muted }}>{frame.sizeLabel}</Text>
