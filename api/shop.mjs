@@ -10,6 +10,7 @@ import { frameLowStock } from "../src/lib/inventory.ts";
 import { giftCode } from "../src/lib/ids.ts";
 import { normalizePhone } from "../src/lib/phone.ts";
 import { resolveTaxId } from "../src/lib/tax-id.ts";
+import { serverStockChecksEnabled } from "../src/lib/env.ts";
 
 export default async function handler(req, res) {
   if (req.method !== "POST" && req.method !== "GET") {
@@ -380,6 +381,7 @@ async function createOrder(req, res) {
     referrals: (referrals ?? []).map((row) => ({ code: row.code, ownerPhone: row.owner_phone, ownerName: row.owner_name ?? "", friendDiscountCents: row.friend_discount_cents, referrerCreditCents: row.referrer_credit_cents, redeemedCount: row.redeemed_count, createdAt: row.created_at })),
     giftCards: (gifts ?? []).map(mapGiftRow),
     credits: Object.fromEntries((credits ?? []).map((row) => [row.phone, row.balance_cents])),
+    enforceStock: serverStockChecksEnabled(),
   });
   if (evaluated.error || !evaluated.priced) {
     res.status(400).json({ error: evaluated.error || "No pudimos cotizar." });
@@ -522,7 +524,8 @@ async function markPaid(req, res) {
       }
       for (const part of frame.consumes) {
         const current = stock[part.sku];
-        if (!current || current.quantity < part.qty) {
+        if (!current) continue;
+        if (serverStockChecksEnabled() && current.quantity < part.qty) {
           res.status(409).json({ error: `Sin stock al confirmar (${part.sku}).` });
           return;
         }
@@ -746,9 +749,11 @@ async function listPublicFrames(_req, res) {
   }
   const quantities = Object.fromEntries((stockRows ?? []).map((row) => [row.sku, row.quantity]));
   const lowAt = Object.fromEntries((stockRows ?? []).map((row) => [row.sku, row.low_stock_at ?? 5]));
+  const enforce = serverStockChecksEnabled();
   res.status(200).json({
     frames: frameRows.map((row) => {
       const offer = mapFrameRow(row, quantities);
+      if (!enforce) return { ...offer, available: 99, lowStock: false, stockUncertain: false };
       return { ...offer, lowStock: frameLowStock(offer, quantities, lowAt), stockUncertain: false };
     }),
   });

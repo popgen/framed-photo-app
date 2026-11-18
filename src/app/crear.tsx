@@ -14,7 +14,7 @@ import { Banner, Button, Card, Progress, Screen, TabBar, WhatsAppButton } from "
 import { colors, font } from "../components/theme";
 import { readBoot } from "../lib/boot";
 import { aspectParts, frameById, type FrameDef } from "../lib/catalog";
-import { importFlags } from "../lib/env";
+import { importFlags, stockChecksEnabled } from "../lib/env";
 import { uid } from "../lib/ids";
 import { pickAndSavePhotos, resolvePhoto, samplePhoto } from "../lib/photos";
 import { assessResolution, centeredCrop, refitCrop, type Crop, type Orientation } from "../lib/print-size";
@@ -126,6 +126,8 @@ export default function Crear() {
       })
     : null;
   const flags = importFlags();
+  const checkStock = stockChecksEnabled();
+  const soldOut = checkStock && !frame.stockUncertain && frame.available <= 0;
 
   return (
     <Screen
@@ -133,8 +135,8 @@ export default function Crear() {
         <View>
           <View style={{ paddingHorizontal: 16, paddingTop: 8, backgroundColor: colors.bg }}>
             <Button
-              label={!frame.stockUncertain && frame.available <= 0 ? "Sin stock" : "Agregar al carrito"}
-              disabled={(!frame.stockUncertain && frame.available <= 0) || !photo || (assessed?.status === "low" && !ack)}
+              label={soldOut ? "Sin stock" : "Agregar al carrito"}
+              disabled={soldOut || !photo || (assessed?.status === "low" && !ack)}
               onPress={() => {
                 if (!photo || !assessed) return;
                 add({
@@ -173,7 +175,7 @@ export default function Crear() {
           <PriceTicker cents={frame.priceCents} />
         </View>
         <Text style={{ fontFamily: font.body, color: colors.muted }}>{frame.blurb} Desliza el marco como un filtro.</Text>
-        {frame.stockUncertain ? (
+        {checkStock && frame.stockUncertain ? (
           <View style={{ gap: 8 }}>
             <Banner tone="warn" text="No pudimos leer el stock. Puedes seguir; lo confirmamos al pagar." />
             <Pressable onPress={refresh} style={{ minHeight: 44, justifyContent: "center" }}>

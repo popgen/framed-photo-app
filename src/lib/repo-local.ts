@@ -8,6 +8,7 @@ import { estimateDelivery } from "./delivery";
 import { notifyMode } from "./env";
 import { giftCode, referralCodeFrom, uid } from "./ids";
 import { priceCards } from "./cards";
+import { stockChecksEnabled } from "./env";
 import { formatOrderNumber } from "./order-number";
 import { sortTracking, toTrackingCard } from "./tracking";
 import { applyStock, expandNeeds, frameLowStock, framesAvailable } from "./inventory";
@@ -62,6 +63,17 @@ const DB_KEY = "recuerdo-db-v2";
 const ADMIN_KEY = "recuerdo-admin";
 
 let db: DB | null = null;
+
+function consumeForOrder(state: DB, needs: Record<string, number>): Record<string, number> {
+  if (stockChecksEnabled()) {
+    const stock = applyStock(stockRecord(state), needs);
+    if (!stock.ok) throw new AppError(`Sin stock al confirmar (${stock.missing.join(", ")}).`);
+    return stock.next;
+  }
+  const next = { ...stockRecord(state) };
+  for (const [sku, qty] of Object.entries(needs)) next[sku] = (next[sku] ?? 0) - qty;
+  return next;
+}
 
 function stockRecord(state: DB): Record<string, number> {
   return Object.fromEntries(state.inventory.map((item) => [item.sku, item.quantity]));
@@ -288,7 +300,7 @@ function priceInput(state: DB, input: CheckoutInput, phone: string | null) {
   });
   const needs = expandNeeds(input.items.filter((item) => !item.card).map((item) => ({ consumes: frameById(item.frameId).consumes, quantity: 1 })));
   const stock = applyStock(stockRecord(state), needs);
-  const stockError = stock.ok ? null : `No hay stock suficiente (${stock.missing.join(", ")}).`;
+  const stockError = stockChecksEnabled() && !stock.ok ? `No hay stock suficiente (${stock.missing.join(", ")}).` : null;
   return { priced, stockError, promo, phone };
 }
 
@@ -396,6 +408,7 @@ export function createLocalRepo() {
     },
     async listFrames(): Promise<FrameOffer[]> {
       const state = required();
+      if (!stockChecksEnabled()) return frames.map((frame) => ({ ...frame, available: 99, lowStock: false, stockUncertain: false }));
       const stock = stockRecord(state);
       const lowAt = Object.fromEntries(state.inventory.map((item) => [item.sku, item.lowStockAt]));
       return frames.map((frame) => ({
@@ -438,9 +451,7 @@ export function createLocalRepo() {
       if (!order) throw new AppError("No encontramos el pedido.");
       if (order.paymentStatus === "approved") return order;
       const needs = expandNeeds(order.items.map((item) => ({ consumes: frameById(item.frameId).consumes, quantity: item.quantity })));
-      const stock = applyStock(stockRecord(state), needs);
-      if (!stock.ok) throw new AppError(`Sin stock al confirmar (${stock.missing.join(", ")}).`);
-      writeStock(state, stock.next);
+      writeStock(state, consumeForOrder(state, needs));
       if (order.promoCode) {
         const promo = state.promos.find((item) => item.code === order.promoCode);
         if (promo) promo.usedCount += 1;
@@ -628,9 +639,7 @@ export function createLocalRepo() {
       if (!claim) throw new AppError("No encontramos el reclamo.");
       const source = mustOrder(state, claim.orderId);
       const needs = expandNeeds(source.items.map((item) => ({ consumes: frameById(item.frameId).consumes, quantity: item.quantity })));
-      const stock = applyStock(stockRecord(state), needs);
-      if (!stock.ok) throw new AppError(`No hay stock para la reposición (${stock.missing.join(", ")}).`);
-      writeStock(state, stock.next);
+      writeStock(state, consumeForOrder(state, needs));
       const now = new Date();
       const fest = festive(source.zone, now, state.campaign);
       const replacement: Order = {

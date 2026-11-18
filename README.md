@@ -93,6 +93,15 @@ El modo `local` no necesita esto. Con `supabase`, el admin entra con Auth y la t
 
 `app_settings.payments_mode` nace en `mock`. Pásalo a `live` antes de cobrar de verdad para que un cliente no pueda marcar un pedido como pagado por su cuenta cuando cierres esa puerta en el servidor.
 
+## Stock
+
+Las tablas `inventory` y el descuento al confirmar un pedido siguen en el código. Los avisos **Sin stock** y **Pocas unidades**, y el rechazo del pedido por falta de stock, están apagados mientras estas variables no sean `true`:
+
+- `EXPO_PUBLIC_STOCK_CHECKS_ENABLED` (se hornea en el sitio; hay que volver a desplegar)
+- `STOCK_CHECKS_ENABLED` (la leen las funciones de Netlify)
+
+Si faltan o están vacías, el cliente puede elegir cualquier marco y el servidor no bloquea el pedido. El inventario igual se actualiza como registro, aunque la cantidad quede en cero o negativa. Para volver a controlar el stock, pon ambas en `true` y redespliega.
+
 ## Pagos
 
 En `mock`, Yape, Plin y tarjeta abren una hoja de sandbox y el pedido queda pagado. En `live`, la web llama `POST /api/payments/create`. Si las cuatro claves de Izipay están, tarjeta y Yape abren su formulario (`/pago`) y el pedido se marca pagado solo cuando la firma HMAC del regreso o del IPN coincide y el monto es el del pedido. El IPN es `https://mifotito.com/api/payments/izipay-ipn`. Sin esas claves, tarjeta y Yape crean una preferencia de Mercado Pago. Plin responde con el celular de `PLIN_PHONE` para confirmar a mano.

@@ -2,11 +2,12 @@ import { defaultCampaign, type Campaign } from "./campaign";
 import { createLocalRepo } from "./repo-local";
 import { getSupabase } from "./supabase";
 import { frames as catalogFrames } from "./catalog";
+import { stockChecksEnabled } from "./env";
 import { mapFrameRow, mapGiftRow, mapInventoryRow, mapOrderRow, mapProfile, mapPromoRow } from "./db-map";
 import { frameLowStock, framesWhenStockUnknown } from "./inventory";
 import { uploadOrderPhotos } from "./photo-upload";
 import { readPhoneSession } from "./phone-session";
-import type { CheckoutInput, CustomerProfile, OrderStatus } from "./types";
+import type { CheckoutInput, CustomerProfile, FrameOffer, OrderStatus } from "./types";
 
 const PATHS: Record<string, string> = {
   "otp-send": "/api/otp-send",
@@ -59,9 +60,11 @@ export function createSupabaseRepo() {
       return Boolean(data.session);
     },
     async listFrames() {
+      const hide = (rows: FrameOffer[]): FrameOffer[] =>
+        stockChecksEnabled() ? rows : rows.map((frame) => ({ ...frame, available: 99, lowStock: false, stockUncertain: false }));
       try {
         const json = await shop("frames", {});
-        if (Array.isArray(json.frames) && json.frames.length && !json.stockUncertain) return json.frames;
+        if (Array.isArray(json.frames) && json.frames.length && !json.stockUncertain) return hide(json.frames as FrameOffer[]);
       } catch {
         // The shop route can be down. Fall through to a direct read, then assume stock is available.
       }
@@ -70,18 +73,18 @@ export function createSupabaseRepo() {
           db().from("frames").select("*").order("sort"),
           db().from("inventory").select("sku, quantity, low_stock_at"),
         ]);
-        if (error || !data?.length) return framesWhenStockUnknown(catalogFrames);
+        if (error || !data?.length) return hide(framesWhenStockUnknown(catalogFrames));
         if (stock.error || !stock.data) {
-          return data.map((row) => ({ ...mapFrameRow(row, {}), available: 99, lowStock: false, stockUncertain: true }));
+          return hide(data.map((row) => ({ ...mapFrameRow(row, {}), available: 99, lowStock: false, stockUncertain: true })));
         }
         const quantities = Object.fromEntries(stock.data.map((row) => [row.sku, row.quantity]));
         const lowAt = Object.fromEntries(stock.data.map((row) => [row.sku, row.low_stock_at ?? 5]));
-        return data.map((row) => {
+        return hide(data.map((row) => {
           const offer = mapFrameRow(row, quantities);
           return { ...offer, lowStock: frameLowStock(offer, quantities, lowAt), stockUncertain: false };
-        });
+        }));
       } catch {
-        return framesWhenStockUnknown(catalogFrames);
+        return hide(framesWhenStockUnknown(catalogFrames));
       }
     },
     async listReviews() {
