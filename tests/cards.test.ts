@@ -3,7 +3,7 @@ import { PDFDocument } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 import { buildCardPdf } from "../src/lib/card-pdf";
 import { cardsPromoVisible, defaultCampaign } from "../src/lib/campaign";
-import { cardSizeById, messageLimits, mmToPt, priceCards, sheetBox } from "../src/lib/cards";
+import { cardOrderLine, cardSheetCopy, cardSizeById, messageLimits, mmToPt, priceCards, sheetBox } from "../src/lib/cards";
 import { emptyOverlay } from "../src/lib/overlay";
 import { quote } from "../src/lib/pricing";
 
@@ -37,15 +37,21 @@ describe("christmas cards", () => {
     const a6 = cardSizeById("a6");
     expect(a6.panelWmm).toBe(105);
     expect(a6.panelHmm).toBe(148);
-    expect(sheetBox(a6, false)).toMatchObject({ pageWmm: 315, pageHmm: 148 });
+    expect(sheetBox(a6, false)).toMatchObject({ pageWmm: 105, pageHmm: 296 });
     expect(a6.envelopeWmm).toBe(114);
     expect(a6.envelopeHmm).toBe(162);
     expect(a6.printShop).toBe(false);
+    expect(cardSheetCopy(a6)).toContain("105×296");
+    expect(cardSheetCopy(a6)).toContain("A4");
     const large = cardSizeById("5x7");
-    expect(large.flatWmm).toBe(381);
-    expect(large.flatHmm).toBe(177.8);
+    expect(large.flatWmm).toBe(127);
+    expect(large.flatHmm).toBe(355.6);
+    expect(large.panelWmm).toBe(127);
+    expect(large.panelHmm).toBe(177.8);
     expect(large.shopFlag).toBe("Se imprime en un taller, con cartulina grande.");
-    expect(sheetBox(a6, true).pageWmm).toBe(315 + 14);
+    expect(cardOrderLine({ sizeId: "5x7" })).toContain("5×14");
+    expect(sheetBox(a6, true).pageWmm).toBe(105 + 14);
+    expect(sheetBox(a6, true).pageHmm).toBe(296 + 14);
   });
 
   it("sizes the two messages to the A6 panel", () => {
@@ -71,12 +77,35 @@ describe("christmas cards", () => {
       { pacifico: font },
     );
     const doc = await PDFDocument.load(bytes);
-    const [outside, inside] = doc.getPages();
-    expect(outside.getWidth()).toBeCloseTo(mmToPt(315), 1);
-    expect(outside.getHeight()).toBeCloseTo(mmToPt(148), 1);
-    expect(inside.getWidth()).toBeCloseTo(mmToPt(315), 1);
+    const [sheet, back] = doc.getPages();
+    expect(sheet.getWidth()).toBeCloseTo(mmToPt(105), 1);
+    expect(sheet.getHeight()).toBeCloseTo(mmToPt(296), 1);
+    expect(back.getWidth()).toBeCloseTo(mmToPt(105), 1);
+    expect(back.getHeight()).toBeCloseTo(mmToPt(148), 1);
     expect(doc.getPageCount()).toBe(4);
-    const letter = mmToPt(279.4);
-    expect(outside.getHeight()).toBeLessThan(letter);
+    expect(doc.getSubject()).toContain("105×296");
+    const a4 = mmToPt(297);
+    expect(sheet.getHeight()).toBeLessThan(a4);
+    expect(sheet.getWidth()).toBeLessThan(mmToPt(210));
+  });
+
+  it("still prints a stored card that used the older photo keys", async () => {
+    const font = await readFile("node_modules/@expo-google-fonts/pacifico/400Regular/Pacifico_400Regular.ttf");
+    const bytes = await buildCardPdf(
+      {
+        sizeId: "a6",
+        quantity: 1,
+        envelopeColor: "white",
+        templateId: "oro",
+        frontMessage: null,
+        insideMessage: null,
+        photos: { front: "old-front", back: "old-back", flap: "old-flap", insideLeft: "old-left", insideCenter: "old-center" },
+        bleed: false,
+      },
+      { pacifico: font },
+    );
+    const doc = await PDFDocument.load(bytes);
+    expect(doc.getPageCount()).toBe(4);
+    expect(doc.getPages()[0].getHeight()).toBeGreaterThan(doc.getPages()[0].getWidth());
   });
 });

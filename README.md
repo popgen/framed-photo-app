@@ -155,6 +155,8 @@ Al tocar el botón, `/api/imports/start` manda a la red. Al volver, la sesión q
 
 Los días de entrega están en `src/lib/delivery.ts`: Lima 2–3 días hábiles, provincias 3–5, con feriados.
 
+La tarjeta navideña es un díptico vertical: dos paneles con el pliegue arriba. A6 es 105×148 mm por panel y la hoja abierta mide 105×296 mm, así que entra en una A4. El tamaño 5×7 pulgadas abre a 5×14 pulgadas (127×355.6 mm) y se imprime en un taller. El reverso no se diseña: lleva la marca Mi Fotito. El PDF de imprenta trae la hoja abierta (portada arriba, interior abajo), el reverso y el sobre.
+
 ## Diseño móvil
 
 La columna mide como máximo 480 px. Los botones pasan de 44 px, el CTA de crear, muro, carrito y pago queda fijo abajo, y el marco se cambia deslizando. Las fotos se redimensionan en el cliente al lado más largo de la impresión (4724 px) antes de guardarlas. `prefers-reduced-motion` apaga ornamentos, confeti y el contador animado del precio.

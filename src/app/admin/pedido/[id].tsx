@@ -4,6 +4,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useApp, useRepo } from "../../../components/provider";
 import { BackButton, Banner } from "../../../components/ui";
 import { colors, font } from "../../../components/theme";
+import { cardOrderLine } from "../../../lib/cards";
 import { frameById } from "../../../lib/catalog";
 import { downloadCardPdf, downloadPrint } from "../../../lib/print-export";
 import { getRepo } from "../../../lib/repo";
@@ -60,8 +61,10 @@ export default function AdminOrder() {
         <View key={item.id} style={{ backgroundColor: colors.white, borderRadius: 16, padding: 12, gap: 8 }}>
           <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{item.card ? `Tarjeta ${item.card.sizeId}` : `${frameById(item.frameId).name} · ${item.dpi} dpi`}</Text>
           {item.textOverlay?.text ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Texto: {item.textOverlay.text}</Text> : null}
-          {item.card?.frontMessage?.text ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Portada: {item.card.frontMessage.text}</Text> : null}
-          {item.card?.insideMessage?.text ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Interior: {item.card.insideMessage.text}</Text> : null}
+          {item.card ? <Text style={{ fontFamily: font.body, color: colors.ink }}>{cardOrderLine(item.card)}</Text> : null}
+          {item.card ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Portada: {item.card.frontMessage?.text || "Sin texto"}{item.card.photos.front ? " · con foto" : ""}</Text> : null}
+          {item.card ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Interior: {item.card.insideMessage?.text || "Sin texto"}{item.card.photos.insideCenter ? " · con foto" : ""}</Text> : null}
+          {item.card ? <Text style={{ fontFamily: font.body, color: colors.muted }}>Reverso fijo: Mi Fotito</Text> : null}
           {item.card?.sizeId === "5x7" ? <Text style={{ fontFamily: font.semibold, color: colors.bad }}>Se imprime en un taller, con cartulina grande.</Text> : null}
           {item.voice ? (
             <View style={{ gap: 6 }}>

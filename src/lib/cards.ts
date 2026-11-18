@@ -1,5 +1,6 @@
 import cardsJson from "../../data/cards.json";
 import { placeOverlay, type TextOverlay } from "./overlay";
+import type { Crop } from "./print-size";
 
 export type CardSize = (typeof cardsJson.sizes)[number];
 export type CardTemplate = (typeof cardsJson.templates)[number];
@@ -22,6 +23,9 @@ export type CardSnapshot = {
   insideMessage: TextOverlay | null;
   photos: CardPhotos;
   bleed: boolean;
+  frontCrop?: Crop | null;
+  insideCrop?: Crop | null;
+  layout?: "diptych";
 };
 
 export const cardCatalog = cardsJson;
@@ -42,6 +46,20 @@ export function cardSizeById(id: string): CardSize {
 
 export function defaultCardSize(): CardSize {
   return cardSizes.find((item) => item.default) ?? cardSizes[0];
+}
+
+export function cardSheetCopy(size: CardSize): string {
+  if (size.id === "5x7") {
+    const flag = "shopFlag" in size && size.shopFlag ? ` ${size.shopFlag}` : "";
+    return `Díptico con pliegue arriba. Cada panel mide 5×7 pulgadas y la hoja abierta mide 5×14 pulgadas.${flag}`;
+  }
+  return `Díptico con pliegue arriba. Cada panel mide ${size.panelWmm}×${size.panelHmm} mm y la hoja abierta mide ${size.flatWmm}×${size.flatHmm} mm, así que cabe en una A4. Sobre ${size.envelopeName} ${size.envelopeWmm}×${size.envelopeHmm} mm.`;
+}
+
+export function cardOrderLine(card: Pick<CardSnapshot, "sizeId">): string {
+  const size = cardSizeById(card.sizeId);
+  if (size.id === "5x7") return "Díptico, pliegue arriba. Hoja abierta 5×14 pulgadas.";
+  return `Díptico, pliegue arriba. Hoja abierta ${size.flatWmm}×${size.flatHmm} mm.`;
 }
 
 export function messageLimits(size: CardSize): { front: number; inside: number } {

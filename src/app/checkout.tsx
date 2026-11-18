@@ -10,6 +10,7 @@ import { countdownVisible } from "../lib/campaign";
 import { countdownTarget, guaranteeFor } from "../lib/cutoff";
 import { DEPARTMENTS, districtsFor, provincesFor, shippingZone } from "../lib/zone";
 import { paymentsMode, providerFor, type PaymentMethod } from "../lib/env";
+import { cardOrderLine } from "../lib/cards";
 import { frameById } from "../lib/catalog";
 import { formatSoles } from "../lib/money";
 import { quote as priceQuote } from "../lib/pricing";
@@ -215,6 +216,11 @@ export default function Checkout() {
       <View style={{ padding: 16, gap: 12 }}>
         <Progress step={3} />
         <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>Entrega</Text>
+        {items.filter((item) => item.card).map((item) => (
+          <Text key={item.id} style={{ fontFamily: font.body, color: colors.muted }}>
+            Tarjeta {item.card?.sizeId}: {item.card ? cardOrderLine(item.card) : ""} Portada y interior. El reverso lleva la marca Mi Fotito.
+          </Text>
+        ))}
         {campaign && countdownVisible(now, campaign) ? <Countdown target={countdownTarget(now, zone, campaign)} now={now} /> : null}
         {guarantee ? <GuaranteeNote guarantee={guarantee} /> : null}
         <Field label="Nombre" value={form.customerName} onChangeText={(customerName) => setForm({ ...form, customerName })} />
