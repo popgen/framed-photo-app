@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
+import { InlineLink } from "./InlineLink";
 import { Button, Field } from "./ui";
 import { colors, font } from "./theme";
 import {
@@ -73,6 +74,11 @@ export function AccountAuth({ title, onReady }: { title: string; onReady: (sessi
       )}
       {error ? <Text style={{ fontFamily: font.medium, color: colors.bad }}>{error}</Text> : null}
       {note ? <Text style={{ fontFamily: font.medium, color: colors.pine }}>{note}</Text> : null}
+      {mode === "crear" ? (
+        <Text style={{ fontFamily: font.body, color: colors.muted, lineHeight: 22 }}>
+          Al crear tu cuenta aceptas los <InlineLink href="/terminos">Términos y condiciones</InlineLink> y la <InlineLink href="/privacidad">Política de privacidad</InlineLink>.
+        </Text>
+      ) : null}
       <Button label={busy ? "Un momento…" : label} disabled={busy} onPress={() => void submit()} />
       {mode === "entrar" ? (
         <Pressable onPress={() => { setMode("olvide"); setError(null); setNote(null); }} style={{ minHeight: 44, justifyContent: "center" }}>

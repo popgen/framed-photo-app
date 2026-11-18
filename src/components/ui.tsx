@@ -1,4 +1,5 @@
 import { router, usePathname } from "expo-router";
+import { LegalLinks } from "./LegalLinks";
 import { ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, TextInputProps, View, ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -51,12 +52,17 @@ export function Screen({
   const insets = useSafeAreaInsets();
   const path = usePathname();
   const showBack = back ?? path !== "/";
+  const links = <LegalLinks />;
   const body = scroll ? (
     <ScrollView contentContainerStyle={{ paddingBottom: footer ? 24 : 28 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
       {children}
+      {links}
     </ScrollView>
   ) : (
-    <View style={{ flex: 1 }}>{children}</View>
+    <View style={{ flex: 1 }}>
+      {children}
+      {links}
+    </View>
   );
   return (
     <View style={[styles.outer, { paddingTop: insets.top }]}>

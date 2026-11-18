@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { Link, router } from "expo-router";
 import type { ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
 import Svg, { Path, Rect } from "react-native-svg";
@@ -35,6 +35,9 @@ export default function Home() {
           <Text numberOfLines={1} style={wordmarkText}>
             Mi Fotito
           </Text>
+          <Link href="/privacidad" style={{ fontFamily: font.medium, fontSize: 14, lineHeight: 20, color: colors.muted, textAlign: "center", textDecorationLine: "underline" }}>
+            Política de privacidad
+          </Link>
         </View>
         <H1>{active.heroTitle}</H1>
         <P style={centered}>{active.heroSubtitle}</P>

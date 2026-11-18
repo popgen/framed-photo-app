@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { AccountAuth } from "../components/AccountAuth";
+import { InlineLink } from "../components/InlineLink";
 import { currentCustomer, type CustomerSession } from "../lib/customer-auth";
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { Countdown, GuaranteeNote, PaySheet, useNow } from "../components/fx";
@@ -241,6 +242,9 @@ export default function Checkout() {
       seasonal={null}
       footer={
         <View style={{ padding: 16, gap: 8, backgroundColor: colors.bg }}>
+          <Text style={{ fontFamily: font.body, color: colors.muted, textAlign: "center", lineHeight: 20 }}>
+            Al pagar aceptas los <InlineLink href="/terminos">Términos y condiciones</InlineLink> y la <InlineLink href="/privacidad">Política de privacidad</InlineLink>.
+          </Text>
           <Text style={{ fontFamily: font.display, fontSize: 28, color: colors.ink }}>{formatSoles(shownTotal)}</Text>
           <Button label={busy ? "Procesando…" : "Pagar"} disabled={busy || !items.length} onPress={() => void start()} />
         </View>
