@@ -14,7 +14,7 @@ import { applyStock, expandNeeds, framesAvailable } from "./inventory";
 import { inquiryFromSize } from "./retablo";
 import { VOICE_ADDON_CENTS } from "./voice";
 import { isEmail, normalizePhone } from "./phone";
-import { parseTaxId } from "./tax-id";
+import { resolveTaxId } from "./tax-id";
 import { REFERRAL_FRIEND_CENTS, REFERRAL_REWARD_CENTS, quote, type QuoteItem } from "./pricing";
 import { assessResolution, centeredCrop } from "./print-size";
 import { districtsFor, shippingZone } from "./zone";
@@ -345,7 +345,7 @@ function assertCheckout(input: CheckoutInput, phone: string | null) {
   if (input.customerName.trim().length < 2) throw new AppError("Escribe el nombre de quien recibe el pedido.");
   if (!phone) throw new AppError("Ingresa un celular peruano de 9 dígitos.");
   if (!isEmail(input.email ?? "")) throw new AppError("Ingresa un correo válido.");
-  const tax = parseTaxId(input.taxId ?? "");
+  const tax = resolveTaxId({ taxId: input.taxId, skipped: input.taxIdSkipped });
   if (!tax.ok) throw new AppError(tax.error);
   if (!input.addressLine.trim() || !input.department.trim() || !input.province.trim() || !input.district.trim()) {
     throw new AppError("Completa la dirección y elige departamento, provincia y distrito.");
@@ -362,7 +362,7 @@ function buildOrder(state: DB, input: CheckoutInput, phone: string, status: Orde
   if (priced.promoError) throw new AppError(priced.promoError);
   if (priced.referralError) throw new AppError(priced.referralError);
   if (priced.giftCardError) throw new AppError(priced.giftCardError);
-  const tax = parseTaxId(input.taxId ?? "");
+  const tax = resolveTaxId({ taxId: input.taxId, skipped: input.taxIdSkipped });
   if (!tax.ok) throw new AppError(tax.error);
   const zone = shippingZone(input.department, input.province, input.district);
   const now = new Date();
@@ -396,6 +396,7 @@ function buildOrder(state: DB, input: CheckoutInput, phone: string, status: Orde
     email: input.email?.trim() || null,
     taxId: tax.taxId,
     taxIdType: tax.taxIdType,
+    taxIdSkipped: tax.skipped,
     province: input.province.trim(),
     recipientName: input.recipientName?.trim() || null,
     recipientPhone: input.recipientPhone ? normalizePhone(input.recipientPhone) : null,
@@ -781,6 +782,7 @@ export function createLocalRepo() {
         channel: "whatsapp",
         taxId: draft.taxId ?? "",
         taxIdType: draft.taxIdType ?? undefined,
+        taxIdSkipped: Boolean(draft.taxIdSkipped),
       };
       const order = buildOrder(state, input, phone, "pending_payment");
       order.needsHuman = draft.needsHuman;

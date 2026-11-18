@@ -42,6 +42,7 @@ export default function WhatsAppSandbox() {
       needsHuman: nextSession.needsHuman,
       taxId: nextSession.taxId,
       taxIdType: nextSession.taxIdType,
+      taxIdSkipped: nextSession.taxIdSkipped,
     };
     void getRepo().createWhatsAppOrder(draft).then(() => {
       setLink(`${siteUrl()}/w/${nextSession.token}`);

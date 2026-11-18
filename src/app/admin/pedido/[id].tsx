@@ -44,7 +44,7 @@ export default function AdminOrder() {
         {order.customerName} · {order.phone} · {order.channel === "whatsapp" ? "WhatsApp" : "Web"}
       </Text>
       <Text style={{ fontFamily: font.body, color: colors.ink }}>{order.addressLine}, {order.district}, {order.province}, {order.department}</Text>
-      <Text style={{ fontFamily: font.body, color: colors.ink }}>{order.taxIdType && order.taxId ? `${order.taxIdType} ${order.taxId}` : "Sin DNI ni RUC"}</Text>
+      <Text style={{ fontFamily: font.body, color: colors.ink }}>{order.taxIdSkipped || !order.taxId ? "Sin DNI/RUC" : `${order.taxIdType} ${order.taxId}`}</Text>
       <Text style={{ fontFamily: font.body, color: colors.muted }}>{order.phone} · {order.email}</Text>
       <Text style={{ fontFamily: font.body, color: colors.muted }}>{order.christmasNote}</Text>
       {order.giftNote ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Nota: {order.giftNote}</Text> : null}

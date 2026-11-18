@@ -18,6 +18,25 @@ export function rucCheckDigit(first10: string): number {
   return check;
 }
 
+export function isTaxSkip(value: string): boolean {
+  const text = value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "");
+  return text === "no tengo" || text.startsWith("no tengo ");
+}
+
+export function resolveTaxId(input: { taxId?: string | null; skipped?: boolean }):
+  | { ok: true; skipped: true; taxId: null; taxIdType: null }
+  | { ok: true; skipped: false; taxId: string; taxIdType: TaxIdType }
+  | { ok: false; error: string } {
+  if (input.skipped) return { ok: true, skipped: true, taxId: null, taxIdType: null };
+  const parsed = parseTaxId(input.taxId ?? "");
+  if (!parsed.ok) return parsed;
+  return { ok: true, skipped: false, taxId: parsed.taxId, taxIdType: parsed.taxIdType };
+}
+
 export function parseTaxId(value: string): ParsedTaxId {
   const taxId = normalizeTaxId(value);
   if (!taxId) return { ok: false, error: "Escribe tu DNI o RUC." };

@@ -60,6 +60,7 @@ export type Order = {
   email?: string | null;
   taxId?: string | null;
   taxIdType?: "DNI" | "RUC" | null;
+  taxIdSkipped?: boolean;
   recipientName?: string | null;
   recipientPhone?: string | null;
   giftNote?: string | null;
@@ -203,6 +204,7 @@ export type CheckoutInput = {
   email?: string;
   taxId?: string;
   taxIdType?: "DNI" | "RUC";
+  taxIdSkipped?: boolean;
   province: string;
   recipientName?: string;
   recipientPhone?: string;
@@ -236,6 +238,7 @@ export type WaDraft = {
   needsHuman?: boolean;
   taxId?: string | null;
   taxIdType?: "DNI" | "RUC" | null;
+  taxIdSkipped?: boolean;
 };
 
 export type FrameOffer = FrameDef & { available: number };

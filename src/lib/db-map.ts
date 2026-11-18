@@ -13,6 +13,7 @@ export function mapOrderRow(row: Record<string, any>): Order {
     email: row.email,
     taxId: row.tax_id ?? null,
     taxIdType: row.tax_id_type ?? null,
+    taxIdSkipped: Boolean(row.tax_id_skipped),
     recipientName: row.recipient_name,
     recipientPhone: row.recipient_phone,
     giftNote: row.gift_note,

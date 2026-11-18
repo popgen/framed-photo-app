@@ -8,7 +8,7 @@ import { priceCards } from "../src/lib/cards.ts";
 import { frameById } from "../src/lib/catalog.ts";
 import { giftCode } from "../src/lib/ids.ts";
 import { normalizePhone } from "../src/lib/phone.ts";
-import { parseTaxId } from "../src/lib/tax-id.ts";
+import { resolveTaxId } from "../src/lib/tax-id.ts";
 
 export default async function handler(req, res) {
   if (req.method !== "POST" && req.method !== "GET") {
@@ -350,6 +350,7 @@ async function orderByToken(req, res) {
   const order = mapOrderRow(data);
   delete order.taxId;
   delete order.taxIdType;
+  delete order.taxIdSkipped;
   order.addressLine = maskStreet(order.addressLine, order.district, order.department);
   order.reference = null;
   order.email = null;
@@ -382,7 +383,7 @@ async function createOrder(req, res) {
     res.status(400).json({ error: evaluated.error || "No pudimos cotizar." });
     return;
   }
-  const tax = parseTaxId(String(req.body?.taxId || ""));
+  const tax = resolveTaxId({ taxId: req.body?.taxId, skipped: req.body?.taxIdSkipped === true });
   if (!tax.ok) {
     res.status(400).json({ error: tax.error });
     return;
@@ -417,8 +418,9 @@ async function createOrder(req, res) {
       city: req.body.city || req.body.district,
       department: req.body.department,
       reference: req.body.reference || null,
-      tax_id: tax.taxId,
-      tax_id_type: tax.taxIdType,
+      tax_id: tax.skipped ? null : tax.taxId,
+      tax_id_type: tax.skipped ? null : tax.taxIdType,
+      tax_id_skipped: tax.skipped,
       zone: evaluated.zone,
       subtotal_cents: evaluated.priced.subtotalCents,
       frame_discount_cents: evaluated.priced.frameDiscountCents,

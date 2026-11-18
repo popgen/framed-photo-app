@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeTaxId, parseTaxId, rucCheckDigit } from "../src/lib/tax-id";
+import { isTaxSkip, normalizeTaxId, parseTaxId, resolveTaxId, rucCheckDigit } from "../src/lib/tax-id";
 
 function ruc(prefix: string, body: string): string {
   const first10 = `${prefix}${body}`.padEnd(10, "0").slice(0, 10);
@@ -26,5 +26,15 @@ describe("DNI and RUC", () => {
     const almost = ruc("20", "12345678");
     const broken = `${almost.slice(0, 10)}${(Number(almost[10]) + 1) % 10}`;
     expect(parseTaxId(broken).error).toMatch(/dígito de verificación/);
+  });
+
+  it("accepts a skipped tax id and still requires a valid one when it is not skipped", () => {
+    expect(isTaxSkip("No tengo")).toBe(true);
+    expect(isTaxSkip("no tengo dni ni ruc")).toBe(true);
+    expect(isTaxSkip("87654321")).toBe(false);
+    expect(resolveTaxId({ skipped: true, taxId: "" })).toEqual({ ok: true, skipped: true, taxId: null, taxIdType: null });
+    expect(resolveTaxId({ skipped: true, taxId: "123" }).ok).toBe(true);
+    expect(resolveTaxId({ skipped: false, taxId: "" }).ok).toBe(false);
+    expect(resolveTaxId({ taxId: "87654321" })).toEqual({ ok: true, skipped: false, taxId: "87654321", taxIdType: "DNI" });
   });
 });

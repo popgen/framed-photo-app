@@ -30,6 +30,10 @@ describe("whatsapp ordering", () => {
     expect(picked.createOrder).toBe(false);
     const identified = reduceWa(picked.session, { type: "text", text: "87654321" }, ctx);
     expect(identified.session.taxIdType).toBe("DNI");
+    const skipped = reduceWa(picked.session, { type: "text", text: "no tengo" }, ctx);
+    expect(skipped.session.taxIdSkipped).toBe(true);
+    expect(skipped.session.taxId).toBeNull();
+    expect(skipped.replies[0].body).toMatch(/Sin DNI\/RUC/);
     const confirmed = reduceWa(identified.session, { type: "select", id: "confirm" }, ctx);
     expect(confirmed.createOrder).toBe(true);
     expect(confirmed.replies[0].body).toContain("http://localhost:8081/w/");
