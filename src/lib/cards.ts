@@ -62,19 +62,25 @@ export function cardOrderLine(card: Pick<CardSnapshot, "sizeId">): string {
   return `Díptico, pliegue arriba. Hoja abierta ${size.flatWmm}×${size.flatHmm} mm.`;
 }
 
-export function messageLimits(size: CardSize): { front: number; inside: number } {
-  const width = size.panelWmm / cardsJson.referencePanelMm.width;
-  const height = size.panelHmm / cardsJson.referencePanelMm.height;
-  return {
-    front: Math.max(24, Math.round(cardsJson.frontMaxChars * width)),
-    inside: Math.max(80, Math.round(cardsJson.insideMaxChars * width * height)),
-  };
+export function messageLimits(_size?: CardSize): { front: number; inside: number } {
+  return { front: cardsJson.messageMaxChars, inside: cardsJson.messageMaxChars };
+}
+
+export function cardMessageError(items: Array<{ card?: { frontMessage?: { text?: string } | null; insideMessage?: { text?: string } | null } | null }> | null | undefined): string | null {
+  const max = cardsJson.messageMaxChars;
+  for (const item of items ?? []) {
+    const texts = [item?.card?.frontMessage?.text, item?.card?.insideMessage?.text];
+    if (texts.some((text) => typeof text === "string" && [...text].length > max)) {
+      return `El mensaje de la tarjeta puede tener hasta ${max} caracteres.`;
+    }
+  }
+  return null;
 }
 
 export function clampMessage(message: TextOverlay | null, maxChars: number): TextOverlay | null {
   if (!message?.text.trim()) return null;
   const text = [...message.text].slice(0, maxChars).join("");
-  return placeOverlay({ ...message, text });
+  return placeOverlay({ ...message, text }, false, true);
 }
 
 export function priceCards(quantity: number): { cents: number; label: string } {

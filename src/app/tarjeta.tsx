@@ -8,6 +8,7 @@ import { TextStyleEditor } from "../components/TextStyleEditor";
 import { useReducedMotion } from "../components/fx";
 import { Button, Card, Screen, TabBar } from "../components/ui";
 import { colors, font } from "../components/theme";
+import { layoutCardText, CARD_TEXT_MIN_PX } from "../lib/card-text";
 import { cardCatalog, cardGreetings, cardSheetCopy, cardSizes, cardTemplates, defaultCardSize, messageLimits, priceCards, type CardSnapshot } from "../lib/cards";
 import { importFlags } from "../lib/env";
 import { formatSoles } from "../lib/money";
@@ -176,7 +177,9 @@ export default function Tarjeta() {
         </Card>
         <TextStyleEditor
           collapsible
+          multiline
           label="Agrega texto a tu foto"
+          placeholder={panel === "Interior" ? "El mensaje de adentro" : "El mensaje de la portada"}
           value={panel === "Interior" ? insideMessage : frontMessage}
           onChange={panel === "Interior" ? setInsideMessage : setFrontMessage}
           maxChars={panel === "Interior" ? limits.inside : limits.front}
@@ -296,7 +299,23 @@ function PanelFace({
 }) {
   const crop = photo?.crop;
   const source = photo?.source?.source ?? (photo?.source?.uri ? { uri: photo.source.uri } : null);
-  const fontSize = overlay ? Math.max(12, overlay.size * height) : 16;
+  const fitted = overlay?.text
+    ? layoutCardText(
+        overlay.text,
+        width,
+        height,
+        (line, size) => Math.max(1, [...line].length) * size * fontById(overlay.font).width * 1.12,
+        overlay.size * height,
+        CARD_TEXT_MIN_PX,
+      )
+    : null;
+  const blockH = fitted ? fitted.lines.length * fitted.leading : 0;
+  const paragraph = Boolean(overlay && (overlay.text.includes("\n") || [...overlay.text].length > 48));
+  const top = fitted
+    ? paragraph
+      ? Math.max(8, (height - blockH) / 2)
+      : Math.min(Math.max(4, overlay!.y * height - blockH / 2), Math.max(4, height - blockH - 4))
+    : 0;
   return (
     <View style={{ width, height, backgroundColor: color, overflow: "hidden", borderWidth: 1, borderColor: "rgba(42,27,22,0.28)", borderRadius: 10, boxShadow: "0 10px 24px rgba(42,27,22,0.12)" }}>
       {source && crop ? (
@@ -312,17 +331,9 @@ function PanelFace({
           }}
         />
       ) : null}
-      {overlay?.text ? (
-        <View
-          style={{
-            position: "absolute",
-            left: overlay.x * width - width * 0.35,
-            top: overlay.y * height - fontSize,
-            width: width * 0.7,
-            transform: [{ rotate: `${overlay.rotation}deg` }],
-          }}
-        >
-          <Text style={{ fontFamily: fontById(overlay.font).family, fontSize, lineHeight: fontSize * 1.15, color: overlay.color, textAlign: "center" }}>{overlay.text}</Text>
+      {fitted && overlay ? (
+        <View style={{ position: "absolute", left: width * 0.08, top, width: width * 0.84 }}>
+          <Text style={{ fontFamily: fontById(overlay.font).family, fontSize: fitted.size, lineHeight: fitted.leading, color: overlay.color, textAlign: "center" }}>{fitted.lines.join("\n")}</Text>
         </View>
       ) : null}
     </View>

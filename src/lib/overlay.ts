@@ -57,8 +57,8 @@ export function textSpan(overlay: Pick<TextOverlay, "text" | "font" | "size">): 
   return { w, h };
 }
 
-export function placeOverlay(overlay: TextOverlay, snap = false): TextOverlay {
-  const text = overlay.text.replace(/\s+/g, " ").trim();
+export function placeOverlay(overlay: TextOverlay, snap = false, keepBreaks = false): TextOverlay {
+  const text = keepBreaks ? keepLines(overlay.text) : overlay.text.replace(/\s+/g, " ").trim();
   const span = textSpan({ ...overlay, text: text || "A" });
   let x = overlay.x;
   let y = overlay.y;
@@ -100,6 +100,16 @@ export function parseOverlay(raw: unknown): TextOverlay | null {
     y: Number(value.y ?? 0.72),
     rotation: Number(value.rotation ?? 0),
   });
+}
+
+function keepLines(value: string): string {
+  return value
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.replace(/[^\S\n]+/g, " ").trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function clamp(value: number, min: number, max: number): number {

@@ -7,8 +7,7 @@
   "bleedMm": 3,
   "markMm": 4,
   "dpi": 300,
-  "frontMaxChars": 64,
-  "insideMaxChars": 360,
+  "messageMaxChars": 300,
   "referencePanelMm": { "width": 105, "height": 148 },
   "greetings": [
     "Feliz Navidad",

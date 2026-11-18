@@ -4,7 +4,7 @@ import { evaluateOrder } from "../src/lib/server-order.ts";
 import { serviceSupabase, signingSecret, warnWhatsAppPending, whatsAppOtpReady } from "../src/lib/service-supabase.ts";
 import { maskPhone, maskStreet } from "../src/lib/order-number.ts";
 import { toTrackingCard } from "../src/lib/tracking.ts";
-import { priceCards } from "../src/lib/cards.ts";
+import { cardMessageError, priceCards } from "../src/lib/cards.ts";
 import { frameById } from "../src/lib/catalog.ts";
 import { frameLowStock } from "../src/lib/inventory.ts";
 import { giftCode } from "../src/lib/ids.ts";
@@ -362,6 +362,11 @@ async function orderByToken(req, res) {
 }
 
 async function createOrder(req, res) {
+  const tooLong = cardMessageError(req.body?.items);
+  if (tooLong) {
+    res.status(400).json({ error: tooLong });
+    return;
+  }
   const supabase = serviceSupabase();
   if (!supabase) {
     res.status(503).json({ error: "Supabase no está configurado." });

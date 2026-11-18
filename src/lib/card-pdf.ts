@@ -9,6 +9,7 @@ import {
   sheetBox,
   type CardSnapshot,
 } from "./cards";
+import { CARD_TEXT_MIN_PT, layoutCardText } from "./card-text";
 import { fontById } from "./overlay";
 
 export type FontBytes = Record<string, Uint8Array>;
@@ -30,7 +31,7 @@ export async function buildCardPdf(card: CardSnapshot, fonts: FontBytes, images:
   );
   const embedded = new Map<string, PDFFont>();
   for (const [id, bytes] of Object.entries(fonts)) {
-    if (bytes?.byteLength) embedded.set(id, await doc.embedFont(bytes, { subset: true }));
+    if (bytes?.byteLength) embedded.set(id, await doc.embedFont(bytes));
   }
   const fallback = embedded.get("pacifico") ?? embedded.values().next().value;
   if (!fallback) throw new Error("Falta la fuente para la tarjeta.");
@@ -116,50 +117,28 @@ function drawBack(doc: PDFDocument, size: ReturnType<typeof cardSizeById>, font:
 }
 
 function drawMessage(page: PDFPage, message: NonNullable<CardSnapshot["frontMessage"]>, x: number, y: number, w: number, h: number, font: PDFFont) {
-  const maxWidth = w * 0.84;
-  let size = Math.max(8, Math.min(message.size * h, h * 0.16));
-  let lines = wrap(message.text, font, size, maxWidth);
-  while (lines.length * size * 1.2 > h * 0.78 && size > 8) {
-    size *= 0.9;
-    lines = wrap(message.text, font, size, maxWidth);
-  }
-  const leading = size * 1.2;
-  const block = lines.length * leading;
-  const center = y + (1 - Math.min(0.86, Math.max(0.14, message.y))) * h;
-  let baseline = center + block / 2 - size;
-  const topLimit = y + h - size * 0.35;
-  const bottomLimit = y + size * 0.35 + (lines.length - 1) * leading;
+  // Script faces paint wider than the measured advance, so the lines wrap a little early.
+  const measure = (line: string, size: number) => font.widthOfTextAtSize(line || " ", size) * 1.22;
+  const fitted = layoutCardText(message.text, w, h, measure, message.size * h, CARD_TEXT_MIN_PT);
+  const block = fitted.lines.length * fitted.leading;
+  const paragraph = message.text.includes("\n") || [...message.text].length > 48;
+  const center = paragraph ? y + h / 2 : y + (1 - Math.min(0.86, Math.max(0.14, message.y))) * h;
+  let baseline = center + block / 2 - fitted.size;
+  const topLimit = y + h - fitted.size * 0.35;
+  const bottomLimit = y + fitted.size * 0.35 + Math.max(0, fitted.lines.length - 1) * fitted.leading;
   if (baseline > topLimit) baseline = topLimit;
   if (baseline < bottomLimit) baseline = bottomLimit;
-  const cx = x + Math.min(0.86, Math.max(0.14, message.x)) * w;
-  lines.forEach((line, index) => {
-    const width = font.widthOfTextAtSize(line, size);
+  const cx = x + (paragraph ? 0.5 : Math.min(0.86, Math.max(0.14, message.x))) * w;
+  fitted.lines.forEach((line, index) => {
+    const width = measure(line, fitted.size);
     page.drawText(line, {
       x: cx - width / 2,
-      y: baseline - index * leading,
-      size,
+      y: baseline - index * fitted.leading,
+      size: fitted.size,
       font,
       color: hex(message.color),
     });
   });
-}
-
-function wrap(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
-  const paragraphs = text.split(/\n/);
-  const lines: string[] = [];
-  for (const paragraph of paragraphs) {
-    const words = paragraph.split(/\s+/).filter(Boolean);
-    let line = "";
-    for (const word of words) {
-      const next = line ? `${line} ${word}` : word;
-      if (font.widthOfTextAtSize(next, size) > maxWidth && line) {
-        lines.push(line);
-        line = word;
-      } else line = next;
-    }
-    lines.push(line);
-  }
-  return lines.length ? lines : [""];
 }
 
 function drawCrops(page: PDFPage, x: number, y: number, w: number, h: number) {

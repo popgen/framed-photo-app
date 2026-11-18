@@ -7,7 +7,7 @@ import { guaranteeFor, type Zone } from "./cutoff";
 import { estimateDelivery } from "./delivery";
 import { notifyMode } from "./env";
 import { giftCode, referralCodeFrom, uid } from "./ids";
-import { priceCards } from "./cards";
+import { cardMessageError, priceCards } from "./cards";
 import { stockChecksEnabled } from "./env";
 import { formatOrderNumber } from "./order-number";
 import { sortTracking, toTrackingCard } from "./tracking";
@@ -306,6 +306,8 @@ function priceInput(state: DB, input: CheckoutInput, phone: string | null) {
 
 function assertCheckout(input: CheckoutInput, phone: string | null) {
   if (!input.items.length) throw new AppError("Tu carrito está vacío.");
+  const cardError = cardMessageError(input.items);
+  if (cardError) throw new AppError(cardError);
   if (input.items.some((item) => item.resolutionStatus === "low") && !input.ackLowRes) {
     throw new AppError("Confirma que aceptas la resolución baja, o elige una foto más grande.");
   }

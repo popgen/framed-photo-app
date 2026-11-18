@@ -1,4 +1,4 @@
-import { priceCards } from "./cards";
+import { cardMessageError, priceCards } from "./cards";
 import { frameById } from "./catalog";
 import { defaultCampaign } from "./campaign";
 import { guaranteeFor } from "./cutoff";
@@ -32,6 +32,8 @@ export function evaluateOrder(input: CheckoutInput, ctx: { promos: Promo[]; stoc
   const phone = normalizePhone(input.phone);
   if (!phone) return { error: "Revisa el celular." };
   if (!input.items.length) return { error: "Tu carrito está vacío." };
+  const cardError = cardMessageError(input.items);
+  if (cardError) return { error: cardError };
   const promoCode = input.promoCode?.trim() || null;
   const promo = promoCode ? (ctx.promos.find((item) => item.code.toUpperCase() === promoCode.toUpperCase()) ?? null) : null;
   const referralCode = input.referralCode?.trim() || "";
