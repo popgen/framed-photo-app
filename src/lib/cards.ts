@@ -32,6 +32,24 @@ export const cardCatalog = cardsJson;
 export const cardSizes = cardsJson.sizes;
 export const cardTemplates = cardsJson.templates;
 export const cardGreetings = cardsJson.greetings;
+export const DEFAULT_ENVELOPE = "blanco";
+
+const STORED_ENVELOPES: Record<string, { name: string; color: string }> = {
+  blanco: { name: "Sobre blanco", color: "#F7F4EF" },
+  white: { name: "Sobre blanco", color: "#F7F4EF" },
+  kraft: { name: "Kraft", color: "#C4924A" },
+  red: { name: "Rojo", color: "#8E1E2A" },
+};
+
+export function envelopeLabel(id: string | null | undefined): string {
+  if (!id) return STORED_ENVELOPES.blanco.name;
+  return STORED_ENVELOPES[id]?.name ?? STORED_ENVELOPES.blanco.name;
+}
+
+export function envelopeFill(id: string | null | undefined): string {
+  if (!id) return STORED_ENVELOPES.blanco.color;
+  return STORED_ENVELOPES[id]?.color ?? STORED_ENVELOPES.blanco.color;
+}
 
 export const OUTSIDE_PANELS = ["back", "front", "flap"] as const;
 export const INSIDE_PANELS = ["insideLeft", "insideCenter", "insideRight"] as const;

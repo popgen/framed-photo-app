@@ -4,7 +4,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useApp, useRepo } from "../../../components/provider";
 import { BackButton, Banner } from "../../../components/ui";
 import { colors, font } from "../../../components/theme";
-import { cardOrderLine } from "../../../lib/cards";
+import { cardOrderLine, envelopeLabel } from "../../../lib/cards";
 import { frameById } from "../../../lib/catalog";
 import { downloadCardPdf, downloadPrint } from "../../../lib/print-export";
 import { getRepo } from "../../../lib/repo";
@@ -65,6 +65,7 @@ export default function AdminOrder() {
           {item.card ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Portada: {item.card.frontMessage?.text || "Sin texto"}{item.card.photos.front ? " · con foto" : ""}</Text> : null}
           {item.card ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Interior: {item.card.insideMessage?.text || "Sin texto"}{item.card.photos.insideCenter ? " · con foto" : ""}</Text> : null}
           {item.card ? <Text style={{ fontFamily: font.body, color: colors.muted }}>Reverso fijo: Mi Fotito</Text> : null}
+          {item.card ? <Text style={{ fontFamily: font.body, color: colors.ink }}>{envelopeLabel(item.card.envelopeColor)}</Text> : null}
           {item.card?.sizeId === "5x7" ? <Text style={{ fontFamily: font.semibold, color: colors.bad }}>Se imprime en un taller, con cartulina grande.</Text> : null}
           {item.voice ? (
             <View style={{ gap: 6 }}>

@@ -18,9 +18,7 @@
     "Felices fiestas"
   ],
   "envelopes": [
-    { "id": "white", "name": "Blanco", "color": "#F7F4EF" },
-    { "id": "kraft", "name": "Kraft", "color": "#C4924A" },
-    { "id": "red", "name": "Rojo", "color": "#8E1E2A" }
+    { "id": "blanco", "name": "Sobre blanco", "color": "#F7F4EF" }
   ],
   "templates": [
     { "id": "noche", "name": "Noche", "outside": "#14243F", "inside": "#F6EFE6" },

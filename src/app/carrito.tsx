@@ -46,6 +46,7 @@ export default function Carrito() {
               <Card key={item.id}>
                 <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Tarjeta {item.card.sizeId}</Text>
                 <Text style={{ fontFamily: font.body, color: colors.muted }}>{cardOrderLine(item.card)}</Text>
+                <Text style={{ fontFamily: font.body, color: colors.muted }}>Incluye sobre blanco</Text>
                 <Text style={{ fontFamily: font.body, color: colors.muted }}>{item.card.frontMessage?.text || "Sin mensaje de portada"}</Text>
                 <Text style={{ fontFamily: font.body, color: colors.muted }}>{item.card.insideMessage?.text || "Sin mensaje interior"}</Text>
                 <Text style={{ fontFamily: font.bold, color: colors.ink }}>{formatSoles(price.cents)}</Text>

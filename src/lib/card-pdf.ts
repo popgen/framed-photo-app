@@ -4,6 +4,7 @@ import {
   cardSizeById,
   cardTemplates,
   envelopeBox,
+  envelopeFill,
   messageLimits,
   mmToPt,
   sheetBox,
@@ -179,7 +180,7 @@ function drawGuide(doc: PDFDocument, size: ReturnType<typeof cardSizeById>) {
 function drawEnvelope(doc: PDFDocument, size: ReturnType<typeof cardSizeById>, colorId: string) {
   const envelope = envelopeBox(size);
   const page = doc.addPage([mmToPt(envelope.widthMm), mmToPt(envelope.heightMm)]);
-  const fill = colorId === "red" ? "#8E1E2A" : colorId === "kraft" ? "#C4924A" : "#F7F4EF";
+  const fill = envelopeFill(colorId);
   page.drawRectangle({ x: 0, y: 0, width: page.getWidth(), height: page.getHeight(), color: hex(fill) });
   page.drawRectangle({
     x: mmToPt(4),

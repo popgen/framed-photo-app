@@ -9,7 +9,7 @@ import { useReducedMotion } from "../components/fx";
 import { Button, Card, Screen, TabBar } from "../components/ui";
 import { colors, font } from "../components/theme";
 import { layoutCardText, CARD_TEXT_MIN_PX } from "../lib/card-text";
-import { cardCatalog, cardGreetings, cardSheetCopy, cardSizes, cardTemplates, defaultCardSize, messageLimits, priceCards, type CardSnapshot } from "../lib/cards";
+import { cardGreetings, cardSheetCopy, cardSizes, cardTemplates, DEFAULT_ENVELOPE, defaultCardSize, messageLimits, priceCards, type CardSnapshot } from "../lib/cards";
 import { importFlags } from "../lib/env";
 import { formatSoles } from "../lib/money";
 import { uid } from "../lib/ids";
@@ -34,7 +34,6 @@ export default function Tarjeta() {
   const add = useCart((state) => state.add);
   const [sizeId, setSizeId] = useState(defaultCardSize().id);
   const [templateId, setTemplateId] = useState(cardTemplates[0].id);
-  const [envelope, setEnvelope] = useState("kraft");
   const [qty, setQty] = useState(1);
   const [panel, setPanel] = useState<PanelName>("Portada");
   const [open, setOpen] = useState(false);
@@ -61,7 +60,7 @@ export default function Tarjeta() {
     const card: CardSnapshot = {
       sizeId: size.id,
       quantity: qty,
-      envelopeColor: envelope,
+      envelopeColor: DEFAULT_ENVELOPE,
       templateId: template.id,
       frontMessage,
       insideMessage,
@@ -186,14 +185,7 @@ export default function Tarjeta() {
           presets={cardGreetings}
         />
         <Text style={{ fontFamily: font.body, color: colors.muted }}>El reverso lleva la marca Mi Fotito.</Text>
-        <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Sobre</Text>
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          {cardCatalog.envelopes.map((item) => (
-            <Pressable key={item.id} onPress={() => setEnvelope(item.id)} style={chip(envelope === item.id)}>
-              <Text style={chipText(envelope === item.id)}>{item.name}</Text>
-            </Pressable>
-          ))}
-        </View>
+        <Text style={{ fontFamily: font.body, color: colors.ink }}>Incluye sobre blanco</Text>
         <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
           <Pressable onPress={() => setQty((value) => Math.max(1, value - 1))} style={chip(false)}><Text style={chipText(false)}>−</Text></Pressable>
           <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{priced.label}</Text>

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { buildCardPdf } from "../src/lib/card-pdf";
 import { cardsPromoVisible, defaultCampaign } from "../src/lib/campaign";
 import { CARD_TEXT_MIN_PT, layoutCardText } from "../src/lib/card-text";
-import { cardMessageError, cardOrderLine, cardSheetCopy, cardSizeById, messageLimits, mmToPt, priceCards, sheetBox } from "../src/lib/cards";
+import { cardCatalog, cardMessageError, cardOrderLine, cardSheetCopy, cardSizeById, envelopeFill, envelopeLabel, messageLimits, mmToPt, priceCards, sheetBox } from "../src/lib/cards";
 import { emptyOverlay } from "../src/lib/overlay";
 import { quote } from "../src/lib/pricing";
 
@@ -39,6 +39,7 @@ describe("christmas cards", () => {
     expect(a6.panelWmm).toBe(105);
     expect(a6.panelHmm).toBe(148);
     expect(sheetBox(a6, false)).toMatchObject({ pageWmm: 105, pageHmm: 296 });
+    expect(a6.envelopeName).toBe("C6");
     expect(a6.envelopeWmm).toBe(114);
     expect(a6.envelopeHmm).toBe(162);
     expect(a6.printShop).toBe(false);
@@ -49,7 +50,18 @@ describe("christmas cards", () => {
     expect(large.flatHmm).toBe(355.6);
     expect(large.panelWmm).toBe(127);
     expect(large.panelHmm).toBe(177.8);
+    expect(large.envelopeName).toBe("A7");
+    expect(large.envelopeWmm).toBe(133.35);
+    expect(large.envelopeHmm).toBe(184.15);
     expect(large.shopFlag).toBe("Se imprime en un taller, con cartulina grande.");
+    expect(cardCatalog.envelopes).toEqual([{ id: "blanco", name: "Sobre blanco", color: "#F7F4EF" }]);
+    expect(envelopeLabel("blanco")).toBe("Sobre blanco");
+    expect(envelopeLabel("white")).toBe("Sobre blanco");
+    expect(envelopeLabel("kraft")).toBe("Kraft");
+    expect(envelopeLabel("red")).toBe("Rojo");
+    expect(envelopeFill("kraft")).toBe("#C4924A");
+    expect(envelopeFill("red")).toBe("#8E1E2A");
+    expect(envelopeFill("blanco")).toBe("#F7F4EF");
     expect(cardOrderLine({ sizeId: "5x7" })).toContain("5×14");
     expect(sheetBox(a6, true).pageWmm).toBe(105 + 14);
     expect(sheetBox(a6, true).pageHmm).toBe(296 + 14);
@@ -82,7 +94,7 @@ describe("christmas cards", () => {
       {
         sizeId: "a6",
         quantity: 1,
-        envelopeColor: "kraft",
+        envelopeColor: "blanco",
         templateId: "noche",
         frontMessage: null,
         insideMessage: emptyOverlay({ text: sample, color: "#241714", y: 0.5 }),
@@ -103,7 +115,7 @@ describe("christmas cards", () => {
       {
         sizeId: "a6",
         quantity: 1,
-        envelopeColor: "kraft",
+        envelopeColor: "blanco",
         templateId: "noche",
         frontMessage: emptyOverlay({ text: "Feliz Navidad" }),
         insideMessage: emptyOverlay({ text: "Que la pasen juntos en casa." }),
@@ -131,7 +143,7 @@ describe("christmas cards", () => {
       {
         sizeId: "a6",
         quantity: 1,
-        envelopeColor: "white",
+        envelopeColor: "kraft",
         templateId: "oro",
         frontMessage: null,
         insideMessage: null,
