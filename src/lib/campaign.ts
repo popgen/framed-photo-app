@@ -21,6 +21,13 @@ export type Campaign = {
   guaranteeNo: string;
   successTitle: string;
   successBody: string;
+  cardsPromo?: {
+    enabled: boolean;
+    until: string;
+    headline: string;
+    detail: string;
+    cta: string;
+  } | null;
 };
 
 export const defaultCampaign = navidad as Campaign;
@@ -39,6 +46,12 @@ export function countdownVisible(
   if (value === "1" || value === "true" || value === "on") return true;
   if (!campaign.countdownStartsAt) return false;
   return now.getTime() >= new Date(campaign.countdownStartsAt).getTime();
+}
+
+export function cardsPromoVisible(now: Date, campaign: { cardsPromo?: Campaign["cardsPromo"] }): boolean {
+  const promo = campaign.cardsPromo;
+  if (!promo?.enabled || !promo.until) return false;
+  return now.getTime() <= new Date(promo.until).getTime();
 }
 
 export function motionEnabled(campaign: { seasonalMotion: boolean }): boolean {

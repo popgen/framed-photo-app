@@ -2,13 +2,14 @@ import { router } from "expo-router";
 import type { ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
 import Svg, { Path, Rect } from "react-native-svg";
-import Animated, { FadeInDown } from "react-native-reanimated";
+import Animated, { FadeInDown, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
+import { useEffect } from "react";
 import { FrameView } from "../components/FrameView";
 import { Countdown, GuaranteeNote, Ornaments, useNow, useReducedMotion } from "../components/fx";
 import { useRepo } from "../components/provider";
 import { Button, Card, H1, P, Screen, TabBar, WhatsAppButton } from "../components/ui";
 import { colors, font } from "../components/theme";
-import { countdownVisible, motionEnabled, ornamentKind } from "../lib/campaign";
+import { cardsPromoVisible, countdownVisible, motionEnabled, ornamentKind } from "../lib/campaign";
 import { countdownTarget, guaranteeFor } from "../lib/cutoff";
 import { frameById, frames } from "../lib/catalog";
 import { priceCards } from "../lib/cards";
@@ -49,6 +50,20 @@ export default function Home() {
         <Animated.View entering={reduced ? undefined : FadeInDown.springify().damping(14)} style={{ alignItems: "center", paddingTop: 8 }}>
           <FrameView frame={frameById("wood-15")} photoId="asset:sample" crop={crop} width={230} />
         </Animated.View>
+        {cardsPromoVisible(now, active) && active.cardsPromo ? (
+          <Pressable accessibilityRole="button" accessibilityLabel={active.cardsPromo.cta} onPress={() => router.push("/tarjeta")}>
+            <View style={cardPromo}>
+              <FoldAccent reduced={reduced} />
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={{ fontFamily: font.displaySoft, fontSize: 18, color: colors.ink }}>{active.cardsPromo.headline}</Text>
+                <Text style={{ fontFamily: font.body, color: colors.muted, fontSize: 14, lineHeight: 20 }}>
+                  {active.cardsPromo.detail.replace("{price}", formatSoles(priceCards(1).cents))}
+                </Text>
+                <Text style={{ fontFamily: font.bold, color: colors.red, marginTop: 4 }}>{active.cardsPromo.cta}</Text>
+              </View>
+            </View>
+          </Pressable>
+        ) : null}
         <Text style={section}>Super simple</Text>
         <Step n="1" title="Elige tu foto" body="Desde el teléfono, iCloud o una foto de ejemplo." icon={<PhotoIcon />} />
         <Step n="2" title="Elige tu marco" body="Desliza los marcos, o arma una tarjeta navideña." icon={<FrameIcon />} />
@@ -110,6 +125,23 @@ export default function Home() {
       </View>
       <WhatsAppButton />
     </Screen>
+  );
+}
+
+function FoldAccent({ reduced }: { reduced: boolean }) {
+  const fold = useSharedValue(0);
+  useEffect(() => {
+    if (reduced) return;
+    fold.value = withRepeat(withTiming(1, { duration: 1400 }), -1, true);
+  }, [fold, reduced]);
+  const left = useAnimatedStyle(() => ({ transform: [{ perspective: 180 }, { rotateY: `${-32 * fold.value}deg` }] }));
+  const right = useAnimatedStyle(() => ({ transform: [{ perspective: 180 }, { rotateY: `${32 * fold.value}deg` }] }));
+  return (
+    <View style={{ width: 54, height: 40, flexDirection: "row", alignItems: "center" }}>
+      <Animated.View style={[{ width: 16, height: 36, backgroundColor: "#1C4D3A", borderTopLeftRadius: 4, borderBottomLeftRadius: 4 }, left]} />
+      <View style={{ width: 18, height: 36, backgroundColor: colors.red }} />
+      <Animated.View style={[{ width: 16, height: 36, backgroundColor: "#C4924A", borderTopRightRadius: 4, borderBottomRightRadius: 4 }, right]} />
+    </View>
   );
 }
 
@@ -203,3 +235,13 @@ const wordmarkText = {
 };
 
 const section = { fontFamily: font.displaySoft, fontSize: 22, color: colors.ink, marginBottom: 6 };
+const cardPromo = {
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 12,
+  backgroundColor: "#F3EBD8",
+  borderRadius: 20,
+  padding: 14,
+  borderWidth: 1,
+  borderColor: "#E4D3B4",
+};

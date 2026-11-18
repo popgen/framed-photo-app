@@ -860,6 +860,9 @@ function ensureCommerce(state: DB) {
     if (!skus.has(item.sku)) state.inventory.push(structuredClone(item));
   }
   if (!state.inquiries) state.inquiries = [];
+  if (state.campaign?.id === defaultCampaign.id && !state.campaign.cardsPromo && defaultCampaign.cardsPromo) {
+    state.campaign = { ...state.campaign, cardsPromo: defaultCampaign.cardsPromo };
+  }
 }
 
 function required(): DB {

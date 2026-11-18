@@ -2,11 +2,17 @@ import { readFile } from "node:fs/promises";
 import { PDFDocument } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 import { buildCardPdf } from "../src/lib/card-pdf";
+import { cardsPromoVisible, defaultCampaign } from "../src/lib/campaign";
 import { cardSizeById, messageLimits, mmToPt, priceCards, sheetBox } from "../src/lib/cards";
 import { emptyOverlay } from "../src/lib/overlay";
 import { quote } from "../src/lib/pricing";
 
 describe("christmas cards", () => {
+  it("shows the home promo only while the campaign says it is on", () => {
+    expect(cardsPromoVisible(new Date("2026-12-18T12:00:00-05:00"), defaultCampaign)).toBe(true);
+    expect(cardsPromoVisible(new Date("2026-12-26T00:00:00-05:00"), defaultCampaign)).toBe(false);
+    expect(cardsPromoVisible(new Date("2026-12-18T12:00:00-05:00"), { cardsPromo: { ...defaultCampaign.cardsPromo!, enabled: false } })).toBe(false);
+  });
   it("prices a single card below the cheapest frame and uses the packs", () => {
     expect(priceCards(1).cents).toBe(1200);
     expect(priceCards(5).cents).toBe(5000);
