@@ -5,6 +5,7 @@ export function mapOrderRow(row: Record<string, any>): Order {
   const items = (row.order_items ?? []).map(mapItemRow);
   return {
     id: row.id,
+    userId: row.user_id ?? null,
     publicToken: row.public_token,
     number: row.number,
     status: row.status,

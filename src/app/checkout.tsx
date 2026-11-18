@@ -1,5 +1,7 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
+import { AccountAuth } from "../components/AccountAuth";
+import { currentCustomer, type CustomerSession } from "../lib/customer-auth";
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { Countdown, GuaranteeNote, PaySheet, useNow } from "../components/fx";
 import { useApp } from "../components/provider";
@@ -26,6 +28,8 @@ export default function Checkout() {
   const clear = useCart((state) => state.clear);
   const { refresh } = useApp();
   const [campaign, setCampaign] = useState<Awaited<ReturnType<ReturnType<typeof getRepo>["getCampaign"]>> | null>(null);
+  const [account, setAccount] = useState<CustomerSession | null>(null);
+  const [accountReady, setAccountReady] = useState(false);
   const [form, setForm] = useState({
     customerName: "",
     phone: "",
@@ -62,6 +66,11 @@ export default function Checkout() {
 
   useEffect(() => {
     void getRepo().getCampaign().then(setCampaign);
+    void currentCustomer().then((session) => {
+      setAccount(session);
+      setAccountReady(true);
+      if (session) setForm((current) => ({ ...current, email: current.email || session.email }));
+    });
   }, []);
 
   const input = useMemo<CheckoutInput>(
@@ -203,6 +212,30 @@ export default function Checkout() {
     }
   }
 
+  if (!accountReady) {
+    return (
+      <Screen>
+        <View style={{ padding: 16 }}>
+          <Text style={{ fontFamily: font.body, color: colors.muted }}>Un momento…</Text>
+        </View>
+      </Screen>
+    );
+  }
+  if (!account) {
+    return (
+      <Screen>
+        <View style={{ padding: 16 }}>
+          <AccountAuth
+            title="Tu cuenta"
+            onReady={(session) => {
+              setAccount(session);
+              setForm((current) => ({ ...current, email: session.email }));
+            }}
+          />
+        </View>
+      </Screen>
+    );
+  }
   return (
     <Screen
       seasonal={null}

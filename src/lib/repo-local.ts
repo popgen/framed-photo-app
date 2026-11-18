@@ -10,10 +10,11 @@ import { giftCode, referralCodeFrom, uid } from "./ids";
 import { cardMessageError, priceCards } from "./cards";
 import { stockChecksEnabled } from "./env";
 import { formatOrderNumber } from "./order-number";
-import { sortTracking, toTrackingCard } from "./tracking";
+import { isOpenShipment, sortTracking, toPublicShipment, toTrackingCard } from "./tracking";
 import { applyStock, expandNeeds, frameLowStock, framesAvailable } from "./inventory";
 import { inquiryFromSize } from "./retablo";
 import { VOICE_ADDON_CENTS } from "./voice";
+import { readLocalCustomer } from "./customer-auth";
 import { isEmail, normalizePhone } from "./phone";
 import { resolveTaxId } from "./tax-id";
 import { REFERRAL_FRIEND_CENTS, REFERRAL_REWARD_CENTS, quote, type QuoteItem } from "./pricing";
@@ -439,10 +440,13 @@ export function createLocalRepo() {
       return { ...priced, zone, stockError };
     },
     async placeOrder(input: CheckoutInput) {
+      const session = readLocalCustomer();
+      if (!session) throw new AppError("Entra con tu correo y contraseña.");
       const state = required();
       const phone = normalizePhone(input.phone);
       assertCheckout(input, phone);
       const order = buildOrder(state, input, phone as string, "pending_payment");
+      order.userId = session.id;
       state.orders.unshift(order);
       persist(state);
       return order;
@@ -510,10 +514,22 @@ export function createLocalRepo() {
       if (!normalized) return [];
       return sortTracking(required().orders.filter((item) => item.phone === normalized).map(toTrackingCard));
     },
+    async listMyOrders() {
+      const session = readLocalCustomer();
+      if (!session) return [];
+      return sortTracking(required().orders.filter((item) => item.userId === session.id).map(toTrackingCard));
+    },
+    async listPublicTracking(phone: string) {
+      const normalized = normalizePhone(phone);
+      if (!normalized) return [];
+      return required().orders
+        .filter((item) => item.phone === normalized && isOpenShipment(item.status))
+        .map(toPublicShipment);
+    },
     async getOrderByToken(token: string, phone: string) {
       const normalized = normalizePhone(phone);
-      if (!normalized) return null;
-      return required().orders.find((item) => item.publicToken === token && item.phone === normalized) ?? null;
+      const session = readLocalCustomer();
+      return required().orders.find((item) => item.publicToken === token && ((session && item.userId === session.id) || (normalized && item.phone === normalized))) ?? null;
     },
     async listOrders(status?: string) {
       return required().orders.filter((item) => !status || status === "all" || item.status === status);

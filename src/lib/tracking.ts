@@ -1,5 +1,5 @@
 import { maskPhone, maskStreet } from "./order-number";
-import type { Order, OrderStatus } from "./types";
+import { STATUS_LABEL, type Order, type OrderStatus } from "./types";
 
 export type TrackingCard = {
   publicToken: string;
@@ -33,4 +33,66 @@ export function toTrackingCard(order: Order): TrackingCard {
 
 export function sortTracking(cards: TrackingCard[]): TrackingCard[] {
   return [...cards].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export type PublicShipment = {
+  number: string;
+  itemLabel: string;
+  status: OrderStatus;
+  etaLabel: string;
+  nameHint: string;
+  timeline: { status: OrderStatus; label: string; reached: boolean }[];
+};
+
+const OPEN_STEPS: OrderStatus[] = ["pending_payment", "paid", "in_review", "printed", "framed", "shipped"];
+
+export function isOpenShipment(status: string): boolean {
+  return status !== "delivered" && status !== "cancelled";
+}
+
+export function shortName(full: string): string {
+  const parts = full.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "";
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]} ${[...parts[1]][0]}.`;
+}
+
+export function itemKind(items: { card?: unknown }[]): string {
+  const cards = items.filter((item) => item.card);
+  const frames = items.length - cards.length;
+  if (cards.length && frames === 0) return cards.length > 1 ? "Tarjetas" : "Tarjeta";
+  if (frames > 1) return "Muro";
+  if (frames === 1) return "Marco";
+  return "Pedido";
+}
+
+export function toPublicShipment(order: Pick<Order, "number" | "status" | "etaLabel" | "customerName" | "items">): PublicShipment {
+  const index = OPEN_STEPS.indexOf(order.status);
+  return {
+    number: order.number,
+    itemLabel: itemKind(order.items),
+    status: order.status,
+    etaLabel: order.etaLabel,
+    nameHint: shortName(order.customerName),
+    timeline: OPEN_STEPS.map((status, step) => ({
+      status,
+      label: STATUS_LABEL[status],
+      reached: index >= 0 && step <= index,
+    })),
+  };
+}
+
+export const TRACK_WINDOW_MS = 60 * 60 * 1000;
+export const TRACK_PHONE_LIMIT = 8;
+export const TRACK_IP_LIMIT = 30;
+
+export function trackLimitMessage(events: { phone: string; ip: string; at: number }[], phone: string, ip: string, now: number): string | null {
+  const recent = events.filter((event) => now - event.at < TRACK_WINDOW_MS);
+  if (recent.filter((event) => event.phone === phone).length >= TRACK_PHONE_LIMIT) {
+    return "Demasiados intentos con este celular. Espera un momento e inténtalo otra vez.";
+  }
+  if (recent.filter((event) => event.ip === ip).length >= TRACK_IP_LIMIT) {
+    return "Demasiados intentos desde esta conexión. Espera un momento e inténtalo otra vez.";
+  }
+  return null;
 }

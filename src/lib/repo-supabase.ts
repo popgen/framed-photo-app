@@ -6,7 +6,7 @@ import { stockChecksEnabled } from "./env";
 import { mapFrameRow, mapGiftRow, mapInventoryRow, mapOrderRow, mapProfile, mapPromoRow } from "./db-map";
 import { frameLowStock, framesWhenStockUnknown } from "./inventory";
 import { uploadOrderPhotos } from "./photo-upload";
-import { readPhoneSession } from "./phone-session";
+import { isOpenShipment, type PublicShipment } from "./tracking";
 import type { CheckoutInput, CustomerProfile, FrameOffer, OrderStatus } from "./types";
 
 const PATHS: Record<string, string> = {
@@ -183,21 +183,44 @@ export function createSupabaseRepo() {
         const photos = await uploadOrderPhotos(item.photoId);
         items.push({ ...item, photoOriginalPath: photos.original, photoPrintPath: photos.print });
       }
-      return shop("orders-create", { ...input, items });
+      const { data } = await db().auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error("Entra con tu correo y contraseña.");
+      return shop("orders-create", { ...input, items }, token);
     },
     async markPaid(orderId: string, payment: { method: string; provider: string; ref: string }) {
       return shop("orders-mark-paid", { orderId, ...payment });
     },
-    async listOrdersByPhone(_phone: string) {
-      const session = readPhoneSession();
-      if (!session) return [];
-      const json = await shop("orders-by-phone", {}, session.token);
+    async listOrdersByPhone(phone: string) {
+      const rows = await this.listPublicTracking(phone);
+      return rows.map((row: PublicShipment) => ({
+        publicToken: row.number,
+        number: row.number,
+        status: row.status,
+        createdAt: "",
+        etaLabel: row.etaLabel,
+        christmasNote: "",
+        trackingNumber: null,
+        totalCents: 0,
+        addressMasked: "",
+        recipientPhoneMasked: null,
+        itemCount: 1,
+      }));
+    },
+    async listMyOrders() {
+      const { data } = await db().auth.getSession();
+      if (!data.session) return [];
+      const json = await shop("orders-by-phone", { mine: true }, data.session.access_token);
       return json.orders ?? [];
     },
-    async getOrderByToken(token: string, phone: string) {
-      const session = readPhoneSession();
-      if (!session) return null;
-      const json = await shop("orders-by-token", { token }, session.token);
+    async listPublicTracking(phone: string) {
+      const json = await shop("orders-by-phone", { phone });
+      return (json.orders ?? []).filter((order: { status?: string }) => !order.status || isOpenShipment(order.status));
+    },
+    async getOrderByToken(token: string, _phone: string) {
+      const { data } = await db().auth.getSession();
+      if (!data.session) return null;
+      const json = await shop("orders-by-token", { token }, data.session.access_token);
       return json.order ?? null;
     },
     async setStatus(id: string, status: OrderStatus) {
@@ -231,7 +254,8 @@ export function createSupabaseRepo() {
       }));
     },
     async createClaim(input: { token: string; phone: string; note: string; photoId?: string }) {
-      return shop("claim", input, readPhoneSession()?.token);
+      const { data } = await db().auth.getSession();
+      return shop("claim", input, data.session?.access_token);
     },
     async listRetabloInquiries() {
       const { data, error } = await db().from("retablo_inquiries").select("*").order("created_at", { ascending: false });
@@ -251,15 +275,15 @@ export function createSupabaseRepo() {
       return { id, size: "", status, createdAt: new Date().toISOString() };
     },
     async getProfile() {
-      const session = readPhoneSession();
-      if (!session) return null;
-      const json = await shop("profile", { read: true }, session.token);
+      const { data } = await db().auth.getSession();
+      if (!data.session) return null;
+      const json = await shop("profile", { read: true }, data.session.access_token);
       return (json.profile ?? null) as CustomerProfile | null;
     },
     async saveProfile(profile: CustomerProfile) {
-      const session = readPhoneSession();
-      if (!session) throw new Error("Entra con el código de WhatsApp.");
-      const json = await shop("profile", { profile }, session.token);
+      const { data } = await db().auth.getSession();
+      if (!data.session) throw new Error("Entra con tu correo y contraseña.");
+      const json = await shop("profile", { profile }, data.session.access_token);
       return json.profile as CustomerProfile;
     },
     async signPhoto(path: string) {
