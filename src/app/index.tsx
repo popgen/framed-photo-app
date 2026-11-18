@@ -7,7 +7,7 @@ import { useEffect } from "react";
 import { FrameView } from "../components/FrameView";
 import { Countdown, GuaranteeNote, Ornaments, useNow, useReducedMotion } from "../components/fx";
 import { useRepo } from "../components/provider";
-import { Button, Card, H1, P, Screen, TabBar, WhatsAppButton } from "../components/ui";
+import { Button, Card, H1, P, Screen, TabBar } from "../components/ui";
 import { colors, font } from "../components/theme";
 import { cardsPromoVisible, countdownVisible, motionEnabled, ornamentKind } from "../lib/campaign";
 import { countdownTarget, guaranteeFor } from "../lib/cutoff";
@@ -108,7 +108,7 @@ export default function Home() {
         <Pressable onPress={() => router.push("/regalo")}>
           <Card>
             <Text style={section}>Tarjeta de regalo</Text>
-            <P style={centered}>Regala soles para un marco. Llega por WhatsApp.</P>
+            <P style={centered}>Regala soles para un marco. Llega por correo.</P>
           </Card>
         </Pressable>
         <Pressable accessibilityRole="link" accessibilityLabel="Haz clic aquí para rastrear tu pedido" onPress={() => router.push("/rastrear")} style={{ minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }}>
@@ -119,7 +119,6 @@ export default function Home() {
           <Text style={{ fontFamily: font.semibold, color: colors.ink, textAlign: "center" }}>Haz clic aquí para rastrear tu pedido</Text>
         </Pressable>
       </View>
-      <WhatsAppButton />
     </Screen>
   );
 }

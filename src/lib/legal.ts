@@ -142,7 +142,7 @@ export const termsDoc: LegalDoc = {
     {
       heading: "Reclamos",
       paragraphs: [
-        "Si el marco o la tarjeta llega dañado, entra al enlace del pedido y abre «Llegó dañado», o ve a /reclamo. Cuéntanos qué pasó y, si puedes, manda una foto. Te escribimos por WhatsApp.",
+        "Si el marco o la tarjeta llega dañado, entra al enlace del pedido y abre «Llegó dañado», o ve a /reclamo. Cuéntanos qué pasó y, si puedes, manda una foto. Te escribimos por correo.",
         "Ahí mismo pedimos la reposición. No tenemos un libro de reclamaciones aparte: ese es el camino.",
       ],
     },

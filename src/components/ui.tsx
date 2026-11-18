@@ -5,7 +5,6 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, TextInputProps, Vie
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import * as Haptics from "expo-haptics";
-import { supportNumber } from "../lib/env";
 import { hostedWithoutDatabase } from "../lib/hosted";
 import { useCart } from "../lib/store";
 import { OptimizingPhoto } from "./OptimizingPhoto";
@@ -206,23 +205,6 @@ export function TabBar() {
   );
 }
 
-export function WhatsAppButton() {
-  const phone = supportNumber();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Escribir por WhatsApp"
-      onPress={() => {
-        const url = `https://wa.me/${phone}?text=${encodeURIComponent("Hola Mi Fotito, quiero armar un marco.")}`;
-        if (typeof window !== "undefined") window.open(url, "_blank");
-      }}
-      style={styles.wa}
-    >
-      <Text style={styles.waText}>WhatsApp</Text>
-    </Pressable>
-  );
-}
-
 export function Banner({ tone, text }: { tone: "warn" | "bad" | "good"; text: string }) {
   const background = tone === "good" ? "#E5F5EC" : tone === "warn" ? "#FFF1DE" : "#FDE8E6";
   const color = tone === "good" ? colors.good : tone === "warn" ? colors.warn : colors.bad;
@@ -269,7 +251,5 @@ const styles = StyleSheet.create({
   tabLabel: { fontFamily: font.medium, fontSize: 10, lineHeight: 12, color: colors.muted, textAlign: "center" },
   badge: { position: "absolute", top: -4, right: -8, minWidth: 14, height: 14, borderRadius: 7, backgroundColor: colors.red, alignItems: "center", justifyContent: "center", paddingHorizontal: 2 },
   badgeText: { color: "white", fontFamily: font.bold, fontSize: 8, lineHeight: 10 },
-  wa: { position: "absolute", right: 16, bottom: 86, backgroundColor: "#1FA855", borderRadius: 999, paddingHorizontal: 14, paddingVertical: 10, zIndex: 5 },
-  waText: { color: "white", fontFamily: font.bold, fontSize: 13 },
   banner: { borderRadius: 16, padding: 12 },
 });

@@ -53,7 +53,7 @@ Copia `.env.example` a `.env`. No subas `.env`.
 | `EXPO_PUBLIC_PAYMENTS_MODE` | cliente | `mock` o `live` |
 | `EXPO_PUBLIC_NOTIFY_MODE` | cliente | `mock` o `live` |
 | `EXPO_PUBLIC_SITE_URL` | cliente | origen público, sin barra final. Por defecto `https://mifotito.com` |
-| `EXPO_PUBLIC_WHATSAPP_SUPPORT_NUMBER` | cliente | botón de soporte, formato `51999…` |
+| `EXPO_PUBLIC_WHATSAPP_SUPPORT_NUMBER` | servidor | vacío. No pongas un número de relleno |
 | `EXPO_PUBLIC_SEASONAL_MOTION` | cliente | `true` / `false`. Vacío usa la campaña |
 | `EXPO_PUBLIC_COUNTDOWN` | cliente | `true` fuerza el reloj, `false` lo apaga. Vacío usa `countdownStartsAt` |
 | `EXPO_PUBLIC_ENABLE_INSTAGRAM` | cliente | muestra Instagram solo con `EXPO_PUBLIC_META_APP_ID` |
@@ -116,7 +116,7 @@ Mientras falten:
 - El cliente entra con correo y contraseña de Supabase Auth. Ya no hay código de 6 dígitos en la tienda. Rastrear un envío pendiente pide solo el celular. Mi cuenta muestra los pedidos de quien inició sesión.
 - El webhook `/api/webhooks/whatsapp` y `/api/notify` no llaman a Graph. Escriben una advertencia en el log y responden 200. Un POST real, sin `mock: true`, responde «próximamente».
 - El admin, en WhatsApp, muestra «Pedidos por el bot: próximamente» y un botón al chat. La vista previa local sigue ahí para probar el flujo sin Meta.
-- El botón verde de la tienda ya abre `wa.me`. No usa la Cloud API.
+- La tienda no muestra WhatsApp. El contacto del cliente es pedidos@mifotito.com.
 
 Cuando Meta apruebe la plantilla `mifotito_codigo`, se completan esas cuatro variables y `WHATSAPP_OTP_ENABLED=true`.
 
@@ -191,7 +191,7 @@ No hace falta ninguna para el demo. Para cobrar y escribir de verdad, en Site co
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | clave anon |
 | `EXPO_PUBLIC_PAYMENTS_MODE` | `live` |
 | `EXPO_PUBLIC_NOTIFY_MODE` | `live` |
-| `EXPO_PUBLIC_WHATSAPP_SUPPORT_NUMBER` | celular de soporte, `51999…` |
+| `EXPO_PUBLIC_WHATSAPP_SUPPORT_NUMBER` | déjalo vacío. Sin valor no se arma un enlace a un número falso |
 | `SUPABASE_URL` | igual que la URL pública, solo en el servidor |
 | `SUPABASE_SERVICE_ROLE_KEY` | funciones de Netlify: pedidos, fotos firmadas, códigos. Nunca en el cliente |
 | `OTP_SIGNING_SECRET` | firma la sesión de 30 minutos tras confirmar el celular |
@@ -224,7 +224,7 @@ Sin `EXPO_PUBLIC_DATA_MODE=supabase` todo sigue en el navegador (demo). Con Supa
 | Foto original y foto de imprenta | Bucket privado `photos`, rutas `uploads/<id>/original.jpg` y `print.jpg`. El admin las abre con URL firmada |
 | Perfil: nombre, celular, correo, direcciones | `customers` y `customer_addresses`, ligados a `auth.users` por `auth_user_id`. El pedido web guarda `orders.user_id`. RLS: cada quien lee solo sus pedidos |
 | Stock, promos, gift cards, referidos, créditos | Tablas `inventory`, `promo_codes`, `gift_cards`, `referrals`, `credits` |
-| Reclamos y consultas de retablo | `claims`, `retablo_inquiries` |
+| Reclamos y consultas de retablo | `claims`, `retablo_inquiries`. El pedido de retablo abre un correo a pedidos@mifotito.com, sin WhatsApp |
 | Mensaje de voz | `voice_notes` + archivo en `photos/uploads/voice/<token>` |
 | Código de WhatsApp | Solo el hash en `phone_otps` (10 min, 5 intentos) y los envíos en `otp_sends` |
 | Carrito y recibo de la pestaña | Siguen en el navegador hasta pagar |

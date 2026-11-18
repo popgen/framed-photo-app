@@ -7,7 +7,6 @@ import { useReducedMotion } from "../components/fx";
 import { currentCustomer, signOutCustomer, type CustomerSession } from "../lib/customer-auth";
 import { Button, Card, Field, Screen, TabBar } from "../components/ui";
 import { colors, font } from "../components/theme";
-import { supportNumber } from "../lib/env";
 import { getRepo } from "../lib/repo";
 import { useCart } from "../lib/store";
 import { STATUS_FLOW, STATUS_LABEL, type CustomerProfile, type OrderStatus } from "../lib/types";
@@ -75,11 +74,12 @@ export default function Cuenta() {
     const latest = orders[0];
     if (!support.trim()) return;
     if (latest) await getRepo().createClaim({ token: latest.publicToken, phone, note: support.trim() });
-    const url = `https://wa.me/${supportNumber()}?text=${encodeURIComponent(`Hola Mi Fotito, sobre mi pedido ${latest?.number ?? ""}. ${support.trim()}`)}`;
-    if (Platform.OS === "web") window.open(url, "_blank", "noopener,noreferrer");
+    const subject = latest?.number ? `Consulta sobre mi pedido ${latest.number}` : "Consulta sobre mi pedido";
+    const url = `mailto:pedidos@mifotito.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(support.trim())}`;
+    if (Platform.OS === "web") window.location.href = url;
     else await Linking.openURL(url);
     setSupport("");
-    setNote("Enviamos tu mensaje. También se abrió WhatsApp.");
+    setNote("Guardamos tu mensaje y abrimos el correo.");
   }
 
   return (
@@ -118,7 +118,7 @@ export default function Cuenta() {
               <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Hablar con Mi Fotito</Text>
               <TextInput value={support} onChangeText={setSupport} placeholder="Cuéntanos en qué te ayudamos" placeholderTextColor="#A89488" multiline style={{ minHeight: 80, marginTop: 8, backgroundColor: colors.bg, borderRadius: 12, padding: 12, fontFamily: font.body }} />
               <View style={{ height: 8 }} />
-              <Button label="Enviar y abrir WhatsApp" onPress={() => void sendSupport()} />
+              <Button label="Enviar por correo" onPress={() => void sendSupport()} />
             </Card>
           </>
         ) : null}

@@ -79,9 +79,9 @@ export function otpDeliveryPlan(input: { whatsAppReady: boolean; email?: string 
 export function publicSendResult(prepared: Awaited<ReturnType<typeof prepareSend>>, demo: boolean) {
   if (!prepared.ok) return { ok: false as const, error: prepared.error, retryAt: "retryAt" in prepared ? prepared.retryAt : undefined };
   if (demo) {
-    return { ok: true as const, demo: true, demoCode: prepared.code, message: "Modo demo: este código no se envió por WhatsApp." };
+    return { ok: true as const, demo: true, demoCode: prepared.code, message: "Modo demo: este código no se envió." };
   }
-  return { ok: true as const, demo: false, message: "Si el número tiene WhatsApp, te enviamos un código." };
+  return { ok: true as const, demo: false, message: "Te enviamos un código." };
 }
 
 export async function checkOtp(record: OtpRecord | null, code: string, now: number) {

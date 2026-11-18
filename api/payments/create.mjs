@@ -66,5 +66,5 @@ export default async function handler(req, res) {
     });
     return;
   }
-  res.status(501).json({ error: "El pago en vivo no está configurado. Escríbenos por WhatsApp." });
+  res.status(501).json({ error: "El pago en vivo no está configurado. Escríbenos a pedidos@mifotito.com." });
 }

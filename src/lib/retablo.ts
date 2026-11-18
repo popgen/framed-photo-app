@@ -29,7 +29,13 @@ export function inquiryFromSize(size: string, now = new Date().toISOString(), id
   return { id, size: trimmed, status: "new", createdAt: now };
 }
 
-export function retabloWhatsAppUrl(size: string, phone: string): string {
-  const text = `Hola Mi Fotito, quiero un retablo de verdad. Lo imagino de este tamaño: ${size.trim()}`;
-  return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+export const RETABLO_EMAIL = "pedidos@mifotito.com";
+
+export function retabloMessage(size: string): string {
+  return `Hola Mi Fotito, quiero un retablo de verdad. Lo imagino de este tamaño: ${size.trim()}`;
+}
+
+export function retabloMailUrl(size: string): string {
+  const subject = "Pedido de retablo";
+  return `mailto:${RETABLO_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(retabloMessage(size))}`;
 }

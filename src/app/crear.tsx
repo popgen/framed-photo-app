@@ -10,7 +10,7 @@ import { TextStyleEditor } from "../components/TextStyleEditor";
 import { VoiceRecorder } from "../components/VoiceRecorder";
 import { PriceTicker, useReducedMotion } from "../components/fx";
 import { useApp, useRepo } from "../components/provider";
-import { Banner, Button, Card, Progress, Screen, TabBar, WhatsAppButton } from "../components/ui";
+import { Banner, Button, Card, Progress, Screen, TabBar } from "../components/ui";
 import { colors, font } from "../components/theme";
 import { readBoot } from "../lib/boot";
 import { aspectParts, frameById, frameChips, framesForChip, type FrameChip, type FrameDef } from "../lib/catalog";
@@ -263,7 +263,6 @@ export default function Crear() {
           </Card>
         </Pressable>
       </View>
-      <WhatsAppButton />
     </Screen>
   );
 }
