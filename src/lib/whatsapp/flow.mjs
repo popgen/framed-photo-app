@@ -1,3 +1,5 @@
+import { parseTaxId } from "../tax-id.ts";
+
 const CM = 2.54;
 
 export function printDpi(width, height, wCm, hCm) {
@@ -21,6 +23,9 @@ export function emptySession(phone, token) {
     mode: null,
     needsHuman: false,
     orderCreated: false,
+    taxId: null,
+    taxIdType: null,
+    pending: null,
   };
 }
 
@@ -106,6 +111,33 @@ export function reduceWa(session, event, ctx) {
     if (text.includes("persona") || text.includes("asesor") || text.includes("humano")) {
       return human(current, origin, ctx.supportNumber);
     }
+    if (current.step === "tax_id") {
+      const parsed = parseTaxId(event.text || "");
+      if (!parsed.ok) {
+        replies.push({ kind: "text", body: `${parsed.error} Escríbelo de nuevo: DNI de 8 dígitos, o RUC de 11 que empiece con 10, 15, 17 o 20.` });
+        return { session: current, replies, createOrder };
+      }
+      current.taxId = parsed.taxId;
+      current.taxIdType = parsed.taxIdType;
+      if (current.pending === "wall") {
+        current.pending = null;
+        current.mode = "wall";
+        current.step = "pay";
+        current.frameId = null;
+        replies.push({
+          kind: "text",
+          body: `Listo, anoté tu ${parsed.taxIdType} ${parsed.taxId}. Armemos el muro con tus ${current.photos.length} fotos. Ábrelo en el celular, acomoda cada foto y paga: ${linkFor(origin, current.token)}`,
+        });
+        replies.push(payButtons());
+        createOrder = !current.orderCreated;
+        current.orderCreated = true;
+        return { session: current, replies, createOrder };
+      }
+      current.step = "confirm";
+      const frame = catalog.find((item) => item.id === current.frameId);
+      replies.push(confirmPrompt(frame, current, catalog));
+      return { session: current, replies, createOrder };
+    }
     if (current.step === "collect" || !current.photos.length) {
       replies.push({ kind: "text", body: "Mándame la foto por aquí (puedes enviar varias) y te la dejo lista para imprimir y pagar." });
       return { session: current, replies, createOrder };
@@ -114,16 +146,9 @@ export function reduceWa(session, event, ctx) {
 
   if (choice === "human") return human(current, origin, ctx.supportNumber);
   if (choice === "mode_wall") {
-    current.mode = "wall";
-    current.step = "pay";
-    current.frameId = null;
-    replies.push({
-      kind: "text",
-      body: `Armemos el muro con tus ${current.photos.length} fotos. Ábrelo en el celular, acomoda cada foto y paga: ${linkFor(origin, current.token)}`,
-    });
-    replies.push(payButtons());
-    createOrder = !current.orderCreated;
-    current.orderCreated = true;
+    current.pending = "wall";
+    current.step = "tax_id";
+    replies.push({ kind: "text", body: taxPrompt() });
     return { session: current, replies, createOrder };
   }
   if (choice === "mode_set") {
@@ -141,17 +166,9 @@ export function reduceWa(session, event, ctx) {
   if (frame) {
     current.frameId = frame.id;
     current.mode = current.photos.length > 1 ? "set" : "single";
-    current.step = "confirm";
+    current.step = "tax_id";
     const notes = current.photos.map((photo, index) => `Foto ${index + 1}: ${qualityLine(catalog, frame, photo)}`).join(" ");
-    replies.push({
-      kind: "buttons",
-      body: `${frame.name} · ${frame.sizeLabel} · ${soles(frame.priceCents)}. ${notes}`,
-      buttons: [
-        { id: "confirm", title: "Confirmar" },
-        { id: "change", title: "Cambiar marco" },
-        { id: "human", title: "Hablar con alguien" },
-      ],
-    });
+    replies.push({ kind: "text", body: `${frame.name} · ${frame.sizeLabel} · ${soles(frame.priceCents)}. ${notes} ${taxPrompt()}` });
     return { session: current, replies, createOrder };
   }
   if (choice === "confirm") {
@@ -178,6 +195,24 @@ export function reduceWa(session, event, ctx) {
     replies.push({ kind: "text", body: "Mándame una foto y seguimos. Si prefieres a una persona, escribe ASESOR." });
   }
   return { session: current, replies, createOrder };
+}
+
+function taxPrompt() {
+  return "Antes de confirmar, escribe tu DNI (8 dígitos) o RUC (11 dígitos). Lo usamos para emitir tu boleta o factura.";
+}
+
+function confirmPrompt(frame, session, catalog) {
+  const notes = session.photos.map((photo, index) => `Foto ${index + 1}: ${qualityLine(catalog, frame, photo)}`).join(" ");
+  const label = frame ? `${frame.name} · ${frame.sizeLabel} · ${soles(frame.priceCents)}. ` : "";
+  return {
+    kind: "buttons",
+    body: `${label}${notes} ${session.taxIdType} ${session.taxId}. ¿Confirmamos?`,
+    buttons: [
+      { id: "confirm", title: "Confirmar" },
+      { id: "change", title: "Cambiar marco" },
+      { id: "human", title: "Hablar con alguien" },
+    ],
+  };
 }
 
 function payButtons() {

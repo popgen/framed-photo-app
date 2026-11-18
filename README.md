@@ -219,7 +219,7 @@ El rastreo pide solo el celular, luego el código de WhatsApp, y entonces lista 
 
 1. Crea un proyecto en supabase.com.
 2. Authentication → Providers: activa Email. No hace falta SMS. Site URL `https://mifotito.com` y redirect `https://mifotito.com/**`.
-3. SQL editor, en este orden (son las versiones que ya quedaron grabadas en el proyecto en vivo): `20261118182440_init.sql`, `20261118182536_customers_order_numbers_hardening.sql`, `20261118183011_cards_voice_retablo.sql`, `20261118183018_shared_backend.sql`, `20261118183109_reconcile_live_with_app.sql`, luego `supabase/seed.sql`. No corras `supabase/seed.demo.sql` en producción. Falta aplicar en el proyecto en vivo: `20261118184000_voice_note_selfie.sql` (columna `selfie_path` y `sender_name` en `voice_notes`).
+3. SQL editor, en este orden (son las versiones que ya quedaron grabadas en el proyecto en vivo): `20261118182440_init.sql`, `20261118182536_customers_order_numbers_hardening.sql`, `20261118183011_cards_voice_retablo.sql`, `20261118183018_shared_backend.sql`, `20261118183109_reconcile_live_with_app.sql`, luego `supabase/seed.sql`. No corras `supabase/seed.demo.sql` en producción. Falta aplicar en el proyecto en vivo: `20261118184000_voice_note_selfie.sql` (`selfie_path` y `sender_name` en `voice_notes`) y `20261118185000_order_tax_id.sql` (`tax_id` y `tax_id_type` en `orders`).
 4. Storage: el bucket privado `photos` lo crea la primera migración. No lo hagas público.
 5. Authentication → Users: crea el admin y copia su UUID a `admin_users`.
 6. WhatsApp Business queda pendiente. No hace falta crear la plantilla `mifotito_codigo` todavía. Cuando Meta la apruebe, el código de rastreo podrá salir por WhatsApp.

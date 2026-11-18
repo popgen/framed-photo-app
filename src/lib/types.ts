@@ -58,6 +58,8 @@ export type Order = {
   customerName: string;
   phone: string;
   email?: string | null;
+  taxId?: string | null;
+  taxIdType?: "DNI" | "RUC" | null;
   recipientName?: string | null;
   recipientPhone?: string | null;
   giftNote?: string | null;
@@ -199,6 +201,8 @@ export type CheckoutInput = {
   customerName: string;
   phone: string;
   email?: string;
+  taxId?: string;
+  taxIdType?: "DNI" | "RUC";
   province: string;
   recipientName?: string;
   recipientPhone?: string;
@@ -230,6 +234,8 @@ export type WaDraft = {
   mode?: "single" | "wall" | "set" | null;
   orderId?: string | null;
   needsHuman?: boolean;
+  taxId?: string | null;
+  taxIdType?: "DNI" | "RUC" | null;
 };
 
 export type FrameOffer = FrameDef & { available: number };

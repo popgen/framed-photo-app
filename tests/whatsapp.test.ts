@@ -26,7 +26,11 @@ describe("whatsapp ordering", () => {
     const picked = reduceWa(first.session, { type: "select", id: "wood-15" }, ctx);
     expect(picked.replies[0].body).toMatch(/Madera natural/);
     expect(picked.replies[0].body).toMatch(/S\/ 59/);
-    const confirmed = reduceWa(picked.session, { type: "select", id: "confirm" }, ctx);
+    expect(picked.replies[0].body).toMatch(/DNI/);
+    expect(picked.createOrder).toBe(false);
+    const identified = reduceWa(picked.session, { type: "text", text: "87654321" }, ctx);
+    expect(identified.session.taxIdType).toBe("DNI");
+    const confirmed = reduceWa(identified.session, { type: "select", id: "confirm" }, ctx);
     expect(confirmed.createOrder).toBe(true);
     expect(confirmed.replies[0].body).toContain("http://localhost:8081/w/");
     const pay = reduceWa(confirmed.session, { type: "select", id: "pay_yape" }, ctx);
@@ -44,7 +48,9 @@ describe("whatsapp ordering", () => {
     let step = reduceWa(null, { type: "image", width: 2000, height: 2600, phone: "51922222222" }, ctx);
     step = reduceWa(step.session, { type: "image", width: 2000, height: 2600 }, ctx);
     expect(step.replies.some((reply) => reply.kind === "buttons" && reply.buttons.some((button) => button.id === "mode_wall"))).toBe(true);
-    const wall = reduceWa(step.session, { type: "select", id: "mode_wall" }, ctx);
+    const wallAsk = reduceWa(step.session, { type: "select", id: "mode_wall" }, ctx);
+    expect(wallAsk.createOrder).toBe(false);
+    const wall = reduceWa(wallAsk.session, { type: "text", text: "87654321" }, ctx);
     expect(wall.createOrder).toBe(true);
     expect(wall.session.mode).toBe("wall");
     const human = reduceWa(step.session, { type: "select", id: "human" }, ctx);

@@ -15,6 +15,7 @@ import { formatSoles } from "../lib/money";
 import { quote as priceQuote } from "../lib/pricing";
 import { getRepo } from "../lib/repo";
 import { rememberReceipt, useCart } from "../lib/store";
+import { parseTaxId } from "../lib/tax-id";
 import type { CheckoutInput, Order } from "../lib/types";
 
 export default function Checkout() {
@@ -28,6 +29,8 @@ export default function Checkout() {
     customerName: "",
     phone: "",
     email: "",
+    taxId: "",
+    taxLegalName: "",
     recipientName: "",
     recipientPhone: "",
     giftNote: "",
@@ -49,6 +52,7 @@ export default function Checkout() {
   const [quote, setQuote] = useState<Awaited<ReturnType<ReturnType<typeof getRepo>["quoteCheckout"]>> | null>(null);
   const [credit, setCredit] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [taxTouched, setTaxTouched] = useState(false);
   const [pending, setPending] = useState<Order | null>(null);
   const [busy, setBusy] = useState(false);
   const [picker, setPicker] = useState<"department" | "province" | "district" | null>(null);
@@ -96,6 +100,7 @@ export default function Checkout() {
     giftWrap: form.giftWrap,
   });
   const shownTotal = quote?.totalCents ?? instant.totalCents;
+  const taxCheck = parseTaxId(form.taxId);
   const zone = form.department && form.province && form.district ? shippingZone(form.department, form.province, form.district) : null;
   const guarantee = campaign ? guaranteeFor(now, zone, campaign) : null;
   const provinces = provincesFor(form.department);
@@ -142,6 +147,12 @@ export default function Checkout() {
   }
 
   async function start() {
+    const tax = parseTaxId(form.taxId);
+    if (!tax.ok) {
+      setTaxTouched(true);
+      setError(tax.error);
+      return;
+    }
     setError(null);
     setBusy(true);
     try {
@@ -189,6 +200,19 @@ export default function Checkout() {
         <Field label="Nombre" value={form.customerName} onChangeText={(customerName) => setForm({ ...form, customerName })} />
         <Field label="Celular" keyboardType="phone-pad" placeholder="987 654 321" value={form.phone} onChangeText={(phone) => setForm({ ...form, phone })} />
         <Field label="Correo" autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder="lucia@correo.com" value={form.email} onChangeText={(email) => setForm({ ...form, email })} />
+        <Field
+          label="DNI o RUC (para fines tributarios)"
+          hint="Lo usamos para emitir tu boleta o factura."
+          error={taxTouched && !taxCheck.ok ? taxCheck.error : undefined}
+          keyboardType="number-pad"
+          placeholder="87654321 o 20#########"
+          value={form.taxId}
+          onChangeText={(taxId) => setForm({ ...form, taxId })}
+          onBlur={() => setTaxTouched(true)}
+        />
+        {taxCheck.ok && taxCheck.taxIdType === "RUC" ? (
+          <Field label="Razón social (opcional)" value={form.taxLegalName} onChangeText={(taxLegalName) => setForm({ ...form, taxLegalName })} />
+        ) : null}
         <Pressable onPress={() => openPicker("department")} style={choice}>
           <Text style={choiceLabel}>Departamento</Text>
           <Text style={choiceValue}>{form.department || "Elegir"}</Text>

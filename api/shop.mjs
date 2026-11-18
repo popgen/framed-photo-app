@@ -8,6 +8,7 @@ import { priceCards } from "../src/lib/cards.ts";
 import { frameById } from "../src/lib/catalog.ts";
 import { giftCode } from "../src/lib/ids.ts";
 import { normalizePhone } from "../src/lib/phone.ts";
+import { parseTaxId } from "../src/lib/tax-id.ts";
 
 export default async function handler(req, res) {
   if (req.method !== "POST" && req.method !== "GET") {
@@ -347,6 +348,8 @@ async function orderByToken(req, res) {
     return;
   }
   const order = mapOrderRow(data);
+  delete order.taxId;
+  delete order.taxIdType;
   order.addressLine = maskStreet(order.addressLine, order.district, order.department);
   order.reference = null;
   order.email = null;
@@ -379,6 +382,11 @@ async function createOrder(req, res) {
     res.status(400).json({ error: evaluated.error || "No pudimos cotizar." });
     return;
   }
+  const tax = parseTaxId(String(req.body?.taxId || ""));
+  if (!tax.ok) {
+    res.status(400).json({ error: tax.error });
+    return;
+  }
   const { data: number, error: numberError } = await supabase.rpc("next_order_number");
   if (numberError || !number) {
     res.status(500).json({ error: numberError?.message || "No pudimos numerar el pedido." });
@@ -409,6 +417,8 @@ async function createOrder(req, res) {
       city: req.body.city || req.body.district,
       department: req.body.department,
       reference: req.body.reference || null,
+      tax_id: tax.taxId,
+      tax_id_type: tax.taxIdType,
       zone: evaluated.zone,
       subtotal_cents: evaluated.priced.subtotalCents,
       frame_discount_cents: evaluated.priced.frameDiscountCents,
