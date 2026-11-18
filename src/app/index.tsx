@@ -43,10 +43,6 @@ export default function Home() {
         <View style={{ flexDirection: "row", gap: 8 }}>
           <Button label={active.cta} onPress={() => router.push("/crear")} />
         </View>
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          <Pressable onPress={() => router.push("/crear")} style={choice(true)}><Text style={choiceText(true)}>Marco</Text></Pressable>
-          <Pressable onPress={() => router.push("/tarjeta")} style={choice(false)}><Text style={choiceText(false)}>Tarjeta navideña · {formatSoles(priceCards(1).cents)}</Text></Pressable>
-        </View>
         <Animated.View entering={reduced ? undefined : FadeInDown.springify().damping(14)} style={{ alignItems: "center", paddingTop: 8 }}>
           <FrameView frame={frameById("wood-15")} photoId="asset:sample" crop={crop} width={230} />
         </Animated.View>
@@ -189,13 +185,6 @@ function HomeIcon() {
       <Path d="M4 11.5 12 4l8 7.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-8.5Z" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinejoin="round" />
     </Svg>
   );
-}
-
-function choice(on: boolean) {
-  return { flex: 1, minHeight: 48, borderRadius: 999, alignItems: "center" as const, justifyContent: "center" as const, backgroundColor: on ? colors.ink : colors.white, paddingHorizontal: 10 };
-}
-function choiceText(on: boolean) {
-  return { fontFamily: font.semibold, color: on ? "white" : colors.ink, textAlign: "center" as const };
 }
 
 function Tier({ title, price, body }: { title: string; price: string; body: string }) {
