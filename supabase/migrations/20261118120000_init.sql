@@ -104,6 +104,7 @@ create table public.orders (
   gift_wrap boolean not null default false,
   address_line text not null,
   district text not null,
+  province text not null,
   city text not null,
   department text not null,
   reference text,

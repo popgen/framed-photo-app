@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { Countdown, GuaranteeNote, PaySheet, useNow } from "../components/fx";
 import { useApp } from "../components/provider";
 import { Banner, Button, Field, Progress, Screen } from "../components/ui";
@@ -8,7 +8,7 @@ import { colors, font } from "../components/theme";
 import { readWaOrder, rememberWaOrder } from "../lib/boot";
 import { motionEnabled } from "../lib/campaign";
 import { countdownTarget, guaranteeFor } from "../lib/cutoff";
-import { DEPARTMENTS, districtsFor, shippingZone } from "../lib/zone";
+import { DEPARTMENTS, districtsFor, provincesFor, shippingZone } from "../lib/zone";
 import { paymentsMode, providerFor, type PaymentMethod } from "../lib/env";
 import { frameById } from "../lib/catalog";
 import { formatSoles } from "../lib/money";
@@ -35,8 +35,9 @@ export default function Checkout() {
     otherRecipient: false,
     addressLine: "",
     district: "",
+    province: "",
     city: "",
-    department: "Lima",
+    department: "",
     reference: "",
     promoCode: "",
     referralCode: "",
@@ -50,7 +51,8 @@ export default function Checkout() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<Order | null>(null);
   const [busy, setBusy] = useState(false);
-  const [picker, setPicker] = useState<"department" | "district" | null>(null);
+  const [picker, setPicker] = useState<"department" | "province" | "district" | null>(null);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     void getRepo().getCampaign().then(setCampaign);
@@ -69,7 +71,8 @@ export default function Checkout() {
         bundleLabel: item.bundleLabel,
       })),
       ...form,
-      city: form.city || form.district,
+      city: form.district,
+      province: form.province,
       paymentMethod: method,
       channel: readWaOrder() ? "whatsapp" : "web",
     }),
@@ -90,9 +93,24 @@ export default function Checkout() {
     giftWrap: form.giftWrap,
   });
   const shownTotal = quote?.totalCents ?? instant.totalCents;
-  const zone = form.department ? shippingZone(form.department, form.district) : null;
+  const zone = form.department && form.province && form.district ? shippingZone(form.department, form.province, form.district) : null;
   const guarantee = campaign ? guaranteeFor(now, zone, campaign) : null;
-  const districts = districtsFor(form.department);
+  const provinces = provincesFor(form.department);
+  const districts = districtsFor(form.department, form.province);
+  const choices = picker === "department" ? DEPARTMENTS : picker === "province" ? provinces : districts;
+  const visibleChoices = choices.filter((item) => item.toLowerCase().includes(query.trim().toLowerCase()));
+
+  function openPicker(next: "department" | "province" | "district") {
+    setQuery("");
+    setPicker(next);
+  }
+
+  function choosePlace(item: string) {
+    if (picker === "department") setForm({ ...form, department: item, province: "", district: "" });
+    else if (picker === "province") setForm({ ...form, province: item, district: "" });
+    else setForm({ ...form, district: item, city: item });
+    setPicker(null);
+  }
 
   async function pay(approved: boolean, order = pending) {
     if (!approved || !order) {
@@ -167,23 +185,23 @@ export default function Checkout() {
         {guarantee ? <GuaranteeNote guarantee={guarantee} /> : null}
         <Field label="Nombre" value={form.customerName} onChangeText={(customerName) => setForm({ ...form, customerName })} />
         <Field label="Celular" keyboardType="phone-pad" placeholder="987 654 321" value={form.phone} onChangeText={(phone) => setForm({ ...form, phone })} />
-        <Field label="Correo (opcional)" autoCapitalize="none" value={form.email} onChangeText={(email) => setForm({ ...form, email })} />
-        <Pressable onPress={() => setPicker("department")} style={choice}>
+        <Field label="Correo" autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder="lucia@correo.com" value={form.email} onChangeText={(email) => setForm({ ...form, email })} />
+        <Pressable onPress={() => openPicker("department")} style={choice}>
           <Text style={choiceLabel}>Departamento</Text>
           <Text style={choiceValue}>{form.department || "Elegir"}</Text>
         </Pressable>
-        {districts.length ? (
-          <Pressable onPress={() => setPicker("district")} style={choice}>
-            <Text style={choiceLabel}>Distrito</Text>
-            <Text style={choiceValue}>{form.district || "Elegir"}</Text>
-          </Pressable>
-        ) : (
-          <Field label="Distrito o ciudad" value={form.district} onChangeText={(district) => setForm({ ...form, district })} />
-        )}
+        <Pressable onPress={() => form.department && openPicker("province")} style={[choice, !form.department && { opacity: 0.45 }]}>
+          <Text style={choiceLabel}>Provincia</Text>
+          <Text style={choiceValue}>{form.province || "Elegir"}</Text>
+        </Pressable>
+        <Pressable onPress={() => form.province && openPicker("district")} style={[choice, !form.province && { opacity: 0.45 }]}>
+          <Text style={choiceLabel}>Distrito</Text>
+          <Text style={choiceValue}>{form.district || "Elegir"}</Text>
+        </Pressable>
         <Field label="Dirección" value={form.addressLine} onChangeText={(addressLine) => setForm({ ...form, addressLine })} />
         <Field label="Referencia" value={form.reference} onChangeText={(reference) => setForm({ ...form, reference })} />
         <Text style={{ fontFamily: font.semibold, color: zone === "provinces" ? colors.warn : colors.pine }}>
-          {zone === "provinces" ? "Provincias · 3 a 5 días hábiles" : "Lima y Callao · 2 a 3 días hábiles"}
+          {zone === "lima" ? "Lima y Callao · 2 a 3 días hábiles" : zone === "provinces" ? "Provincias · 3 a 5 días hábiles" : "Elige departamento, provincia y distrito para ver el plazo."}
         </Text>
         <Pressable onPress={() => setForm({ ...form, otherRecipient: !form.otherRecipient })} style={{ minHeight: 44, justifyContent: "center" }}>
           <Text style={{ fontFamily: font.medium, color: colors.ink }}>{form.otherRecipient ? "☑" : "☐"} Se lo envío a otra persona</Text>
@@ -227,24 +245,34 @@ export default function Checkout() {
         {quote?.frameDiscountCents ? <Text style={{ fontFamily: font.medium, color: colors.pine }}>{quote.frameDiscountLabel}: -{formatSoles(quote.frameDiscountCents)}</Text> : null}
         {error ? <Banner tone="bad" text={error} /> : null}
         {pending && pending.totalCents > 0 ? <PaySheet method={method} total={formatSoles(pending.totalCents)} onApprove={() => void pay(true)} onReject={() => void pay(false)} /> : null}
-        {picker ? (
-          <View style={{ backgroundColor: colors.card, borderRadius: 18, maxHeight: 320 }}>
-            <Text style={{ fontFamily: font.semibold, padding: 12 }}>{picker === "department" ? "Departamento" : "Distrito"}</Text>
-            {(picker === "department" ? DEPARTMENTS : districts).map((item) => (
-              <Pressable
-                key={item}
-                onPress={() => {
-                  if (picker === "department") setForm({ ...form, department: item, district: "" });
-                  else setForm({ ...form, district: item, city: form.department === "Lima" || form.department === "Callao" ? "Lima" : item });
-                  setPicker(null);
-                }}
-                style={{ minHeight: 44, justifyContent: "center", paddingHorizontal: 12 }}
-              >
-                <Text style={{ fontFamily: font.medium, color: colors.ink }}>{item}</Text>
-              </Pressable>
-            ))}
+        <Modal visible={picker !== null} animationType="slide" transparent onRequestClose={() => setPicker(null)}>
+          <View style={{ flex: 1, backgroundColor: "rgba(36,23,20,0.45)", justifyContent: "flex-end" }}>
+            <View style={{ maxHeight: "82%", backgroundColor: colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, gap: 10 }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <Text style={{ fontFamily: font.displaySoft, fontSize: 24, color: colors.ink }}>{picker === "department" ? "Departamento" : picker === "province" ? "Provincia" : "Distrito"}</Text>
+                <Pressable onPress={() => setPicker(null)} style={{ minHeight: 44, justifyContent: "center", paddingHorizontal: 8 }}>
+                  <Text style={{ fontFamily: font.semibold, color: colors.red }}>Cerrar</Text>
+                </Pressable>
+              </View>
+              <TextInput
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Buscar"
+                placeholderTextColor="#A89488"
+                autoCorrect={false}
+                style={{ minHeight: 48, borderRadius: 14, backgroundColor: colors.white, paddingHorizontal: 14, fontFamily: font.body, fontSize: 16, color: colors.ink }}
+              />
+              <ScrollView keyboardShouldPersistTaps="handled">
+                {visibleChoices.map((item) => (
+                  <Pressable key={item} onPress={() => choosePlace(item)} style={{ minHeight: 48, justifyContent: "center", borderBottomWidth: 1, borderBottomColor: colors.line }}>
+                    <Text style={{ fontFamily: font.medium, fontSize: 16, color: colors.ink }}>{item}</Text>
+                  </Pressable>
+                ))}
+                {!visibleChoices.length ? <Text style={{ fontFamily: font.body, color: colors.muted, paddingVertical: 12 }}>No hay coincidencias.</Text> : null}
+              </ScrollView>
+            </View>
           </View>
-        ) : null}
+        </Modal>
       </View>
     </Screen>
   );

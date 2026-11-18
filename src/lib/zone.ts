@@ -1,80 +1,11 @@
 import type { Zone } from "./cutoff";
+import places from "../../data/peru-places.json";
 
-const LIMA_METRO = [
-  "Ancón",
-  "Ate",
-  "Barranco",
-  "Breña",
-  "Carabayllo",
-  "Chaclacayo",
-  "Chorrillos",
-  "Cieneguilla",
-  "Comas",
-  "El Agustino",
-  "Independencia",
-  "Jesús María",
-  "La Molina",
-  "La Victoria",
-  "Lima",
-  "Lince",
-  "Los Olivos",
-  "Lurigancho",
-  "Lurín",
-  "Magdalena del Mar",
-  "Miraflores",
-  "Pachacámac",
-  "Pucusana",
-  "Pueblo Libre",
-  "Puente Piedra",
-  "Punta Hermosa",
-  "Punta Negra",
-  "Rímac",
-  "San Bartolo",
-  "San Borja",
-  "San Isidro",
-  "San Juan de Lurigancho",
-  "San Juan de Miraflores",
-  "San Luis",
-  "San Martín de Porres",
-  "San Miguel",
-  "Santa Anita",
-  "Santa María del Mar",
-  "Santa Rosa",
-  "Santiago de Surco",
-  "Surquillo",
-  "Villa El Salvador",
-  "Villa María del Triunfo",
-];
+export type PlaceTree = Record<string, Record<string, string[]>>;
 
-const CALLAO = ["Callao", "Bellavista", "La Perla", "La Punta", "Carmen de la Legua-Reynoso", "Ventanilla", "Mi Perú"];
+export const placesTree = places as PlaceTree;
 
-export const DEPARTMENTS = [
-  "Amazonas",
-  "Áncash",
-  "Apurímac",
-  "Arequipa",
-  "Ayacucho",
-  "Cajamarca",
-  "Callao",
-  "Cusco",
-  "Huancavelica",
-  "Huánuco",
-  "Ica",
-  "Junín",
-  "La Libertad",
-  "Lambayeque",
-  "Lima",
-  "Loreto",
-  "Madre de Dios",
-  "Moquegua",
-  "Pasco",
-  "Piura",
-  "Puno",
-  "San Martín",
-  "Tacna",
-  "Tumbes",
-  "Ucayali",
-];
+export const DEPARTMENTS = Object.keys(placesTree);
 
 const ALIASES: Record<string, string> = {
   surco: "santiago de surco",
@@ -82,6 +13,8 @@ const ALIASES: Record<string, string> = {
   "cercado de lima": "lima",
   "san juan lurigancho": "san juan de lurigancho",
 };
+
+const LIMA_METRO = new Set((placesTree.Lima?.Lima ?? []).map(fold));
 
 export function fold(value: string): string {
   return value
@@ -91,20 +24,19 @@ export function fold(value: string): string {
     .trim();
 }
 
-const METRO = new Set(LIMA_METRO.map(fold));
-
-export function districtsFor(department: string): string[] {
-  const dep = fold(department);
-  if (dep === "lima") return LIMA_METRO;
-  if (dep === "callao") return CALLAO;
-  return [];
+export function provincesFor(department: string): string[] {
+  return Object.keys(placesTree[department] ?? {});
 }
 
-export function shippingZone(department: string, district: string): Zone {
+export function districtsFor(department: string, province: string): string[] {
+  return placesTree[department]?.[province] ?? [];
+}
+
+export function shippingZone(department: string, province: string, district = ""): Zone {
   const dep = fold(department);
-  const raw = fold(district);
-  const dist = ALIASES[raw] ?? raw;
+  const prov = fold(province);
+  const dist = ALIASES[fold(district)] ?? fold(district);
   if (dep === "callao") return "lima";
-  if (dep === "lima" && METRO.has(dist)) return "lima";
+  if (dep === "lima" && (prov === "lima" || LIMA_METRO.has(dist))) return "lima";
   return "provinces";
 }

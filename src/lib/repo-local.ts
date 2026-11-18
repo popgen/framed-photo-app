@@ -8,10 +8,10 @@ import { estimateDelivery } from "./delivery";
 import { notifyMode } from "./env";
 import { giftCode, referralCodeFrom, uid } from "./ids";
 import { applyStock, expandNeeds, framesAvailable } from "./inventory";
-import { normalizePhone } from "./phone";
+import { isEmail, normalizePhone } from "./phone";
 import { REFERRAL_FRIEND_CENTS, REFERRAL_REWARD_CENTS, quote } from "./pricing";
 import { assessResolution, centeredCrop } from "./print-size";
-import { shippingZone } from "./zone";
+import { districtsFor, shippingZone } from "./zone";
 import {
   blurryMessage,
   giftCardMessage,
@@ -139,6 +139,7 @@ function seed(): DB {
       giftNote: "Para mamá, con todo mi cariño.",
       addressLine: "Calle Berlín 214",
       district: "Miraflores",
+      province: "Lima",
       city: "Lima",
       department: "Lima",
       zone: "lima",
@@ -171,6 +172,7 @@ function seed(): DB {
       giftWrap: false,
       addressLine: "Av. El Sol 880",
       district: "Cusco",
+      province: "Cusco",
       city: "Cusco",
       department: "Cusco",
       zone: "provinces",
@@ -202,6 +204,7 @@ function seed(): DB {
       giftWrap: false,
       addressLine: "Jr. Camaná 410",
       district: "Lima",
+      province: "Lima",
       city: "Lima",
       department: "Lima",
       zone: "lima",
@@ -324,8 +327,13 @@ function assertCheckout(input: CheckoutInput, phone: string | null) {
   }
   if (input.customerName.trim().length < 2) throw new AppError("Escribe el nombre de quien recibe el pedido.");
   if (!phone) throw new AppError("Ingresa un celular peruano de 9 dígitos.");
-  if (!input.addressLine.trim() || !input.district.trim() || !input.department.trim()) {
-    throw new AppError("Completa la dirección, el distrito y el departamento.");
+  if (!isEmail(input.email ?? "")) throw new AppError("Ingresa un correo válido.");
+  if (!input.addressLine.trim() || !input.department.trim() || !input.province.trim() || !input.district.trim()) {
+    throw new AppError("Completa la dirección y elige departamento, provincia y distrito.");
+  }
+  const known = districtsFor(input.department, input.province);
+  if (!known.some((item) => item.toLowerCase() === input.district.trim().toLowerCase())) {
+    throw new AppError("Ese distrito no corresponde a la provincia elegida.");
   }
 }
 
@@ -335,7 +343,7 @@ function buildOrder(state: DB, input: CheckoutInput, phone: string, status: Orde
   if (priced.promoError) throw new AppError(priced.promoError);
   if (priced.referralError) throw new AppError(priced.referralError);
   if (priced.giftCardError) throw new AppError(priced.giftCardError);
-  const zone = shippingZone(input.department, input.district);
+  const zone = shippingZone(input.department, input.province, input.district);
   const now = new Date();
   const fest = festive(zone, now, state.campaign);
   const number = `R-26-${String(state.seq).padStart(4, "0")}`;
@@ -362,6 +370,7 @@ function buildOrder(state: DB, input: CheckoutInput, phone: string, status: Orde
     customerName: input.customerName.trim(),
     phone,
     email: input.email?.trim() || null,
+    province: input.province.trim(),
     recipientName: input.recipientName?.trim() || null,
     recipientPhone: input.recipientPhone ? normalizePhone(input.recipientPhone) : null,
     giftNote: input.giftNote?.trim() || null,
@@ -421,7 +430,7 @@ export function createLocalRepo() {
     async quoteCheckout(input: CheckoutInput) {
       const state = required();
       const phone = normalizePhone(input.phone || "");
-      const zone = input.department ? shippingZone(input.department, input.district || "") : ("lima" as Zone);
+      const zone = input.department && input.province ? shippingZone(input.department, input.province, input.district || "") : ("lima" as Zone);
       const { priced, stockError } = priceInput(state, input, phone);
       return { ...priced, zone, stockError };
     },
@@ -730,6 +739,7 @@ export function createLocalRepo() {
         giftWrap: false,
         addressLine: "Por confirmar en el enlace",
         district: "Miraflores",
+        province: "Lima",
         city: "Lima",
         department: "Lima",
         paymentMethod: "yape",

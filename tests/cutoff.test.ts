@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { defaultCampaign } from "../src/lib/campaign";
 import { countdownTarget, guaranteeFor } from "../src/lib/cutoff";
-import { shippingZone } from "../src/lib/zone";
+import { DEPARTMENTS, districtsFor, provincesFor, shippingZone } from "../src/lib/zone";
 
 const campaign = defaultCampaign;
 
@@ -46,11 +46,15 @@ describe("christmas cutoff", () => {
   });
 
   it("treats Lima metro and Callao as Lima, and the rest as provinces", () => {
-    expect(shippingZone("Lima", "Miraflores")).toBe("lima");
-    expect(shippingZone("Lima", "Surco")).toBe("lima");
-    expect(shippingZone("Callao", "Ventanilla")).toBe("lima");
-    expect(shippingZone("Lima", "Huacho")).toBe("provinces");
-    expect(shippingZone("Cusco", "Cusco")).toBe("provinces");
-    expect(shippingZone("Áncash", "Huaraz")).toBe("provinces");
+    expect(shippingZone("Lima", "Lima", "Miraflores")).toBe("lima");
+    expect(shippingZone("Lima", "Lima", "Surco")).toBe("lima");
+    expect(shippingZone("Callao", "Callao", "Ventanilla")).toBe("lima");
+    expect(shippingZone("Lima", "Huaura", "Huacho")).toBe("provinces");
+    expect(shippingZone("Cusco", "Cusco", "Cusco")).toBe("provinces");
+    expect(shippingZone("Áncash", "Huaraz", "Huaraz")).toBe("provinces");
+    expect(provincesFor("Lima")).toContain("Cañete");
+    expect(districtsFor("Lima", "Lima")).toContain("Miraflores");
+    expect(districtsFor("Cusco", "Cusco").length).toBeGreaterThan(5);
+    expect(DEPARTMENTS).toHaveLength(25);
   });
 });

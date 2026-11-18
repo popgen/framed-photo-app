@@ -11,6 +11,10 @@ export function formatPhone(stored: string): string {
   return `${local.slice(0, 3)} ${local.slice(3, 6)} ${local.slice(6)}`;
 }
 
+export function isEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
 export function phonesMatch(a: string, b: string): boolean {
   const left = normalizePhone(a);
   const right = normalizePhone(b);

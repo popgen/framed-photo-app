@@ -56,6 +56,7 @@ export type Order = {
   giftWrap: boolean;
   addressLine: string;
   district: string;
+  province: string;
   city: string;
   department: string;
   reference?: string | null;
@@ -161,6 +162,7 @@ export type CheckoutInput = {
   customerName: string;
   phone: string;
   email?: string;
+  province: string;
   recipientName?: string;
   recipientPhone?: string;
   giftNote?: string;
