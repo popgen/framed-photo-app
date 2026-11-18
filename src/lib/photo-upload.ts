@@ -31,6 +31,7 @@ export async function uploadVoice(token: string, blob: Blob): Promise<string | n
   const supabase = getSupabase();
   const { error } = await supabase.storage.from("photos").upload(path, blob, { contentType: blob.type || "audio/webm", upsert: false });
   if (error) throw new Error(error.message);
-  await supabase.from("voice_notes").upsert({ token, storage_path: path, mime: blob.type || null });
+  const note = await supabase.from("voice_notes").insert({ token, storage_path: path, mime: blob.type || null });
+  if (note.error) throw new Error(note.error.message);
   return path;
 }

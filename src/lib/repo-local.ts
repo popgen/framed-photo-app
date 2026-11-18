@@ -708,6 +708,7 @@ export function createLocalRepo() {
     async adminLogin(email: string, password: string) {
       const { demoAdmin } = await import("./env");
       const demo = demoAdmin();
+      if (!demo) return { ok: false as const, error: "En producción el admin entra con Supabase, no con la clave de la demo." };
       const ok = email.trim().toLowerCase() === demo.email.toLowerCase() && password === demo.password;
       if (typeof localStorage !== "undefined") localStorage.setItem(ADMIN_KEY, ok ? "1" : "0");
       return ok ? { ok: true } : { ok: false, error: "Correo o contraseña incorrectos." };

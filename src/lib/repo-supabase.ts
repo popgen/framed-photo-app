@@ -217,9 +217,11 @@ export function createSupabaseRepo() {
       return (data ?? []).map((row) => ({ id: row.id, size: row.size, status: row.status, createdAt: row.created_at }));
     },
     async createRetabloInquiry(size: string) {
-      const { data, error } = await db().from("retablo_inquiries").insert({ size: size.trim() }).select("*").single();
-      if (error || !data) return local.createRetabloInquiry(size);
-      return { id: data.id, size: data.size, status: data.status, createdAt: data.created_at };
+      const clean = size.trim();
+      const createdAt = new Date().toISOString();
+      const { error } = await db().from("retablo_inquiries").insert({ size: clean });
+      if (error) throw new Error(error.message);
+      return { id: createdAt, size: clean, status: "new" as const, createdAt };
     },
     async setRetabloInquiryStatus(id: string, status: "new" | "contacted" | "closed") {
       const { error } = await db().from("retablo_inquiries").update({ status }).eq("id", id);

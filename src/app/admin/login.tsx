@@ -8,13 +8,13 @@ import { getRepo } from "../../lib/repo";
 
 export default function AdminLogin() {
   const demo = demoAdmin();
-  const [email, setEmail] = useState(demo.email);
+  const [email, setEmail] = useState(demo?.email ?? "");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   return (
     <View style={{ padding: 16, gap: 12 }}>
       <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>Equipo Mi Fotito</Text>
-      <Text style={{ fontFamily: font.body, color: colors.muted }}>En la demo local entra con {demo.email}. Con Supabase usa un usuario de admin_users.</Text>
+      <Text style={{ fontFamily: font.body, color: colors.muted }}>{demo ? `En la demo local entra con ${demo.email}.` : "Entra con tu usuario de Supabase. Tiene que estar en admin_users."}</Text>
       <Field label="Correo" autoCapitalize="none" value={email} onChangeText={setEmail} />
       <Field label="Contraseña" secureTextEntry value={password} onChangeText={setPassword} />
       {error ? <Banner tone="bad" text={error} /> : null}

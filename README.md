@@ -83,7 +83,7 @@ Izipay (tarjeta y Yape) queda como siguiente proveedor. Las variables están com
 ## Supabase
 
 1. Crea un proyecto en supabase.com.
-2. En el SQL editor corre `supabase/migrations/20261118120000_init.sql` y luego `supabase/seed.sql`.
+2. En el SQL editor corre las migraciones de `supabase/migrations/` en orden de nombre, y luego `supabase/seed.sql`. `supabase/seed.demo.sql` es solo para la demo local.
 3. Authentication → añade un usuario y copia su `id`.
 4. `insert into public.admin_users (user_id, email) values ('…', 'tu@correo');`
 5. Storage: el bucket `photos` lo crea la migración. En Settings → CORS permite tu dominio si vas a descargar la impresión desde el admin.
@@ -219,7 +219,7 @@ El rastreo pide solo el celular, luego el código de WhatsApp, y entonces lista 
 
 1. Crea un proyecto en supabase.com.
 2. Authentication → Providers: activa Email. No hace falta SMS. Site URL `https://mifotito.com` y redirect `https://mifotito.com/**`.
-3. SQL editor, en este orden: `supabase/migrations/20261118120000_init.sql`, `20261118143000_cards_voice_retablo.sql`, `20261118180000_shared_backend.sql`, `20261118190000_photo_size_limit.sql`, luego `supabase/seed.sql`. No renombres el init y no corras otro archivo de números de pedido: el que está en el repo es el que vale.
+3. SQL editor, en este orden (son las versiones que ya quedaron grabadas en el proyecto en vivo): `20261118182440_init.sql`, `20261118182536_customers_order_numbers_hardening.sql`, `20261118183011_cards_voice_retablo.sql`, `20261118183018_shared_backend.sql`, `20261118183109_reconcile_live_with_app.sql`, luego `supabase/seed.sql`. No corras `supabase/seed.demo.sql` en producción.
 4. Storage: el bucket privado `photos` lo crea la primera migración. No lo hagas público.
 5. Authentication → Users: crea el admin y copia su UUID a `admin_users`.
 6. WhatsApp Business queda pendiente. No hace falta crear la plantilla `mifotito_codigo` todavía. Cuando Meta la apruebe, el código de rastreo podrá salir por WhatsApp.

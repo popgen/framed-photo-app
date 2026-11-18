@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { checkOtp, hashCode, maskEmail, OTP_MAX_ATTEMPTS, OTP_TTL_MS, otpDeliveryPlan, otpTemplateBody, prepareSend, publicSendResult, readSession, signSession } from "../src/lib/otp";
+import { demoAdmin } from "../src/lib/env";
 import { shouldWarnLocalMode } from "../src/lib/hosted";
 import { formatOrderNumber } from "../src/lib/order-number";
 import { toTrackingCard } from "../src/lib/tracking";
@@ -30,6 +31,14 @@ describe("access without WhatsApp Business", () => {
       maskedEmail: "a***@example.com",
     });
     expect(otpDeliveryPlan({ whatsAppReady: false, email: "" })).toEqual({ channel: "support" });
+  });
+
+  it("does not publish the demo admin password when the app uses Supabase", () => {
+    const previous = process.env.EXPO_PUBLIC_DATA_MODE;
+    process.env.EXPO_PUBLIC_DATA_MODE = "supabase";
+    expect(demoAdmin()).toBeNull();
+    if (previous === undefined) delete process.env.EXPO_PUBLIC_DATA_MODE;
+    else process.env.EXPO_PUBLIC_DATA_MODE = previous;
   });
 });
 

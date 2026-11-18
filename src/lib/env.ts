@@ -22,7 +22,8 @@ export function supportNumber(): string {
   return process.env.EXPO_PUBLIC_WHATSAPP_SUPPORT_NUMBER || "51999999999";
 }
 
-export function demoAdmin(): { email: string; password: string } {
+export function demoAdmin(): { email: string; password: string } | null {
+  if (dataMode() === "supabase") return null;
   return {
     email: process.env.EXPO_PUBLIC_DEMO_ADMIN_EMAIL || "admin@mifotito.pe",
     password: process.env.EXPO_PUBLIC_DEMO_ADMIN_PASSWORD || "recuerdo-demo",
