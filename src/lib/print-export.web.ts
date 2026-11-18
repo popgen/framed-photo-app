@@ -75,7 +75,11 @@ export async function downloadCardPdf(card: CardSnapshot, filename: string): Pro
     fonts[id] = new Uint8Array(await response.arrayBuffer());
   }
   const { buildCardPdf } = await import("./card-pdf");
-  const bytes = await buildCardPdf(card, fonts);
+  const images = {
+    front: await croppedPanel(card.photos.front, card.frontCrop),
+    inside: await croppedPanel(card.photos.insideCenter ?? card.photos.insideLeft, card.insideCrop),
+  };
+  const bytes = await buildCardPdf(card, fonts, images);
   const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
   const blob = new Blob([buffer], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
@@ -84,4 +88,37 @@ export async function downloadCardPdf(card: CardSnapshot, filename: string): Pro
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+async function croppedPanel(id: string | null | undefined, crop?: Crop | null): Promise<Uint8Array | undefined> {
+  if (!id || typeof document === "undefined") return undefined;
+  const photo = await resolvePhoto(id);
+  if (!photo) return undefined;
+  const asset = photo.source != null ? Image.resolveAssetSource(photo.source) : undefined;
+  const uri = photo.uri ?? asset?.uri;
+  if (!uri) return undefined;
+  const image = await loadCardImage(uri);
+  const sx = crop?.x ?? 0;
+  const sy = crop?.y ?? 0;
+  const sw = Math.max(1, crop?.width ?? image.naturalWidth);
+  const sh = Math.max(1, crop?.height ?? image.naturalHeight);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(sw));
+  canvas.height = Math.max(1, Math.round(sh));
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return undefined;
+  ctx.drawImage(image, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
+  if (!blob) return undefined;
+  return new Uint8Array(await blob.arrayBuffer());
+}
+
+function loadCardImage(uri: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new window.Image();
+    image.crossOrigin = "anonymous";
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("No pudimos preparar la foto de la tarjeta."));
+    image.src = uri;
+  });
 }

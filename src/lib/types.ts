@@ -52,6 +52,7 @@ export type OrderItem = {
 
 export type Order = {
   id: string;
+  userId?: string | null;
   publicToken: string;
   number: string;
   status: OrderStatus;
@@ -241,7 +242,7 @@ export type WaDraft = {
   taxIdSkipped?: boolean;
 };
 
-export type FrameOffer = FrameDef & { available: number };
+export type FrameOffer = FrameDef & { available: number; lowStock?: boolean; stockUncertain?: boolean };
 
 export type GiftCardDraft = {
   amountCents: number;

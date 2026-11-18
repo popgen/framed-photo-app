@@ -7,8 +7,7 @@
   "bleedMm": 3,
   "markMm": 4,
   "dpi": 300,
-  "frontMaxChars": 64,
-  "insideMaxChars": 360,
+  "messageMaxChars": 300,
   "referencePanelMm": { "width": 105, "height": 148 },
   "greetings": [
     "Feliz Navidad",
@@ -19,9 +18,7 @@
     "Felices fiestas"
   ],
   "envelopes": [
-    { "id": "white", "name": "Blanco", "color": "#F7F4EF" },
-    { "id": "kraft", "name": "Kraft", "color": "#C4924A" },
-    { "id": "red", "name": "Rojo", "color": "#8E1E2A" }
+    { "id": "blanco", "name": "Sobre blanco", "color": "#F7F4EF" }
   ],
   "templates": [
     { "id": "noche", "name": "Noche", "outside": "#14243F", "inside": "#F6EFE6" },
@@ -35,8 +32,8 @@
       "name": "A6",
       "panelWmm": 105,
       "panelHmm": 148,
-      "flatWmm": 315,
-      "flatHmm": 148,
+      "flatWmm": 105,
+      "flatHmm": 296,
       "envelopeName": "C6",
       "envelopeWmm": 114,
       "envelopeHmm": 162,
@@ -45,16 +42,16 @@
     },
     {
       "id": "5x7",
-      "name": "5×7 in",
+      "name": "5×7 pulgadas",
       "panelWmm": 127,
       "panelHmm": 177.8,
-      "flatWmm": 381,
-      "flatHmm": 177.8,
+      "flatWmm": 127,
+      "flatHmm": 355.6,
       "envelopeName": "A7",
       "envelopeWmm": 133.35,
       "envelopeHmm": 184.15,
       "printShop": true,
-      "shopFlag": "requires large card stock / print shop",
+      "shopFlag": "Se imprime en un taller, con cartulina grande.",
       "default": false
     }
   ]

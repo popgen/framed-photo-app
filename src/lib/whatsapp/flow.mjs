@@ -227,7 +227,7 @@ function confirmPrompt(frame, session, catalog) {
 function payButtons() {
   return {
     kind: "buttons",
-    body: "¿Cómo quieres pagar? El enlace abre el checkout con tu foto.",
+    body: "¿Cómo quieres pagar? El enlace abre el pago con tu foto.",
     buttons: [
       { id: "pay_yape", title: "Pagar con Yape" },
       { id: "pay_plin", title: "Pagar con Plin" },

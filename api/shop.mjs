@@ -1,18 +1,20 @@
-import { mapGiftRow, mapOrderRow, mapProfile, mapPromoRow } from "../src/lib/db-map.ts";
+import { mapFrameRow, mapGiftRow, mapOrderRow, mapProfile, mapPromoRow } from "../src/lib/db-map.ts";
 import { checkOtp, otpDeliveryPlan, otpFailureMessage, otpTemplateBody, prepareSend, publicSendResult, readSession, SESSION_TTL_MS, signSession } from "../src/lib/otp.ts";
 import { evaluateOrder } from "../src/lib/server-order.ts";
 import { serviceSupabase, signingSecret, warnWhatsAppPending, whatsAppOtpReady } from "../src/lib/service-supabase.ts";
 import { maskPhone, maskStreet } from "../src/lib/order-number.ts";
-import { toTrackingCard } from "../src/lib/tracking.ts";
-import { priceCards } from "../src/lib/cards.ts";
+import { isOpenShipment, toPublicShipment, toTrackingCard, trackLimitMessage, TRACK_IP_LIMIT, TRACK_PHONE_LIMIT } from "../src/lib/tracking.ts";
+import { cardMessageError, priceCards } from "../src/lib/cards.ts";
 import { frameById } from "../src/lib/catalog.ts";
+import { frameLowStock } from "../src/lib/inventory.ts";
 import { giftCode } from "../src/lib/ids.ts";
 import { normalizePhone } from "../src/lib/phone.ts";
 import { resolveTaxId } from "../src/lib/tax-id.ts";
+import { serverStockChecksEnabled } from "../src/lib/env.ts";
 
 export default async function handler(req, res) {
   if (req.method !== "POST" && req.method !== "GET") {
-    res.status(405).json({ error: "method" });
+    res.status(405).json({ error: "Método no permitido." });
     return;
   }
   const op = req.query.op || req.body?.op;
@@ -29,8 +31,9 @@ export default async function handler(req, res) {
     if (op === "profile") return await profile(req, res);
     if (op === "customers-list") return await customers(req, res);
     if (op === "gift-card") return await giftCard(req, res);
+    if (op === "frames") return await listPublicFrames(req, res);
     if (op === "claim") return await claim(req, res);
-    res.status(404).json({ error: "op" });
+    res.status(404).json({ error: "No encontramos esa acción." });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "No pudimos completar eso." });
@@ -148,6 +151,8 @@ async function phoneForEmail(supabase, email) {
 }
 
 async function sendCode(req, res) {
+  res.status(200).json({ ok: false, error: "Entra con tu correo y contraseña." });
+  return;
   try {
     const now = Date.now();
     const phone = normalizePhone(req.body?.phone || "");
@@ -239,6 +244,8 @@ async function finishPhoneSession(res, phone, authUserId) {
 }
 
 async function verifyCode(req, res) {
+  res.status(200).json({ ok: false, error: "Entra con tu correo y contraseña." });
+  return;
   try {
     const supabase = serviceSupabase();
     if (req.body?.magic) {
@@ -316,33 +323,74 @@ async function sessionPhone(req) {
   return readSession(token, signingSecret(), Date.now());
 }
 
+const trackMemory = [];
+
+async function customerUser(req, supabase) {
+  const token = bearer(req);
+  if (!token || !supabase) return null;
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error || !data.user) return null;
+  return data.user;
+}
+
 async function ordersByPhone(req, res) {
-  const session = await sessionPhone(req);
-  if (!session) {
-    res.status(401).json({ error: "Entra con el código de WhatsApp." });
+  const supabase = serviceSupabase();
+  const user = await customerUser(req, supabase);
+  if (user && supabase && req.body?.mine) {
+    const { data } = await supabase.from("orders").select("*, order_items(*)").eq("user_id", user.id).order("created_at", { ascending: false });
+    res.status(200).json({ orders: (data ?? []).map((row) => toTrackingCard(mapOrderRow(row))) });
     return;
   }
-  const supabase = serviceSupabase();
+  const phone = normalizePhone(req.body?.phone || "");
+  if (!phone) {
+    res.status(400).json({ error: "Ingresa un celular peruano de 9 dígitos." });
+    return;
+  }
+  const ip = clientIp(req);
+  const limited = await limitTracking(supabase, phone, ip);
+  if (limited) {
+    res.status(429).json({ error: limited });
+    return;
+  }
   if (!supabase) {
     res.status(200).json({ orders: [] });
     return;
   }
-  const { data } = await supabase.from("orders").select("*, order_items(*)").eq("phone", session.phone).order("created_at", { ascending: false });
-  res.status(200).json({ orders: (data ?? []).map((row) => toTrackingCard(mapOrderRow(row))) });
+  const { data } = await supabase.from("orders").select("*, order_items(*)").eq("phone", phone).order("created_at", { ascending: false });
+  const open = (data ?? []).map(mapOrderRow).filter((order) => isOpenShipment(order.status));
+  res.status(200).json({ orders: open.map(toPublicShipment) });
+}
+
+async function limitTracking(supabase, phone, ip) {
+  const now = Date.now();
+  const since = new Date(now - 60 * 60 * 1000).toISOString();
+  let events = trackMemory.filter((item) => now - item.at < 60 * 60 * 1000);
+  if (supabase) {
+    const [byPhone, byIp] = await Promise.all([
+      supabase.from("track_lookups").select("phone, ip, created_at").eq("phone", phone).gte("created_at", since),
+      supabase.from("track_lookups").select("phone, ip, created_at").eq("ip", ip).gte("created_at", since),
+    ]);
+    if (!byPhone.error && !byIp.error) {
+      const rows = [...(byPhone.data ?? []), ...(byIp.data ?? [])];
+      events = rows.map((row) => ({ phone: row.phone, ip: row.ip, at: new Date(row.created_at).getTime() }));
+    }
+  }
+  const message = trackLimitMessage(events, phone, ip, now);
+  if (message) return message;
+  trackMemory.push({ phone, ip, at: now });
+  if (trackMemory.length > TRACK_PHONE_LIMIT + TRACK_IP_LIMIT) trackMemory.splice(0, trackMemory.length - 40);
+  if (supabase) await supabase.from("track_lookups").insert({ phone, ip });
+  return null;
 }
 
 async function orderByToken(req, res) {
-  const session = await sessionPhone(req);
-  if (!session) {
-    res.status(401).json({ error: "Entra con el código de WhatsApp." });
-    return;
-  }
   const supabase = serviceSupabase();
-  if (!supabase) {
-    res.status(404).json({ order: null });
+  const user = await customerUser(req, supabase);
+  if (!user || !supabase) {
+    res.status(401).json({ error: "Entra con tu correo y contraseña." });
     return;
   }
-  const { data } = await supabase.from("orders").select("*, order_items(*)").eq("public_token", req.body?.token).eq("phone", session.phone).maybeSingle();
+  const { data } = await supabase.from("orders").select("*, order_items(*)").eq("public_token", req.body?.token).eq("user_id", user.id).maybeSingle();
   if (!data) {
     res.status(200).json({ order: null });
     return;
@@ -359,9 +407,19 @@ async function orderByToken(req, res) {
 }
 
 async function createOrder(req, res) {
+  const tooLong = cardMessageError(req.body?.items);
+  if (tooLong) {
+    res.status(400).json({ error: tooLong });
+    return;
+  }
   const supabase = serviceSupabase();
   if (!supabase) {
     res.status(503).json({ error: "Supabase no está configurado." });
+    return;
+  }
+  const authUser = await customerUser(req, supabase);
+  if (!authUser) {
+    res.status(401).json({ error: "Entra con tu correo y contraseña." });
     return;
   }
   const [{ data: promos }, { data: stockRows }, { data: referrals }, { data: gifts }, { data: credits }] = await Promise.all([
@@ -378,6 +436,7 @@ async function createOrder(req, res) {
     referrals: (referrals ?? []).map((row) => ({ code: row.code, ownerPhone: row.owner_phone, ownerName: row.owner_name ?? "", friendDiscountCents: row.friend_discount_cents, referrerCreditCents: row.referrer_credit_cents, redeemedCount: row.redeemed_count, createdAt: row.created_at })),
     giftCards: (gifts ?? []).map(mapGiftRow),
     credits: Object.fromEntries((credits ?? []).map((row) => [row.phone, row.balance_cents])),
+    enforceStock: serverStockChecksEnabled(),
   });
   if (evaluated.error || !evaluated.priced) {
     res.status(400).json({ error: evaluated.error || "No pudimos cotizar." });
@@ -395,7 +454,7 @@ async function createOrder(req, res) {
   }
   const { data: customer } = await supabase
     .from("customers")
-    .upsert({ phone: evaluated.phone, name: req.body.customerName, email: req.body.email || null, updated_at: new Date().toISOString() }, { onConflict: "phone" })
+    .upsert({ phone: evaluated.phone, name: req.body.customerName, email: req.body.email || authUser.email || null, auth_user_id: authUser.id, updated_at: new Date().toISOString() }, { onConflict: "phone" })
     .select("id")
     .single();
   const now = new Date().toISOString();
@@ -443,6 +502,7 @@ async function createOrder(req, res) {
       eta_label: evaluated.etaLabel,
       channel: req.body.channel || "web",
       customer_id: customer?.id ?? null,
+      user_id: authUser.id,
       created_at: now,
       updated_at: now,
     })
@@ -520,7 +580,8 @@ async function markPaid(req, res) {
       }
       for (const part of frame.consumes) {
         const current = stock[part.sku];
-        if (!current || current.quantity < part.qty) {
+        if (!current) continue;
+        if (serverStockChecksEnabled() && current.quantity < part.qty) {
           res.status(409).json({ error: `Sin stock al confirmar (${part.sku}).` });
           return;
         }
@@ -660,25 +721,27 @@ async function customers(req, res) {
 }
 
 async function profile(req, res) {
-  const session = await sessionPhone(req);
-  if (!session) {
-    res.status(401).json({ error: "Entra con el código de WhatsApp." });
-    return;
-  }
   const supabase = serviceSupabase();
-  if (!supabase) {
-    res.status(200).json({ profile: null });
+  const user = await customerUser(req, supabase);
+  if (!user || !supabase) {
+    res.status(401).json({ error: "Entra con tu correo y contraseña." });
     return;
   }
   if (req.method === "GET" || req.body?.read) {
-    const { data } = await supabase.from("customers").select("*, customer_addresses(*)").eq("phone", session.phone).maybeSingle();
-    res.status(200).json({ profile: mapProfile(data, data?.customer_addresses ?? []) });
+    const { data } = await supabase.from("customers").select("*, customer_addresses(*)").eq("auth_user_id", user.id).maybeSingle();
+    const profile = mapProfile(data, data?.customer_addresses ?? []);
+    res.status(200).json({ profile: profile ?? { name: "", phone: "", email: user.email || "", addresses: [] } });
     return;
   }
   const body = req.body?.profile ?? {};
+  const phone = normalizePhone(body.phone || "");
+  if (!phone) {
+    res.status(400).json({ error: "Ingresa un celular peruano de 9 dígitos." });
+    return;
+  }
   const { data: customer } = await supabase
     .from("customers")
-    .upsert({ phone: session.phone, name: body.name || null, email: body.email || null, updated_at: new Date().toISOString() }, { onConflict: "phone" })
+    .upsert({ phone, name: body.name || null, email: body.email || user.email || null, auth_user_id: user.id, updated_at: new Date().toISOString() }, { onConflict: "phone" })
     .select("id")
     .single();
   if (customer && Array.isArray(body.addresses)) {
@@ -697,7 +760,7 @@ async function profile(req, res) {
       );
     }
   }
-  const { data } = await supabase.from("customers").select("*, customer_addresses(*)").eq("phone", session.phone).maybeSingle();
+  const { data } = await supabase.from("customers").select("*, customer_addresses(*)").eq("auth_user_id", user.id).maybeSingle();
   res.status(200).json({ profile: mapProfile(data, data?.customer_addresses ?? []) });
 }
 
@@ -728,26 +791,52 @@ async function giftCard(req, res) {
   res.status(200).json(mapGiftRow(data));
 }
 
-async function claim(req, res) {
-  const session = await sessionPhone(req);
+async function listPublicFrames(_req, res) {
   const supabase = serviceSupabase();
-  if (!session || !supabase) {
-    res.status(401).json({ error: "Entra con el código de WhatsApp." });
+  if (!supabase) {
+    res.status(200).json({ frames: [], stockUncertain: true });
     return;
   }
-  const { data: order } = await supabase.from("orders").select("id, number").eq("public_token", req.body.token).eq("phone", session.phone).maybeSingle();
+  const [{ data: frameRows, error: frameError }, { data: stockRows, error: stockError }] = await Promise.all([
+    supabase.from("frames").select("*").order("sort"),
+    supabase.from("inventory").select("sku, quantity, low_stock_at"),
+  ]);
+  if (frameError || stockError || !frameRows?.length) {
+    res.status(200).json({ frames: [], stockUncertain: true });
+    return;
+  }
+  const quantities = Object.fromEntries((stockRows ?? []).map((row) => [row.sku, row.quantity]));
+  const lowAt = Object.fromEntries((stockRows ?? []).map((row) => [row.sku, row.low_stock_at ?? 5]));
+  const enforce = serverStockChecksEnabled();
+  res.status(200).json({
+    frames: frameRows.map((row) => {
+      const offer = mapFrameRow(row, quantities);
+      if (!enforce) return { ...offer, available: 99, lowStock: false, stockUncertain: false };
+      return { ...offer, lowStock: frameLowStock(offer, quantities, lowAt), stockUncertain: false };
+    }),
+  });
+}
+
+async function claim(req, res) {
+  const supabase = serviceSupabase();
+  const user = await customerUser(req, supabase);
+  if (!user || !supabase) {
+    res.status(401).json({ error: "Entra con tu correo y contraseña." });
+    return;
+  }
+  const { data: order } = await supabase.from("orders").select("id, number, phone").eq("public_token", req.body.token).eq("user_id", user.id).maybeSingle();
   if (!order) {
-    res.status(404).json({ error: "No coincide el pedido con ese celular." });
+    res.status(404).json({ error: "No encontramos ese pedido en tu cuenta." });
     return;
   }
   const { data, error } = await supabase
     .from("claims")
-    .insert({ order_id: order.id, phone: session.phone, note: req.body.note, photo_path: req.body.photoPath || null, status: "open" })
+    .insert({ order_id: order.id, phone: order.phone, note: req.body.note, photo_path: req.body.photoPath || null, status: "open" })
     .select("*")
     .single();
   if (error) {
     res.status(400).json({ error: error.message });
     return;
   }
-  res.status(200).json({ id: data.id, orderId: order.id, orderNumber: order.number, phone: session.phone, note: data.note, status: data.status, createdAt: data.created_at });
+  res.status(200).json({ id: data.id, orderId: order.id, orderNumber: order.number, phone: order.phone, note: data.note, status: data.status, createdAt: data.created_at });
 }

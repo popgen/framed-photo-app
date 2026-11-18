@@ -6,6 +6,21 @@ export function dataMode(): "local" | "supabase" {
   return "local";
 }
 
+function flagOn(value: string | undefined): boolean {
+  const raw = (value ?? "").trim().toLowerCase();
+  return raw === "true" || raw === "1" || raw === "on";
+}
+
+/** Client switch. Unset means stock badges and blocks stay off. */
+export function stockChecksEnabled(): boolean {
+  return flagOn(process.env.EXPO_PUBLIC_STOCK_CHECKS_ENABLED);
+}
+
+/** Server switch. Unset means orders are not rejected for stock. */
+export function serverStockChecksEnabled(): boolean {
+  return flagOn(process.env.STOCK_CHECKS_ENABLED);
+}
+
 export function paymentsMode(): "mock" | "live" {
   return process.env.EXPO_PUBLIC_PAYMENTS_MODE === "live" ? "live" : "mock";
 }

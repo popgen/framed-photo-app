@@ -1,9 +1,10 @@
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Linking, Platform, Pressable, Text, TextInput, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { PhoneVerify } from "../components/PhoneVerify";
+import { AccountAuth } from "../components/AccountAuth";
 import { useReducedMotion } from "../components/fx";
+import { currentCustomer, signOutCustomer, type CustomerSession } from "../lib/customer-auth";
 import { Button, Card, Field, Screen, TabBar } from "../components/ui";
 import { colors, font } from "../components/theme";
 import { supportNumber } from "../lib/env";
@@ -19,7 +20,7 @@ export default function Cuenta() {
   const reduced = useReducedMotion();
   const addMany = useCart((state) => state.addMany);
   const [phone, setPhone] = useState("");
-  const [ready, setReady] = useState(false);
+  const [account, setAccount] = useState<CustomerSession | null | undefined>(undefined);
   const [profile, setProfile] = useState<CustomerProfile>({ name: "", phone: "", email: "", addresses: [] });
   const [orders, setOrders] = useState<TrackingCard[]>([]);
   const [note, setNote] = useState<string | null>(null);
@@ -32,13 +33,25 @@ export default function Cuenta() {
   const ongoing = orders.filter((order) => !DONE.has(order.status));
   const past = orders.filter((order) => DONE.has(order.status));
 
-  async function enter(nextPhone: string) {
+  useEffect(() => {
+    void currentCustomer().then((session) => {
+      setAccount(session);
+      if (session) void enter(session);
+    });
+  }, []);
+
+  async function enter(session: CustomerSession) {
     const repo = getRepo();
     const saved = await repo.getProfile();
-    setPhone(nextPhone);
-    setProfile(saved?.phone ? { ...saved, phone: saved.phone || nextPhone } : { name: "", phone: nextPhone, email: "", addresses: [] });
-    setOrders(await repo.listOrdersByPhone(nextPhone));
-    setReady(true);
+    setPhone(saved?.phone || "");
+    setProfile(saved?.phone ? { ...saved, email: saved.email || session.email } : { name: "", phone: "", email: session.email, addresses: [] });
+    setOrders(await repo.listMyOrders());
+  }
+
+  async function leave() {
+    await signOutCustomer();
+    setAccount(null);
+    setOrders([]);
   }
 
   function patchAddress(partial: Partial<typeof address>) {
@@ -72,8 +85,9 @@ export default function Cuenta() {
   return (
     <Screen footer={<TabBar />}>
       <View style={{ padding: 16, gap: 14 }}>
-        {!ready ? <PhoneVerify title="Mi cuenta" onVerified={(value) => void enter(value)} /> : null}
-        {ready ? (
+        {account === undefined ? <Text style={{ fontFamily: font.body, color: colors.muted }}>Un momento…</Text> : null}
+        {account === null ? <AccountAuth title="Mi cuenta" onReady={(session) => { setAccount(session); void enter(session); }} /> : null}
+        {account ? (
           <>
             <Animated.View entering={reduced ? undefined : FadeInDown.springify().damping(16)}>
               <Text accessibilityRole="header" style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>Mi cuenta</Text>
@@ -83,7 +97,7 @@ export default function Cuenta() {
               <View style={{ height: 8 }} />
               <Field label="Correo" value={profile.email} onChangeText={(email) => setProfile({ ...profile, email })} keyboardType="email-address" autoCapitalize="none" />
               <View style={{ height: 8 }} />
-              <Field label="Celular" value={profile.phone} editable={false} />
+              <Field label="Celular" keyboardType="phone-pad" placeholder="987 654 321" value={profile.phone} onChangeText={(next) => { setProfile({ ...profile, phone: next }); setPhone(next); }} />
             </Card>
             <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Dirección</Text>
             <Pressable onPress={() => setPicker("department")} style={choice}><Text style={choiceLabel}>Departamento</Text><Text style={choiceValue}>{address.department || "Elegir"}</Text></Pressable>
@@ -92,13 +106,14 @@ export default function Cuenta() {
             <Field label="Dirección" value={address.addressLine} onChangeText={(addressLine) => patchAddress({ addressLine })} />
             <Field label="Referencia" value={address.reference ?? ""} onChangeText={(reference) => patchAddress({ reference })} />
             <Button label="Guardar" onPress={() => void save()} />
+            <Button label="Salir" tone="ghost" onPress={() => void leave()} />
             {note ? <Text style={{ fontFamily: font.body, color: colors.pine }}>{note}</Text> : null}
             <Text style={{ fontFamily: font.semibold, color: colors.ink }}>En camino</Text>
             {ongoing.length === 0 ? <Text style={{ fontFamily: font.body, color: colors.muted }}>No tienes pedidos abiertos.</Text> : null}
-            {ongoing.map((order) => <OrderCard key={order.publicToken} order={order} onOpen={() => router.push(`/pedido/${order.publicToken}`)} />)}
+            {ongoing.map((order) => <OrderCard key={order.publicToken || order.number} order={order} onOpen={() => order.publicToken && router.push(`/pedido/${order.publicToken}`)} />)}
             <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Anteriores</Text>
             {past.length === 0 ? <Text style={{ fontFamily: font.body, color: colors.muted }}>Todavía no hay pedidos entregados.</Text> : null}
-            {past.map((order) => <OrderCard key={order.publicToken} order={order} onOpen={() => router.push(`/pedido/${order.publicToken}`)} onReorder={() => void reorder(order)} />)}
+            {past.map((order) => <OrderCard key={order.publicToken || order.number} order={order} onOpen={() => order.publicToken && router.push(`/pedido/${order.publicToken}`)} onReorder={() => void reorder(order)} />)}
             <Card>
               <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Hablar con Mi Fotito</Text>
               <TextInput value={support} onChangeText={setSupport} placeholder="Cuéntanos en qué te ayudamos" placeholderTextColor="#A89488" multiline style={{ minHeight: 80, marginTop: 8, backgroundColor: colors.bg, borderRadius: 12, padding: 12, fontFamily: font.body }} />

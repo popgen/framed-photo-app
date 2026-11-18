@@ -1,4 +1,6 @@
+import { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Collapsible } from "./Collapsible";
 import { colors, font } from "./theme";
 import { OVERLAY_COLORS, OVERLAY_FONTS, OVERLAY_SIZES, emptyOverlay, placeOverlay, textPresets, type TextOverlay } from "../lib/overlay";
 
@@ -9,6 +11,8 @@ export function TextStyleEditor({
   maxChars,
   multiline = false,
   presets = textPresets,
+  collapsible = false,
+  placeholder,
 }: {
   label: string;
   value: TextOverlay | null;
@@ -16,15 +20,28 @@ export function TextStyleEditor({
   maxChars: number;
   multiline?: boolean;
   presets?: string[];
+  collapsible?: boolean;
+  placeholder?: string;
 }) {
+  const userToggled = useRef(false);
+  const [open, setOpen] = useState(() => Boolean(collapsible && value?.text));
+  const [inputHeight, setInputHeight] = useState(96);
   const current = value ?? emptyOverlay();
+  useEffect(() => {
+    if (!collapsible || userToggled.current || !value?.text) return;
+    setOpen(true);
+  }, [collapsible, value?.text]);
   function update(partial: Partial<TextOverlay>) {
-    const next = placeOverlay({ ...current, ...partial });
+    const next = placeOverlay({ ...current, ...partial }, false, multiline);
     onChange(next.text ? { ...next, text: [...next.text].slice(0, maxChars).join("") } : null);
   }
-  return (
+  function toggle() {
+    userToggled.current = true;
+    setOpen((valueOpen) => !valueOpen);
+  }
+  const controls = (
     <View style={{ gap: 8 }}>
-      <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{label}</Text>
+      {collapsible ? null : <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{label}</Text>}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
         {presets.map((preset) => (
           <Pressable key={preset} onPress={() => update({ text: preset.slice(0, maxChars) })} style={chip(current.text === preset)}>
@@ -35,12 +52,18 @@ export function TextStyleEditor({
       <TextInput
         value={current.text}
         onChangeText={(text) => update({ text })}
-        placeholder={multiline ? "El mensaje de adentro" : "Una frase corta"}
+        placeholder={placeholder ?? (multiline ? "El mensaje de adentro" : "Una frase corta")}
         placeholderTextColor="#A89488"
         multiline={multiline}
         maxLength={maxChars}
+        onContentSizeChange={(event) => {
+          if (!multiline) return;
+          const next = Math.max(96, Math.ceil(event.nativeEvent.contentSize.height) + 8);
+          setInputHeight(Math.min(next, 320));
+        }}
         style={{
-          minHeight: multiline ? 96 : 48,
+          minHeight: multiline ? inputHeight : 48,
+          height: multiline ? inputHeight : 48,
           borderRadius: 12,
           backgroundColor: colors.white,
           padding: 12,
@@ -49,7 +72,7 @@ export function TextStyleEditor({
           textAlignVertical: "top",
         }}
       />
-      <Text style={{ fontFamily: font.medium, color: colors.muted }}>{[...current.text].length}/{maxChars}</Text>
+      <Text style={{ fontFamily: font.medium, color: [...current.text].length >= maxChars ? colors.bad : colors.muted }}>{[...current.text].length}/{maxChars}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
         {OVERLAY_FONTS.map((item) => (
           <Pressable key={item.id} onPress={() => update({ font: item.id })} style={chip(current.font === item.id)}>
@@ -82,6 +105,12 @@ export function TextStyleEditor({
         </Pressable>
       </View>
     </View>
+  );
+  if (!collapsible) return controls;
+  return (
+    <Collapsible title="Agrega texto a tu foto" open={open} onToggle={toggle}>
+      {controls}
+    </Collapsible>
   );
 }
 

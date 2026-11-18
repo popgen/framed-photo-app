@@ -1,53 +1,76 @@
-import { router } from "expo-router";
+import { Image } from "expo-image";
+import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
-import Animated, { FadeIn } from "react-native-reanimated";
+import { Cropper } from "../components/Cropper";
+import { PhotoImport } from "../components/PhotoImport";
 import { TextStyleEditor } from "../components/TextStyleEditor";
 import { useReducedMotion } from "../components/fx";
 import { Button, Card, Screen, TabBar } from "../components/ui";
 import { colors, font } from "../components/theme";
-import { cardCatalog, cardGreetings, cardSizes, cardTemplates, defaultCardSize, messageLimits, priceCards, type CardPhotos, type CardSnapshot } from "../lib/cards";
+import { layoutCardText, CARD_TEXT_MIN_PX } from "../lib/card-text";
+import { cardGreetings, cardSheetCopy, cardSizes, cardTemplates, DEFAULT_ENVELOPE, defaultCardSize, messageLimits, priceCards, type CardSnapshot } from "../lib/cards";
+import { importFlags } from "../lib/env";
 import { formatSoles } from "../lib/money";
 import { uid } from "../lib/ids";
-import { pickAndSavePhotos, samplePhoto } from "../lib/photos";
+import { pickAndSavePhotos, resolvePhoto, samplePhoto } from "../lib/photos";
+import { centeredCrop, type Crop } from "../lib/print-size";
 import { useCart } from "../lib/store";
-import type { TextOverlay } from "../lib/overlay";
+import { fontById, type TextOverlay } from "../lib/overlay";
 
-const PANELS = ["Portada", "Interior", "Contraportada"] as const;
+const PANELS = ["Portada", "Interior"] as const;
+type PanelName = (typeof PANELS)[number];
+type PanelPhoto = {
+  id: string;
+  width: number;
+  height: number;
+  crop: Crop;
+  source: { uri?: string; source?: number } | null;
+};
 
 export default function Tarjeta() {
   const reduced = useReducedMotion();
+  const params = useLocalSearchParams<{ import?: string }>();
   const add = useCart((state) => state.add);
   const [sizeId, setSizeId] = useState(defaultCardSize().id);
   const [templateId, setTemplateId] = useState(cardTemplates[0].id);
-  const [envelope, setEnvelope] = useState("kraft");
   const [qty, setQty] = useState(1);
-  const [panel, setPanel] = useState<(typeof PANELS)[number]>("Portada");
+  const [panel, setPanel] = useState<PanelName>("Portada");
   const [open, setOpen] = useState(false);
   const [bleed, setBleed] = useState(false);
   const [frontMessage, setFrontMessage] = useState<TextOverlay | null>(null);
   const [insideMessage, setInsideMessage] = useState<TextOverlay | null>(null);
-  const [photos, setPhotos] = useState<CardPhotos>({});
+  const [frontPhoto, setFrontPhoto] = useState<PanelPhoto | null>(null);
+  const [insidePhoto, setInsidePhoto] = useState<PanelPhoto | null>(null);
   const size = cardSizes.find((item) => item.id === sizeId) ?? defaultCardSize();
   const template = cardTemplates.find((item) => item.id === templateId) ?? cardTemplates[0];
   const limits = messageLimits(size);
   const priced = priceCards(qty);
+  const active = panel === "Interior" ? insidePhoto : frontPhoto;
 
-  async function putPhoto(key: keyof CardPhotos, sample = false) {
-    const photo = sample ? samplePhoto() : (await pickAndSavePhotos(false))[0];
-    if (!photo) return;
-    setPhotos((current) => ({ ...current, [key]: photo.id }));
+  async function place(which: PanelName, photo: { id: string; width: number; height: number }) {
+    const crop = centeredCrop(photo.width, photo.height, size.panelWmm, size.panelHmm);
+    const source = await resolvePhoto(photo.id);
+    const next = { ...photo, crop, source };
+    if (which === "Portada") setFrontPhoto(next);
+    else setInsidePhoto(next);
   }
 
   function save() {
     const card: CardSnapshot = {
       sizeId: size.id,
       quantity: qty,
-      envelopeColor: envelope,
+      envelopeColor: DEFAULT_ENVELOPE,
       templateId: template.id,
       frontMessage,
       insideMessage,
-      photos,
+      photos: {
+        front: frontPhoto?.id ?? null,
+        insideCenter: insidePhoto?.id ?? null,
+      },
+      frontCrop: frontPhoto?.crop ?? null,
+      insideCrop: insidePhoto?.crop ?? null,
+      layout: "diptych",
       bleed,
     };
     add({
@@ -76,7 +99,7 @@ export default function Tarjeta() {
     >
       <View style={{ padding: 16, gap: 14 }}>
         <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>Tarjeta navideña</Text>
-        <Text style={{ fontFamily: font.body, color: colors.muted }}>Tres paneles, dos pliegues y un sobre. Más barata que un marco.</Text>
+        <Text style={{ fontFamily: font.body, color: colors.muted }}>Dos paneles y un pliegue arriba. Más barata que un marco.</Text>
         <View style={{ flexDirection: "row", gap: 8 }}>
           {cardSizes.map((item) => (
             <Pressable key={item.id} onPress={() => setSizeId(item.id)} style={chip(item.id === size.id)}>
@@ -84,59 +107,85 @@ export default function Tarjeta() {
             </Pressable>
           ))}
         </View>
-        {size.printShop ? <Text style={{ fontFamily: font.semibold, color: colors.bad }}>{size.shopFlag}</Text> : (
-          <Text style={{ fontFamily: font.body, color: colors.muted }}>Hoja plana {size.flatWmm}×{size.flatHmm} mm. Sobre {size.envelopeName} {size.envelopeWmm}×{size.envelopeHmm} mm.</Text>
-        )}
-        <View style={{ flexDirection: "row", gap: 8 }}>
+        <Text style={{ fontFamily: font.body, color: size.printShop ? colors.bad : colors.muted }}>{cardSheetCopy(size)}</Text>
+        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
           {cardTemplates.map((item) => (
             <Pressable key={item.id} onPress={() => setTemplateId(item.id)} style={chip(item.id === template.id)}>
               <Text style={chipText(item.id === template.id)}>{item.name}</Text>
             </Pressable>
           ))}
         </View>
-        <Animated.View entering={reduced ? undefined : FadeIn.duration(400)} style={{ alignItems: "center" }}>
-          <Pressable onPress={() => setOpen((value) => !value)} accessibilityLabel="Abrir la tarjeta">
-            <View style={{ width: 280, height: 150, flexDirection: "row", transform: [{ rotateX: open ? "8deg" : "0deg" }] }}>
-              <Fold panel="back" color={open ? template.inside : template.outside} open={open} text={photos.back ? "Foto" : ""} />
-              <Fold panel="front" color={open ? template.inside : template.outside} open={open} text={open ? insideMessage?.text ?? "" : frontMessage?.text ?? (photos.front ? "Foto" : "")} family={open ? insideMessage?.font : frontMessage?.font} ink={open ? insideMessage?.color : frontMessage?.color} />
-              <Fold panel="flap" color={open ? template.inside : template.outside} open={open} text={photos.insideCenter ? "Foto" : ""} />
-            </View>
-          </Pressable>
-          <Text style={{ fontFamily: font.medium, color: colors.muted, marginTop: 6 }}>{open ? "Interior" : "Portada"} · toca para {open ? "cerrar" : "abrir"}</Text>
-        </Animated.View>
+        <Diptych
+          open={open}
+          reduced={reduced}
+          outside={template.outside}
+          inside={template.inside}
+          frontPhoto={frontPhoto}
+          insidePhoto={insidePhoto}
+          frontMessage={frontMessage}
+          insideMessage={insideMessage}
+          onPress={() => setOpen((value) => !value)}
+        />
         <View style={{ flexDirection: "row", gap: 8 }}>
           {PANELS.map((item) => (
-            <Pressable key={item} onPress={() => { setPanel(item); setOpen(item === "Interior"); }} style={chip(panel === item)}>
+            <Pressable
+              key={item}
+              onPress={() => {
+                setPanel(item);
+                setOpen(item === "Interior");
+              }}
+              style={chip(panel === item)}
+            >
               <Text style={chipText(panel === item)}>{item}</Text>
             </Pressable>
           ))}
         </View>
-        {panel === "Portada" ? (
-          <Card>
-            <PhotoButtons label={photos.front ? "Cambiar foto de portada" : "Foto de portada"} onPick={() => void putPhoto("front")} onSample={() => void putPhoto("front", true)} />
-            <TextStyleEditor label="Mensaje de portada" value={frontMessage} onChange={setFrontMessage} maxChars={limits.front} presets={cardGreetings} />
-          </Card>
-        ) : null}
-        {panel === "Interior" ? (
-          <Card>
-            <PhotoButtons label={photos.insideCenter ? "Cambiar foto interior" : "Foto interior"} onPick={() => void putPhoto("insideCenter")} onSample={() => void putPhoto("insideCenter", true)} />
-            <TextStyleEditor label="Mensaje interior" value={insideMessage} onChange={setInsideMessage} maxChars={limits.inside} multiline presets={cardGreetings} />
-          </Card>
-        ) : null}
-        {panel === "Contraportada" ? (
-          <Card>
-            <PhotoButtons label={photos.back ? "Cambiar foto de contraportada" : "Foto de contraportada"} onPick={() => void putPhoto("back")} onSample={() => void putPhoto("back", true)} />
-            <Text style={{ fontFamily: font.body, color: colors.muted }}>El mensaje va en la portada y en el interior.</Text>
-          </Card>
-        ) : null}
-        <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Sobre</Text>
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          {cardCatalog.envelopes.map((item) => (
-            <Pressable key={item.id} onPress={() => setEnvelope(item.id)} style={chip(envelope === item.id)}>
-              <Text style={chipText(envelope === item.id)}>{item.name}</Text>
-            </Pressable>
-          ))}
-        </View>
+        <Card>
+          <Text style={{ fontFamily: font.semibold, color: colors.ink, marginBottom: 8 }}>{panel}</Text>
+          {active ? (
+            <>
+              <Text style={{ fontFamily: font.semibold, color: colors.ink, marginBottom: 8 }}>Encadra la foto</Text>
+              <Cropper
+                source={active.source ?? {}}
+                crop={active.crop}
+                aspect={[size.panelWmm, size.panelHmm]}
+                width={300}
+                onChange={(crop) => {
+                  if (panel === "Portada") setFrontPhoto((current) => (current ? { ...current, crop } : current));
+                  else setInsidePhoto((current) => (current ? { ...current, crop } : current));
+                }}
+              />
+              <View style={{ height: 8 }} />
+              <Button label="Cambiar foto" tone="ghost" onPress={() => void pick(panel, place)} />
+            </>
+          ) : (
+            <>
+              <Text style={{ fontFamily: font.body, color: colors.muted, marginBottom: 8 }}>JPG, PNG o HEIC. La foto se acomoda dentro del panel.</Text>
+              <Button label="Desde tu iPhone / iCloud" onPress={() => void pick(panel, place)} />
+              <View style={{ height: 8 }} />
+              <Button label="Usar foto de ejemplo" tone="ghost" onPress={() => void place(panel, samplePhoto())} />
+            </>
+          )}
+          <View style={{ height: 8 }} />
+          <PhotoImport
+            flags={importFlags()}
+            notice={params.import}
+            frame={{ printWcm: size.panelWmm / 10, printHcm: size.panelHmm / 10 }}
+            onUse={(photo) => place(panel, photo)}
+          />
+        </Card>
+        <TextStyleEditor
+          collapsible
+          multiline
+          label="Agrega texto a tu foto"
+          placeholder={panel === "Interior" ? "El mensaje de adentro" : "El mensaje de la portada"}
+          value={panel === "Interior" ? insideMessage : frontMessage}
+          onChange={panel === "Interior" ? setInsideMessage : setFrontMessage}
+          maxChars={panel === "Interior" ? limits.inside : limits.front}
+          presets={cardGreetings}
+        />
+        <Text style={{ fontFamily: font.body, color: colors.muted }}>El reverso lleva la marca Mi Fotito.</Text>
+        <Text style={{ fontFamily: font.body, color: colors.ink }}>Incluye sobre blanco</Text>
         <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
           <Pressable onPress={() => setQty((value) => Math.max(1, value - 1))} style={chip(false)}><Text style={chipText(false)}>−</Text></Pressable>
           <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{priced.label}</Text>
@@ -150,33 +199,137 @@ export default function Tarjeta() {
   );
 }
 
-function PhotoButtons({ label, onPick, onSample }: { label: string; onPick: () => void; onSample: () => void }) {
+async function pick(panel: PanelName, place: (panel: PanelName, photo: { id: string; width: number; height: number }) => Promise<void>) {
+  const photo = (await pickAndSavePhotos(false))[0];
+  if (photo) await place(panel, photo);
+}
+
+function Diptych({
+  open,
+  reduced,
+  outside,
+  inside,
+  frontPhoto,
+  insidePhoto,
+  frontMessage,
+  insideMessage,
+  onPress,
+}: {
+  open: boolean;
+  reduced: boolean;
+  outside: string;
+  inside: string;
+  frontPhoto: PanelPhoto | null;
+  insidePhoto: PanelPhoto | null;
+  frontMessage: TextOverlay | null;
+  insideMessage: TextOverlay | null;
+  onPress: () => void;
+}) {
+  const panelW = 210;
+  const panelH = Math.round(panelW * (148 / 105));
+  const motion = {
+    transitionDuration: reduced ? "0ms" : "1000ms",
+    transitionProperty: "transform, top, opacity",
+    transformOrigin: "top center",
+  } as const;
   return (
-    <View style={{ gap: 8, marginBottom: 8 }}>
-      <Button label={label} onPress={onPick} />
-      <Button label="Usar foto de ejemplo" tone="ghost" onPress={onSample} />
+    <View style={{ alignItems: "center" }}>
+      <Pressable onPress={onPress} accessibilityLabel={open ? "Cerrar la tarjeta" : "Abrir la tarjeta"}>
+        <View style={{ width: panelW, height: open ? panelH * 2 + 12 : panelH }}>
+          <View
+            style={{
+              position: "absolute",
+              top: open ? panelH + 12 : 0,
+              width: panelW,
+              height: panelH,
+              opacity: open ? 1 : 0,
+              borderRadius: 10,
+              overflow: "hidden",
+              ...motion,
+            }}
+          >
+            <PanelFace width={panelW} height={panelH} color={inside} photo={insidePhoto} overlay={insideMessage} />
+          </View>
+          <View style={{ position: "absolute", top: 0, width: panelW, height: panelH, borderRadius: 10, backgroundColor: "#F7F4EF", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(42,27,22,0.28)", boxShadow: "0 10px 24px rgba(42,27,22,0.12)" }}>
+            <Text style={{ fontFamily: font.display, fontSize: 22, color: colors.red }}>Mi Fotito</Text>
+          </View>
+          <View
+            style={{
+              position: "absolute",
+              top: 0,
+              width: panelW,
+              height: panelH,
+              zIndex: 2,
+              borderRadius: 10,
+              overflow: "hidden",
+              backfaceVisibility: "hidden",
+              transform: [{ perspective: 900 }, { rotateX: open ? "-172deg" : "0deg" }],
+              ...motion,
+            }}
+          >
+            <PanelFace width={panelW} height={panelH} color={outside} photo={frontPhoto} overlay={frontMessage} />
+          </View>
+        </View>
+      </Pressable>
+      <Text style={{ fontFamily: font.medium, color: colors.muted, marginTop: 6 }}>{open ? "Interior" : "Portada"} · toca para {open ? "cerrar" : "abrir"}</Text>
     </View>
   );
 }
 
-function Fold({ color, text, family, ink }: { panel: string; color: string; open: boolean; text: string; family?: string; ink?: string }) {
+function PanelFace({
+  width,
+  height,
+  color,
+  photo,
+  overlay,
+}: {
+  width: number;
+  height: number;
+  color: string;
+  photo: PanelPhoto | null;
+  overlay: TextOverlay | null;
+}) {
+  const crop = photo?.crop;
+  const source = photo?.source?.source ?? (photo?.source?.uri ? { uri: photo.source.uri } : null);
+  const fitted = overlay?.text
+    ? layoutCardText(
+        overlay.text,
+        width,
+        height,
+        (line, size) => Math.max(1, [...line].length) * size * fontById(overlay.font).width * 1.12,
+        overlay.size * height,
+        CARD_TEXT_MIN_PX,
+      )
+    : null;
+  const blockH = fitted ? fitted.lines.length * fitted.leading : 0;
+  const paragraph = Boolean(overlay && (overlay.text.includes("\n") || [...overlay.text].length > 48));
+  const top = fitted
+    ? paragraph
+      ? Math.max(8, (height - blockH) / 2)
+      : Math.min(Math.max(4, overlay!.y * height - blockH / 2), Math.max(4, height - blockH - 4))
+    : 0;
   return (
-    <View style={{ flex: 1, marginHorizontal: 2, backgroundColor: color, borderRadius: 6, alignItems: "center", justifyContent: "center", padding: 6 }}>
-      <Text numberOfLines={4} style={{ fontFamily: family ? fontName(family) : font.body, color: ink || colors.ink, textAlign: "center", fontSize: 13 }}>{text}</Text>
+    <View style={{ width, height, backgroundColor: color, overflow: "hidden", borderWidth: 1, borderColor: "rgba(42,27,22,0.28)", borderRadius: 10, boxShadow: "0 10px 24px rgba(42,27,22,0.12)" }}>
+      {source && crop ? (
+        <Image
+          source={source}
+          contentFit="fill"
+          style={{
+            position: "absolute",
+            width: (width * crop.imageWidth) / crop.width,
+            height: (height * crop.imageHeight) / crop.height,
+            left: (-crop.x * width) / crop.width,
+            top: (-crop.y * height) / crop.height,
+          }}
+        />
+      ) : null}
+      {fitted && overlay ? (
+        <View style={{ position: "absolute", left: width * 0.08, top, width: width * 0.84 }}>
+          <Text style={{ fontFamily: fontById(overlay.font).family, fontSize: fitted.size, lineHeight: fitted.leading, color: overlay.color, textAlign: "center" }}>{fitted.lines.join("\n")}</Text>
+        </View>
+      ) : null}
     </View>
   );
-}
-
-function fontName(id: string) {
-  const map: Record<string, string> = {
-    pacifico: "Pacifico_400Regular",
-    dancing: "DancingScript_600SemiBold",
-    vibes: "GreatVibes_400Regular",
-    lobster: "Lobster_400Regular",
-    satisfy: "Satisfy_400Regular",
-    amatic: "AmaticSC_700Bold",
-  };
-  return map[id] ?? font.body;
 }
 
 function chip(on: boolean) {

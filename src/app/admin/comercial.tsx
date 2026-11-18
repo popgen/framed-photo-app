@@ -36,7 +36,7 @@ export default function Comercial() {
       {(promos ?? []).map((promo) => (
         <Text key={promo.code} style={{ fontFamily: font.body, color: colors.ink }}>{promo.code} · {promo.kind === "percent" ? `${promo.value}%` : formatSoles(promo.value)} · {promo.usedCount}/{promo.maxUses ?? "∞"}</Text>
       ))}
-      <Text style={{ fontFamily: font.displaySoft, fontSize: 24, color: colors.ink }}>Gift cards</Text>
+      <Text style={{ fontFamily: font.displaySoft, fontSize: 24, color: colors.ink }}>Tarjetas de regalo</Text>
       {(cards ?? []).map((card) => (
         <Text key={card.code} style={{ fontFamily: font.body, color: colors.ink }}>{card.code} · saldo {formatSoles(card.balanceCents)} · {card.recipientPhone}</Text>
       ))}

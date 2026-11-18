@@ -36,6 +36,20 @@ export function framesAvailable(frame: FrameDef, stock: Record<string, number>):
   return Number.isFinite(min) ? min : 0;
 }
 
+export function frameLowStock(frame: FrameDef, stock: Record<string, number>, lowAt: Record<string, number> = {}): boolean {
+  const available = framesAvailable(frame, stock);
+  if (available <= 0) return false;
+  return frame.consumes.some((part) => {
+    const qty = stock[part.sku] ?? 0;
+    const limit = lowAt[part.sku] ?? LOW_STOCK_AT;
+    return qty > 0 && qty <= limit;
+  });
+}
+
+export function framesWhenStockUnknown(catalog: FrameDef[]): (FrameDef & { available: number; lowStock: boolean; stockUncertain: true })[] {
+  return catalog.map((frame) => ({ ...frame, available: 99, lowStock: false, stockUncertain: true }));
+}
+
 export function lowStockItems<T extends { sku: string; quantity: number; lowStockAt?: number }>(items: T[], fallback = LOW_STOCK_AT): T[] {
   return items.filter((item) => item.quantity <= (item.lowStockAt ?? fallback));
 }

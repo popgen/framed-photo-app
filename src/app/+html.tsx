@@ -14,7 +14,13 @@ export default function Root({ children }: PropsWithChildren) {
         <meta property="og:description" content="Una foto, un marco, y llega a la puerta." />
         <meta name="theme-color" content="#F6EFE6" />
         <ScrollViewStyleReset />
-        <style>{`html, body, #root { height: 100%; background: #E7D3C3; } body { overflow-x: hidden; }`}</style>
+        <style>{`
+          html, body, #root { height: 100%; background: #E7D3C3; }
+          body { overflow-x: hidden; }
+          /* Netlify injects the public HUD iframe on the free plan. It cannot be
+             turned off in project settings, and its inline position covers the tab bar. */
+          #nl-badge-frame, #nl-hud-frame { display: none !important; }
+        `}</style>
       </head>
       <body>{children}</body>
     </html>

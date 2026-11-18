@@ -1,5 +1,6 @@
 import cardsJson from "../../data/cards.json";
 import { placeOverlay, type TextOverlay } from "./overlay";
+import type { Crop } from "./print-size";
 
 export type CardSize = (typeof cardsJson.sizes)[number];
 export type CardTemplate = (typeof cardsJson.templates)[number];
@@ -22,12 +23,33 @@ export type CardSnapshot = {
   insideMessage: TextOverlay | null;
   photos: CardPhotos;
   bleed: boolean;
+  frontCrop?: Crop | null;
+  insideCrop?: Crop | null;
+  layout?: "diptych";
 };
 
 export const cardCatalog = cardsJson;
 export const cardSizes = cardsJson.sizes;
 export const cardTemplates = cardsJson.templates;
 export const cardGreetings = cardsJson.greetings;
+export const DEFAULT_ENVELOPE = "blanco";
+
+const STORED_ENVELOPES: Record<string, { name: string; color: string }> = {
+  blanco: { name: "Sobre blanco", color: "#F7F4EF" },
+  white: { name: "Sobre blanco", color: "#F7F4EF" },
+  kraft: { name: "Kraft", color: "#C4924A" },
+  red: { name: "Rojo", color: "#8E1E2A" },
+};
+
+export function envelopeLabel(id: string | null | undefined): string {
+  if (!id) return STORED_ENVELOPES.blanco.name;
+  return STORED_ENVELOPES[id]?.name ?? STORED_ENVELOPES.blanco.name;
+}
+
+export function envelopeFill(id: string | null | undefined): string {
+  if (!id) return STORED_ENVELOPES.blanco.color;
+  return STORED_ENVELOPES[id]?.color ?? STORED_ENVELOPES.blanco.color;
+}
 
 export const OUTSIDE_PANELS = ["back", "front", "flap"] as const;
 export const INSIDE_PANELS = ["insideLeft", "insideCenter", "insideRight"] as const;
@@ -44,19 +66,39 @@ export function defaultCardSize(): CardSize {
   return cardSizes.find((item) => item.default) ?? cardSizes[0];
 }
 
-export function messageLimits(size: CardSize): { front: number; inside: number } {
-  const width = size.panelWmm / cardsJson.referencePanelMm.width;
-  const height = size.panelHmm / cardsJson.referencePanelMm.height;
-  return {
-    front: Math.max(24, Math.round(cardsJson.frontMaxChars * width)),
-    inside: Math.max(80, Math.round(cardsJson.insideMaxChars * width * height)),
-  };
+export function cardSheetCopy(size: CardSize): string {
+  if (size.id === "5x7") {
+    const flag = "shopFlag" in size && size.shopFlag ? ` ${size.shopFlag}` : "";
+    return `Díptico con pliegue arriba. Cada panel mide 5×7 pulgadas y la hoja abierta mide 5×14 pulgadas.${flag}`;
+  }
+  return `Díptico con pliegue arriba. Cada panel mide ${size.panelWmm}×${size.panelHmm} mm y la hoja abierta mide ${size.flatWmm}×${size.flatHmm} mm, así que cabe en una A4. Sobre ${size.envelopeName} ${size.envelopeWmm}×${size.envelopeHmm} mm.`;
+}
+
+export function cardOrderLine(card: Pick<CardSnapshot, "sizeId">): string {
+  const size = cardSizeById(card.sizeId);
+  if (size.id === "5x7") return "Díptico, pliegue arriba. Hoja abierta 5×14 pulgadas.";
+  return `Díptico, pliegue arriba. Hoja abierta ${size.flatWmm}×${size.flatHmm} mm.`;
+}
+
+export function messageLimits(_size?: CardSize): { front: number; inside: number } {
+  return { front: cardsJson.messageMaxChars, inside: cardsJson.messageMaxChars };
+}
+
+export function cardMessageError(items: Array<{ card?: { frontMessage?: { text?: string } | null; insideMessage?: { text?: string } | null } | null }> | null | undefined): string | null {
+  const max = cardsJson.messageMaxChars;
+  for (const item of items ?? []) {
+    const texts = [item?.card?.frontMessage?.text, item?.card?.insideMessage?.text];
+    if (texts.some((text) => typeof text === "string" && [...text].length > max)) {
+      return `El mensaje de la tarjeta puede tener hasta ${max} caracteres.`;
+    }
+  }
+  return null;
 }
 
 export function clampMessage(message: TextOverlay | null, maxChars: number): TextOverlay | null {
   if (!message?.text.trim()) return null;
   const text = [...message.text].slice(0, maxChars).join("");
-  return placeOverlay({ ...message, text });
+  return placeOverlay({ ...message, text }, false, true);
 }
 
 export function priceCards(quantity: number): { cents: number; label: string } {

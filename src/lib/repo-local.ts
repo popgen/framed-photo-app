@@ -7,12 +7,14 @@ import { guaranteeFor, type Zone } from "./cutoff";
 import { estimateDelivery } from "./delivery";
 import { notifyMode } from "./env";
 import { giftCode, referralCodeFrom, uid } from "./ids";
-import { priceCards } from "./cards";
+import { cardMessageError, priceCards } from "./cards";
+import { stockChecksEnabled } from "./env";
 import { formatOrderNumber } from "./order-number";
-import { sortTracking, toTrackingCard } from "./tracking";
-import { applyStock, expandNeeds, framesAvailable } from "./inventory";
+import { isOpenShipment, sortTracking, toPublicShipment, toTrackingCard } from "./tracking";
+import { applyStock, expandNeeds, frameLowStock, framesAvailable } from "./inventory";
 import { inquiryFromSize } from "./retablo";
 import { VOICE_ADDON_CENTS } from "./voice";
+import { readLocalCustomer } from "./customer-auth";
 import { isEmail, normalizePhone } from "./phone";
 import { resolveTaxId } from "./tax-id";
 import { REFERRAL_FRIEND_CENTS, REFERRAL_REWARD_CENTS, quote, type QuoteItem } from "./pricing";
@@ -62,6 +64,17 @@ const DB_KEY = "recuerdo-db-v2";
 const ADMIN_KEY = "recuerdo-admin";
 
 let db: DB | null = null;
+
+function consumeForOrder(state: DB, needs: Record<string, number>): Record<string, number> {
+  if (stockChecksEnabled()) {
+    const stock = applyStock(stockRecord(state), needs);
+    if (!stock.ok) throw new AppError(`Sin stock al confirmar (${stock.missing.join(", ")}).`);
+    return stock.next;
+  }
+  const next = { ...stockRecord(state) };
+  for (const [sku, qty] of Object.entries(needs)) next[sku] = (next[sku] ?? 0) - qty;
+  return next;
+}
 
 function stockRecord(state: DB): Record<string, number> {
   return Object.fromEntries(state.inventory.map((item) => [item.sku, item.quantity]));
@@ -271,7 +284,7 @@ function priceInput(state: DB, input: CheckoutInput, phone: string | null) {
   const giftCodeValue = input.giftCardCode?.trim() || "";
   if (giftCodeValue) {
     const card = state.giftCards.find((item) => item.code.toUpperCase() === giftCodeValue.toUpperCase());
-    if (!card || card.status !== "active" || card.balanceCents <= 0) giftCardError = "Esa gift card no tiene saldo.";
+    if (!card || card.status !== "active" || card.balanceCents <= 0) giftCardError = "Esa tarjeta de regalo no tiene saldo.";
     else giftCardBalance = card.balanceCents;
   }
   const priced = quote({
@@ -288,12 +301,14 @@ function priceInput(state: DB, input: CheckoutInput, phone: string | null) {
   });
   const needs = expandNeeds(input.items.filter((item) => !item.card).map((item) => ({ consumes: frameById(item.frameId).consumes, quantity: 1 })));
   const stock = applyStock(stockRecord(state), needs);
-  const stockError = stock.ok ? null : `No hay stock suficiente (${stock.missing.join(", ")}).`;
+  const stockError = stockChecksEnabled() && !stock.ok ? `No hay stock suficiente (${stock.missing.join(", ")}).` : null;
   return { priced, stockError, promo, phone };
 }
 
 function assertCheckout(input: CheckoutInput, phone: string | null) {
   if (!input.items.length) throw new AppError("Tu carrito está vacío.");
+  const cardError = cardMessageError(input.items);
+  if (cardError) throw new AppError(cardError);
   if (input.items.some((item) => item.resolutionStatus === "low") && !input.ackLowRes) {
     throw new AppError("Confirma que aceptas la resolución baja, o elige una foto más grande.");
   }
@@ -396,8 +411,15 @@ export function createLocalRepo() {
     },
     async listFrames(): Promise<FrameOffer[]> {
       const state = required();
+      if (!stockChecksEnabled()) return frames.map((frame) => ({ ...frame, available: 99, lowStock: false, stockUncertain: false }));
       const stock = stockRecord(state);
-      return frames.map((frame) => ({ ...frame, available: framesAvailable(frame, stock) }));
+      const lowAt = Object.fromEntries(state.inventory.map((item) => [item.sku, item.lowStockAt]));
+      return frames.map((frame) => ({
+        ...frame,
+        available: framesAvailable(frame, stock),
+        lowStock: frameLowStock(frame, stock, lowAt),
+        stockUncertain: false,
+      }));
     },
     async listReviews() {
       return reviews;
@@ -418,10 +440,13 @@ export function createLocalRepo() {
       return { ...priced, zone, stockError };
     },
     async placeOrder(input: CheckoutInput) {
+      const session = readLocalCustomer();
+      if (!session) throw new AppError("Entra con tu correo y contraseña.");
       const state = required();
       const phone = normalizePhone(input.phone);
       assertCheckout(input, phone);
       const order = buildOrder(state, input, phone as string, "pending_payment");
+      order.userId = session.id;
       state.orders.unshift(order);
       persist(state);
       return order;
@@ -432,9 +457,7 @@ export function createLocalRepo() {
       if (!order) throw new AppError("No encontramos el pedido.");
       if (order.paymentStatus === "approved") return order;
       const needs = expandNeeds(order.items.map((item) => ({ consumes: frameById(item.frameId).consumes, quantity: item.quantity })));
-      const stock = applyStock(stockRecord(state), needs);
-      if (!stock.ok) throw new AppError(`Sin stock al confirmar (${stock.missing.join(", ")}).`);
-      writeStock(state, stock.next);
+      writeStock(state, consumeForOrder(state, needs));
       if (order.promoCode) {
         const promo = state.promos.find((item) => item.code === order.promoCode);
         if (promo) promo.usedCount += 1;
@@ -491,10 +514,22 @@ export function createLocalRepo() {
       if (!normalized) return [];
       return sortTracking(required().orders.filter((item) => item.phone === normalized).map(toTrackingCard));
     },
+    async listMyOrders() {
+      const session = readLocalCustomer();
+      if (!session) return [];
+      return sortTracking(required().orders.filter((item) => item.userId === session.id).map(toTrackingCard));
+    },
+    async listPublicTracking(phone: string) {
+      const normalized = normalizePhone(phone);
+      if (!normalized) return [];
+      return required().orders
+        .filter((item) => item.phone === normalized && isOpenShipment(item.status))
+        .map(toPublicShipment);
+    },
     async getOrderByToken(token: string, phone: string) {
       const normalized = normalizePhone(phone);
-      if (!normalized) return null;
-      return required().orders.find((item) => item.publicToken === token && item.phone === normalized) ?? null;
+      const session = readLocalCustomer();
+      return required().orders.find((item) => item.publicToken === token && ((session && item.userId === session.id) || (normalized && item.phone === normalized))) ?? null;
     },
     async listOrders(status?: string) {
       return required().orders.filter((item) => !status || status === "all" || item.status === status);
@@ -564,7 +599,7 @@ export function createLocalRepo() {
       const buyer = normalizePhone(input.buyerPhone);
       const recipient = normalizePhone(input.recipientPhone);
       if (!buyer || !recipient) throw new AppError("Revisa los celulares. Deben ser números peruanos.");
-      if (input.amountCents < 3000 || input.amountCents > 50000) throw new AppError("La gift card va de S/ 30 a S/ 500.");
+      if (input.amountCents < 3000 || input.amountCents > 50000) throw new AppError("La tarjeta de regalo va de S/ 30 a S/ 500.");
       const card: GiftCard = {
         code: giftCode(),
         initialCents: input.amountCents,
@@ -622,9 +657,7 @@ export function createLocalRepo() {
       if (!claim) throw new AppError("No encontramos el reclamo.");
       const source = mustOrder(state, claim.orderId);
       const needs = expandNeeds(source.items.map((item) => ({ consumes: frameById(item.frameId).consumes, quantity: item.quantity })));
-      const stock = applyStock(stockRecord(state), needs);
-      if (!stock.ok) throw new AppError(`No hay stock para la reposición (${stock.missing.join(", ")}).`);
-      writeStock(state, stock.next);
+      writeStock(state, consumeForOrder(state, needs));
       const now = new Date();
       const fest = festive(source.zone, now, state.campaign);
       const replacement: Order = {

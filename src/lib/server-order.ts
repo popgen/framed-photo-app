@@ -1,4 +1,4 @@
-import { priceCards } from "./cards";
+import { cardMessageError, priceCards } from "./cards";
 import { frameById } from "./catalog";
 import { defaultCampaign } from "./campaign";
 import { guaranteeFor } from "./cutoff";
@@ -28,10 +28,12 @@ export function stockNeeds(input: CheckoutInput) {
   );
 }
 
-export function evaluateOrder(input: CheckoutInput, ctx: { promos: Promo[]; stock: Record<string, number>; referrals?: Referral[]; giftCards?: GiftCard[]; credits?: Record<string, number> }) {
+export function evaluateOrder(input: CheckoutInput, ctx: { promos: Promo[]; stock: Record<string, number>; referrals?: Referral[]; giftCards?: GiftCard[]; credits?: Record<string, number>; enforceStock?: boolean }) {
   const phone = normalizePhone(input.phone);
   if (!phone) return { error: "Revisa el celular." };
   if (!input.items.length) return { error: "Tu carrito está vacío." };
+  const cardError = cardMessageError(input.items);
+  if (cardError) return { error: cardError };
   const promoCode = input.promoCode?.trim() || null;
   const promo = promoCode ? (ctx.promos.find((item) => item.code.toUpperCase() === promoCode.toUpperCase()) ?? null) : null;
   const referralCode = input.referralCode?.trim() || "";
@@ -48,7 +50,7 @@ export function evaluateOrder(input: CheckoutInput, ctx: { promos: Promo[]; stoc
   let giftCardError: string | null = null;
   let giftCardBalance: number | null = null;
   if (giftCode) {
-    if (!gift || gift.status !== "active" || gift.balanceCents <= 0) giftCardError = "Esa gift card no tiene saldo.";
+    if (!gift || gift.status !== "active" || gift.balanceCents <= 0) giftCardError = "Esa tarjeta de regalo no tiene saldo.";
     else giftCardBalance = gift.balanceCents;
   }
   const priced = quote({
@@ -67,8 +69,10 @@ export function evaluateOrder(input: CheckoutInput, ctx: { promos: Promo[]; stoc
   if (priced.referralError) return { error: priced.referralError };
   if (priced.giftCardError) return { error: priced.giftCardError };
   const needs = stockNeeds(input);
-  const missing = Object.entries(needs).filter(([sku, qty]) => (ctx.stock[sku] ?? 0) < qty).map(([sku]) => sku);
-  if (missing.length) return { error: `No hay stock suficiente (${missing.join(", ")}).` };
+  if (ctx.enforceStock !== false) {
+    const missing = Object.entries(needs).filter(([sku, qty]) => (ctx.stock[sku] ?? 0) < qty).map(([sku]) => sku);
+    if (missing.length) return { error: `No hay stock suficiente (${missing.join(", ")}).` };
+  }
   const zone = shippingZone(input.department, input.province, input.district || "");
   const now = new Date();
   const guarantee = guaranteeFor(now, zone, defaultCampaign);

@@ -14,18 +14,20 @@ import { aspectParts } from "../lib/catalog";
 import { assessResolution, centeredCrop } from "../lib/print-size";
 import { serializeOverlay, type TextOverlay } from "../lib/overlay";
 import { useCart } from "../lib/store";
+import { fillEmptyWallSlots, replaceWallSlot, wallPhotosReady, type WallSlotPhoto } from "../lib/wall-slots";
 import { walls } from "../lib/walls";
 
 export default function Muro() {
   const { width } = useWindowDimensions();
   const [layout, setLayout] = useState(walls[0]);
   const [finish, setFinish] = useState(walls[0].finishes[0]);
-  const [photos, setPhotos] = useState<{ id: string; width: number; height: number }[]>([]);
+  const [photos, setPhotos] = useState<(WallSlotPhoto | null)[]>([]);
   const [overlays, setOverlays] = useState<(TextOverlay | null)[]>([]);
   const [slot, setSlot] = useState(0);
   const addMany = useCart((state) => state.addMany);
   const stage = Math.min(width, 480) - 32;
   const priced = quote({ items: finish.frames.map((id) => ({ unitPriceCents: frameById(id).priceCents })) });
+  const ready = wallPhotosReady(photos, finish.frames.length);
 
   function selectLayout(next: (typeof walls)[number]) {
     setLayout(next);
@@ -33,6 +35,18 @@ export default function Muro() {
     setPhotos([]);
     setOverlays([]);
     setSlot(0);
+  }
+
+  function chooseFrame(index: number) {
+    setSlot(index);
+    if (!photos[index]) void putPhoto(index);
+  }
+
+  async function putPhoto(index: number) {
+    const picked = await pickAndSavePhotos(false);
+    if (!picked[0]) return;
+    setSlot(index);
+    setPhotos((current) => replaceWallSlot(current, index, picked[0]));
   }
 
   return (
@@ -43,13 +57,15 @@ export default function Muro() {
             <PriceTicker cents={priced.totalCents} />
             <Button
               label="Agregar el set"
-              disabled={photos.length < finish.frames.length}
+              disabled={!ready}
               onPress={() => {
+                if (!ready) return;
                 const bundleId = uid("bd_");
                 addMany(
                   finish.frames.map((frameId, index) => {
                     const frame = frameById(frameId);
                     const photo = photos[index];
+                    if (!photo) return null;
                     const [aw, ah] = aspectParts(frame, "portrait");
                     const crop = centeredCrop(photo.width, photo.height, aw, ah);
                     const assessed = assessResolution({
@@ -71,7 +87,7 @@ export default function Muro() {
                       bundleLabel: layout.name,
                       textOverlay: serializeOverlay(overlays[index]),
                     };
-                  }),
+                  }).filter((item): item is NonNullable<typeof item> => item !== null),
                 );
                 router.push("/carrito");
               }}
@@ -101,42 +117,56 @@ export default function Muro() {
         </View>
         <Card>
           <View style={{ backgroundColor: "#E7D9CC", borderRadius: 18, minHeight: 280, padding: 12, flexDirection: "row", flexWrap: "wrap", justifyContent: "center", alignItems: "center", gap: 8 }}>
-            {finish.frames.map((frameId, index) => (
-              <Pressable key={`${frameId}-${index}`} onPress={() => { setSlot(index); if (!photos[index]) void fillSlot(index, photos, setPhotos); }} style={{ width: layout.id === "mixed" && index === 1 ? stage * 0.42 : stage * 0.28, borderWidth: slot === index ? 2 : 0, borderColor: colors.red, borderRadius: 8 }}>
-                <FrameView frame={frameById(frameId)} photoId={photos[index]?.id} crop={photos[index] ? centeredCrop(photos[index].width, photos[index].height, ...aspectParts(frameById(frameId), "portrait")) : null} width={layout.id === "mixed" && index === 1 ? stage * 0.4 : stage * 0.26} overlay={overlays[index]} onOverlayChange={(next) => setOverlays((current) => { const copy = current.slice(); copy[index] = next; return copy; })} />
-              </Pressable>
-            ))}
+            {finish.frames.map((frameId, index) => {
+              const photo = photos[index] ?? null;
+              const frame = frameById(frameId);
+              const wide = layout.id === "mixed" && index === 1;
+              const selected = slot === index;
+              return (
+                <Pressable
+                  key={`${finish.id}-${index}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={photo ? `Marco ${index + 1}, cambiar foto` : `Marco ${index + 1}, agrega foto`}
+                  accessibilityState={{ selected }}
+                  onPress={() => chooseFrame(index)}
+                  style={{ width: wide ? stage * 0.42 : stage * 0.28, borderWidth: selected ? 3 : 0, borderColor: colors.red, borderRadius: 10, padding: selected ? 2 : 0 }}
+                >
+                  <FrameView frame={frame} photoId={photo?.id} crop={photo ? centeredCrop(photo.width, photo.height, ...aspectParts(frame, "portrait")) : null} width={wide ? stage * 0.4 : stage * 0.26} overlay={overlays[index]} onOverlayChange={(next) => setOverlays((current) => replaceWallSlot(current, index, next))} />
+                  {photo ? null : (
+                    <View pointerEvents="none" style={{ position: "absolute", left: 4, right: 4, top: "36%", alignItems: "center" }}>
+                      <Text style={{ fontFamily: font.bold, fontSize: 13, color: colors.ink, textAlign: "center", backgroundColor: "rgba(255,252,249,0.92)", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 }}>+ Agrega foto</Text>
+                    </View>
+                  )}
+                </Pressable>
+              );
+            })}
           </View>
         </Card>
+        {photos[slot] ? (
+          <View style={{ gap: 8 }}>
+            <Button label={`Cambiar foto del marco ${slot + 1}`} onPress={() => void putPhoto(slot)} />
+            <Button label={`Quitar foto del marco ${slot + 1}`} tone="ghost" onPress={() => setPhotos((current) => replaceWallSlot(current, slot, null))} />
+          </View>
+        ) : (
+          <Text style={{ fontFamily: font.medium, color: colors.muted, textAlign: "center" }}>Toca un marco para elegir su foto.</Text>
+        )}
         <Button
-          label="Llenar con fotos"
+          label="Llenar todos"
+          tone="ghost"
           onPress={async () => {
             const picked = await pickAndSavePhotos(true);
             if (!picked.length) return;
-            const next = finish.frames.map((_, index) => picked[index] ?? photos[index]).filter(Boolean) as typeof photos;
-            setPhotos(next);
+            setPhotos((current) => fillEmptyWallSlots(current, finish.frames.length, picked));
           }}
         />
         <Button label="Usar fotos de ejemplo" tone="ghost" onPress={() => setPhotos(finish.frames.map(() => samplePhoto()))} />
         {photos[slot] ? (
           <Card>
-            <TextStyleEditor label={`Texto en la foto ${slot + 1}`} value={overlays[slot] ?? null} onChange={(next) => setOverlays((current) => { const copy = current.slice(); copy[slot] = next; return copy; })} maxChars={48} />
+            <TextStyleEditor label={`Texto en la foto ${slot + 1}`} value={overlays[slot] ?? null} onChange={(next) => setOverlays((current) => replaceWallSlot(current, slot, next))} maxChars={48} />
           </Card>
         ) : null}
         {priced.frameDiscountLabel ? <Text style={{ fontFamily: font.medium, color: colors.pine }}>{priced.frameDiscountLabel}</Text> : null}
       </View>
     </Screen>
   );
-}
-
-async function fillSlot(
-  index: number,
-  photos: { id: string; width: number; height: number }[],
-  setPhotos: (value: { id: string; width: number; height: number }[]) => void,
-) {
-  const picked = await pickAndSavePhotos(false);
-  if (!picked[0]) return;
-  const next = photos.slice();
-  next[index] = picked[0];
-  setPhotos(next);
 }

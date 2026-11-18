@@ -31,96 +31,10 @@
   status = 301
   force = true
 
-# /api/* → Netlify Functions. These must stay above the SPA fallback.
-[[redirects]]
-  from = "/api/payments/create"
-  to = "/.netlify/functions/payments-create"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/payments/izipay-return"
-  to = "/.netlify/functions/payments-izipay-return"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/payments/izipay-ipn"
-  to = "/.netlify/functions/payments-izipay-ipn"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/imports/start"
-  to = "/.netlify/functions/imports-start"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/imports/callback"
-  to = "/.netlify/functions/imports-callback"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/imports/list"
-  to = "/.netlify/functions/imports-list"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/imports/file"
-  to = "/.netlify/functions/imports-file"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/notify"
-  to = "/.netlify/functions/notify"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/webhooks/whatsapp"
-  to = "/.netlify/functions/webhooks-whatsapp"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/shop"
-  to = "/.netlify/functions/shop"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/create-order"
-  to = "/.netlify/functions/create-order"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/track-orders"
-  to = "/.netlify/functions/track-orders"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/otp-send"
-  to = "/.netlify/functions/otp-send"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/otp-verify"
-  to = "/.netlify/functions/otp-verify"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/account"
-  to = "/.netlify/functions/account"
-  status = 200
-  force = true
+# Functions v2 declare their own routes with `export const config = { path }`.
+# Do not rewrite /api/* to /.netlify/functions/*: a custom path is not served there,
+# and a forced rewrite was returning Netlify's 404 for every API call.
+# Path routing is matched before this non-forced SPA fallback, so /api is not shadowed.
 
 # Expo single-page export: client routes fall back to index.html.
 [[redirects]]

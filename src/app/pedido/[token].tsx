@@ -1,41 +1,41 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
-import { PhoneVerify } from "../../components/PhoneVerify";
+import { AccountAuth } from "../../components/AccountAuth";
 import { Banner, Button, Screen } from "../../components/ui";
 import { colors, font } from "../../components/theme";
-import { readPhoneSession } from "../../lib/phone-session";
+import { currentCustomer, type CustomerSession } from "../../lib/customer-auth";
 import { getRepo } from "../../lib/repo";
 import { STATUS_FLOW, STATUS_LABEL, type Order } from "../../lib/types";
 
 export default function Pedido() {
   const { token } = useLocalSearchParams<{ token: string }>();
+  const [account, setAccount] = useState<CustomerSession | null | undefined>(undefined);
   const [order, setOrder] = useState<Order | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void currentCustomer().then(setAccount);
+  }, []);
+
+  useEffect(() => {
+    if (!account) return;
+    void getRepo()
+      .getOrderByToken(String(token), "")
+      .then((found) => {
+        if (!found) setError("No encontramos ese pedido en tu cuenta.");
+        else setOrder(found);
+      })
+      .catch((err: Error) => setError(err.message));
+  }, [account, token]);
 
   return (
     <Screen>
       <View style={{ padding: 16, gap: 12 }}>
-        {!order ? (
-          <>
-            <PhoneVerify
-              title="Tu pedido"
-              onVerified={(verified) => {
-                const sessionPhone = readPhoneSession()?.phone || verified;
-                void getRepo()
-                  .getOrderByToken(String(token), sessionPhone)
-                  .then((found) => {
-                    if (!found) setError("No coincide el pedido con ese celular.");
-                    else {
-                      setError(null);
-                      setOrder(found);
-                    }
-                  });
-              }}
-            />
-            {error ? <Banner tone="bad" text={error} /> : null}
-          </>
-        ) : (
+        {account === undefined ? <Text style={{ fontFamily: font.body, color: colors.muted }}>Un momento…</Text> : null}
+        {account === null ? <AccountAuth title="Tu pedido" onReady={setAccount} /> : null}
+        {error ? <Banner tone="bad" text={error} /> : null}
+        {order ? (
           <>
             <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{order.number} · {STATUS_LABEL[order.status]}</Text>
             {order.channel === "whatsapp" ? <Banner tone="good" text="Pedido que empezó por WhatsApp." /> : null}
@@ -54,7 +54,7 @@ export default function Pedido() {
             </View>
             <Button label="Llegó dañado" tone="ghost" onPress={() => router.push(`/reclamo?token=${order.publicToken}`)} />
           </>
-        )}
+        ) : null}
       </View>
     </Screen>
   );

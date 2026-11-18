@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
   backBar: { paddingHorizontal: 8, backgroundColor: colors.bg, zIndex: 2 },
   back: { minHeight: 44, minWidth: 44, paddingHorizontal: 8, flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 4 },
   backText: { fontFamily: font.semibold, fontSize: 16, color: colors.ink },
-  h1: { fontFamily: font.display, fontSize: 34, lineHeight: 38, color: colors.ink, letterSpacing: -0.6 },
+  h1: { fontFamily: font.display, fontSize: 34, lineHeight: 38, color: colors.ink, letterSpacing: -0.6, textAlign: "center" },
   p: { fontFamily: font.body, color: colors.muted, fontSize: 16, lineHeight: 23 },
   button: { backgroundColor: colors.red, minHeight: 54, borderRadius: 999, alignItems: "center", justifyContent: "center", paddingHorizontal: 18 },
   ghost: { backgroundColor: "transparent", borderWidth: 1.5, borderColor: colors.line },

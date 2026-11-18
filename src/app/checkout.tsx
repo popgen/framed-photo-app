@@ -1,5 +1,7 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
+import { AccountAuth } from "../components/AccountAuth";
+import { currentCustomer, type CustomerSession } from "../lib/customer-auth";
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { Countdown, GuaranteeNote, PaySheet, useNow } from "../components/fx";
 import { useApp } from "../components/provider";
@@ -10,6 +12,7 @@ import { countdownVisible } from "../lib/campaign";
 import { countdownTarget, guaranteeFor } from "../lib/cutoff";
 import { DEPARTMENTS, districtsFor, provincesFor, shippingZone } from "../lib/zone";
 import { paymentsMode, providerFor, type PaymentMethod } from "../lib/env";
+import { cardOrderLine } from "../lib/cards";
 import { frameById } from "../lib/catalog";
 import { formatSoles } from "../lib/money";
 import { quote as priceQuote } from "../lib/pricing";
@@ -25,6 +28,8 @@ export default function Checkout() {
   const clear = useCart((state) => state.clear);
   const { refresh } = useApp();
   const [campaign, setCampaign] = useState<Awaited<ReturnType<ReturnType<typeof getRepo>["getCampaign"]>> | null>(null);
+  const [account, setAccount] = useState<CustomerSession | null>(null);
+  const [accountReady, setAccountReady] = useState(false);
   const [form, setForm] = useState({
     customerName: "",
     phone: "",
@@ -61,6 +66,11 @@ export default function Checkout() {
 
   useEffect(() => {
     void getRepo().getCampaign().then(setCampaign);
+    void currentCustomer().then((session) => {
+      setAccount(session);
+      setAccountReady(true);
+      if (session) setForm((current) => ({ ...current, email: current.email || session.email }));
+    });
   }, []);
 
   const input = useMemo<CheckoutInput>(
@@ -202,6 +212,30 @@ export default function Checkout() {
     }
   }
 
+  if (!accountReady) {
+    return (
+      <Screen>
+        <View style={{ padding: 16 }}>
+          <Text style={{ fontFamily: font.body, color: colors.muted }}>Un momento…</Text>
+        </View>
+      </Screen>
+    );
+  }
+  if (!account) {
+    return (
+      <Screen>
+        <View style={{ padding: 16 }}>
+          <AccountAuth
+            title="Tu cuenta"
+            onReady={(session) => {
+              setAccount(session);
+              setForm((current) => ({ ...current, email: session.email }));
+            }}
+          />
+        </View>
+      </Screen>
+    );
+  }
   return (
     <Screen
       seasonal={null}
@@ -215,6 +249,11 @@ export default function Checkout() {
       <View style={{ padding: 16, gap: 12 }}>
         <Progress step={3} />
         <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>Entrega</Text>
+        {items.filter((item) => item.card).map((item) => (
+          <Text key={item.id} style={{ fontFamily: font.body, color: colors.muted }}>
+            Tarjeta {item.card?.sizeId}: {item.card ? cardOrderLine(item.card) : ""} Portada y interior. Incluye sobre blanco. El reverso lleva la marca Mi Fotito.
+          </Text>
+        ))}
         {campaign && countdownVisible(now, campaign) ? <Countdown target={countdownTarget(now, zone, campaign)} now={now} /> : null}
         {guarantee ? <GuaranteeNote guarantee={guarantee} /> : null}
         <Field label="Nombre" value={form.customerName} onChangeText={(customerName) => setForm({ ...form, customerName })} />
@@ -279,7 +318,7 @@ export default function Checkout() {
         </Pressable>
         <Field label="Código promo" autoCapitalize="characters" value={form.promoCode} onChangeText={(promoCode) => setForm({ ...form, promoCode })} />
         <Field label="Código de amigo" autoCapitalize="characters" value={form.referralCode} onChangeText={(referralCode) => setForm({ ...form, referralCode })} />
-        <Field label="Gift card" autoCapitalize="characters" value={form.giftCardCode} onChangeText={(giftCardCode) => setForm({ ...form, giftCardCode })} />
+        <Field label="Tarjeta de regalo" autoCapitalize="characters" value={form.giftCardCode} onChangeText={(giftCardCode) => setForm({ ...form, giftCardCode })} />
         {credit > 0 ? (
           <Pressable onPress={() => setForm({ ...form, useCredit: !form.useCredit })} style={{ minHeight: 44, justifyContent: "center" }}>
             <Text style={{ fontFamily: font.medium, color: colors.ink }}>{form.useCredit ? "☑" : "☐"} Usar mi saldo {formatSoles(credit)}</Text>

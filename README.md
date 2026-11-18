@@ -27,7 +27,7 @@ Abre http://localhost:8081. Sin variables, los datos viven en el navegador (semi
 - correo `admin@mifotito.pe`
 - contraseña `recuerdo-demo`
 
-Códigos de prueba: `NAVIDAD10` (10%), `MARCO20` (S/ 20), gift card `HOLANAVIDAD` (S/ 50), referido `AMIGO1500`. El rastreo de un pedido real está en `/rastrear` y pide el celular.
+Códigos de prueba: `NAVIDAD10` (10%), `MARCO20` (S/ 20), gift card `HOLANAVIDAD` (S/ 50), referido `AMIGO1500`. El rastreo de un envío pendiente está en `/rastrear` y pide solo el celular.
 
 Para repetir la demo, en el admin no hace falta: borra `localStorage` clave `recuerdo-db-v2`.
 
@@ -93,6 +93,15 @@ El modo `local` no necesita esto. Con `supabase`, el admin entra con Auth y la t
 
 `app_settings.payments_mode` nace en `mock`. Pásalo a `live` antes de cobrar de verdad para que un cliente no pueda marcar un pedido como pagado por su cuenta cuando cierres esa puerta en el servidor.
 
+## Stock
+
+Las tablas `inventory` y el descuento al confirmar un pedido siguen en el código. Los avisos **Sin stock** y **Pocas unidades**, y el rechazo del pedido por falta de stock, están apagados mientras estas variables no sean `true`:
+
+- `EXPO_PUBLIC_STOCK_CHECKS_ENABLED` (se hornea en el sitio; hay que volver a desplegar)
+- `STOCK_CHECKS_ENABLED` (la leen las funciones de Netlify)
+
+Si faltan o están vacías, el cliente puede elegir cualquier marco y el servidor no bloquea el pedido. El inventario igual se actualiza como registro, aunque la cantidad quede en cero o negativa. Para volver a controlar el stock, pon ambas en `true` y redespliega.
+
 ## Pagos
 
 En `mock`, Yape, Plin y tarjeta abren una hoja de sandbox y el pedido queda pagado. En `live`, la web llama `POST /api/payments/create`. Si las cuatro claves de Izipay están, tarjeta y Yape abren su formulario (`/pago`) y el pedido se marca pagado solo cuando la firma HMAC del regreso o del IPN coincide y el monto es el del pedido. El IPN es `https://mifotito.com/api/payments/izipay-ipn`. Sin esas claves, tarjeta y Yape crean una preferencia de Mercado Pago. Plin responde con el celular de `PLIN_PHONE` para confirmar a mano.
@@ -103,7 +112,7 @@ Lucas deja para después la cuenta de WhatsApp Business. En Netlify quedan **sin
 
 Mientras falten:
 
-- Rastrear un pedido y Mi cuenta no piden un código de WhatsApp. Si el celular ya tiene un correo en el pedido o en la cuenta, Supabase manda un enlace y un código a ese correo. Si no hay correo, la pantalla dice «Escríbenos por WhatsApp» y abre `wa.me` con el número de soporte. No aparece un error 500.
+- El cliente entra con correo y contraseña de Supabase Auth. Ya no hay código de 6 dígitos en la tienda. Rastrear un envío pendiente pide solo el celular. Mi cuenta muestra los pedidos de quien inició sesión.
 - El webhook `/api/webhooks/whatsapp` y `/api/notify` no llaman a Graph. Escriben una advertencia en el log y responden 200. Un POST real, sin `mock: true`, responde «próximamente».
 - El admin, en WhatsApp, muestra «Pedidos por el bot: próximamente» y un botón al chat. La vista previa local sigue ahí para probar el flujo sin Meta.
 - El botón verde de la tienda ya abre `wa.me`. No usa la Cloud API.
@@ -146,6 +155,8 @@ Al tocar el botón, `/api/imports/start` manda a la red. Al volver, la sesión q
 
 Los días de entrega están en `src/lib/delivery.ts`: Lima 2–3 días hábiles, provincias 3–5, con feriados.
 
+La tarjeta navideña es un díptico vertical: dos paneles con el pliegue arriba. A6 es 105×148 mm por panel y la hoja abierta mide 105×296 mm, así que entra en una A4. El tamaño 5×7 pulgadas abre a 5×14 pulgadas (127×355.6 mm) y se imprime en un taller. El reverso no se diseña: lleva la marca Mi Fotito. El sobre es uno solo, blanco, e incluido. Doblada, la A6 mide 105×148 mm y entra en un sobre C6 (114×162 mm). La 5×7 doblada mide 127×177.8 mm y necesita un sobre A7 (133×184 mm). El PDF de imprenta trae la hoja abierta (portada arriba, interior abajo), el reverso y ese sobre. Los pedidos viejos guardan `envelopeColor` (`blanco`, o `white`, `kraft` y `red` de antes) y el admin sigue mostrando ese valor.
+
 ## Diseño móvil
 
 La columna mide como máximo 480 px. Los botones pasan de 44 px, el CTA de crear, muro, carrito y pago queda fijo abajo, y el marco se cambia deslizando. Las fotos se redimensionan en el cliente al lado más largo de la impresión (4724 px) antes de guardarlas. `prefers-reduced-motion` apaga ornamentos, confeti y el contador animado del precio.
@@ -165,7 +176,7 @@ El sitio funciona en modo demo sin ningún secreto: pagos sandbox, WhatsApp solo
 - Functions directory: `netlify/functions` (ya está en `netlify.toml`)
 - Dominios: `mifotito.com` (primary) y `www.mifotito.com`
 
-`netlify.toml` redirige `www` y `http` a `https://mifotito.com`, manda `/api/payments/create`, `/api/notify` y `/api/webhooks/whatsapp` a las funciones, y el resto de rutas del cliente a `/index.html`. Los archivos con hash en `/_expo/static/` y `/assets/` se cachean un año. `index.html` no.
+`netlify.toml` redirige `www` y `http` a `https://mifotito.com`. Cada función declara su ruta con `config.path` (`/api/shop`, `/api/track-orders`, `/api/payments/izipay-ipn`, `/api/imports/callback`, y las demás). No hay rewrites de `/api/*` hacia `/.netlify/functions/*`. El fallback a `/index.html` no lleva `force`, así que no tapa esas rutas. Los archivos con hash en `/_expo/static/` y `/assets/` se cachean un año. `index.html` no.
 
 ### Variables en Netlify
 
@@ -210,26 +221,26 @@ Sin `EXPO_PUBLIC_DATA_MODE=supabase` todo sigue en el navegador (demo). Con Supa
 | --- | --- |
 | Pedidos y líneas (marcos y tarjetas), número `MF-26-1004` | Postgres `orders` / `order_items`. El número sale de la secuencia `order_number_seq` (empieza en 1001) |
 | Foto original y foto de imprenta | Bucket privado `photos`, rutas `uploads/<id>/original.jpg` y `print.jpg`. El admin las abre con URL firmada |
-| Perfil: nombre, celular, correo, direcciones | `customers` y `customer_addresses`, ligados a `auth.users` tras el código de WhatsApp. RLS: cada quien ve solo lo suyo |
+| Perfil: nombre, celular, correo, direcciones | `customers` y `customer_addresses`, ligados a `auth.users` por `auth_user_id`. El pedido web guarda `orders.user_id`. RLS: cada quien lee solo sus pedidos |
 | Stock, promos, gift cards, referidos, créditos | Tablas `inventory`, `promo_codes`, `gift_cards`, `referrals`, `credits` |
 | Reclamos y consultas de retablo | `claims`, `retablo_inquiries` |
 | Mensaje de voz | `voice_notes` + archivo en `photos/uploads/voice/<token>` |
 | Código de WhatsApp | Solo el hash en `phone_otps` (10 min, 5 intentos) y los envíos en `otp_sends` |
 | Carrito y recibo de la pestaña | Siguen en el navegador hasta pagar |
 
-El rastreo pide solo el celular, luego el código de WhatsApp, y entonces lista los pedidos. El número `MF-…` se ve en el admin y como referencia chica; no se pide para rastrear.
+En el checkout y en Mi cuenta la persona entra o crea una cuenta con correo y contraseña (mínimo 8 caracteres). «Olvidé mi contraseña» manda el enlace de Supabase. `/rastrear` no pide cuenta: con el celular (+51 y 9 dígitos) muestra solo envíos que no están entregados ni cancelados, y solo el número, el tipo (marco, muro o tarjeta), el estado y la fecha estimada. El nombre se ve como primer nombre e inicial. No salen dirección, foto, DNI/RUC ni pago. Esa consulta se limita por IP y por celular. `OTP_SIGNING_SECRET` ya no abre la sesión del cliente; puede quedar vacío. Sigue sirviendo, si está puesto, para la cookie de importación de fotos.
 
 ### Checklist de Supabase
 
 1. Crea un proyecto en supabase.com.
-2. Authentication → Providers: activa Email. No hace falta SMS. Site URL `https://mifotito.com` y redirect `https://mifotito.com/**`.
-3. SQL editor, en este orden (son las versiones que ya quedaron grabadas en el proyecto en vivo): `20261118182440_init.sql`, `20261118182536_customers_order_numbers_hardening.sql`, `20261118183011_cards_voice_retablo.sql`, `20261118183018_shared_backend.sql`, `20261118183109_reconcile_live_with_app.sql`, `20261118192312_voice_note_selfie.sql` (`selfie_path` y `sender_name` en `voice_notes`), `20261118192314_order_tax_id.sql` (`tax_id`, `tax_id_type` y `tax_id_skipped` en `orders`), luego `supabase/seed.sql`. No corras `supabase/seed.demo.sql` en producción.
+2. Authentication → Providers: activa Email. Confirm email puede quedar encendido: el enlace abre `https://mifotito.com/cuenta` y el sitio reconoce la sesión. Si lo apagas, la cuenta queda lista al crearla, sin esperar el correo. No hace falta SMS. Site URL `https://mifotito.com`. Redirect URLs: `https://mifotito.com/**` y `https://mifotito.com/cuenta`. En Auth, si aparece el mínimo de contraseña, ponlo en 8.
+3. SQL editor, en este orden (son las versiones que ya quedaron grabadas en el proyecto en vivo): `20261118182440_init.sql`, `20261118182536_customers_order_numbers_hardening.sql`, `20261118183011_cards_voice_retablo.sql`, `20261118183018_shared_backend.sql`, `20261118183109_reconcile_live_with_app.sql`, `20261118192312_voice_note_selfie.sql` (`selfie_path` y `sender_name` en `voice_notes`), `20261118192314_order_tax_id.sql` (`tax_id`, `tax_id_type` y `tax_id_skipped` en `orders`), luego `supabase/seed.sql`. No corras `supabase/seed.demo.sql` en producción. Falta correr, cuando Lucas lo aplique, `20261118210000_orders_user_id.sql` (`orders.user_id` y `track_lookups`). Todavía no está aplicado.
 4. Storage: el bucket privado `photos` lo crea la primera migración. No lo hagas público.
 5. Authentication → Users: crea el admin y copia su UUID a `admin_users`.
 6. WhatsApp Business queda pendiente. No hace falta crear la plantilla `mifotito_codigo` todavía. Cuando Meta la apruebe, el código de rastreo podrá salir por WhatsApp.
-7. En Netlify, Environment variables: `EXPO_PUBLIC_DATA_MODE=supabase`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL` (la misma URL), `SUPABASE_SERVICE_ROLE_KEY`, `OTP_SIGNING_SECRET`. Deja sin valor `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_OTP_TEMPLATE` y `WHATSAPP_OTP_TEMPLATE_LANG`. La service role no lleva prefijo `EXPO_PUBLIC_`.
+7. En Netlify, Environment variables: `EXPO_PUBLIC_DATA_MODE=supabase`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL` (la misma URL), `SUPABASE_SERVICE_ROLE_KEY`. `OTP_SIGNING_SECRET` puede quedar vacío: el cliente ya no lo usa. Deja sin valor `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_OTP_TEMPLATE` y `WHATSAPP_OTP_TEMPLATE_LANG`. La service role no lleva prefijo `EXPO_PUBLIC_`.
 
-Sin esas variables de WhatsApp, rastrear y Mi cuenta usan el correo del pedido o el enlace de soporte. El modo demo (sin Supabase) sigue mostrando el código en la pantalla.
+Sin esas variables de WhatsApp, el bot sigue en «próximamente». El modo demo (sin Supabase) crea la cuenta en el navegador, con la misma pantalla de correo y contraseña.
 
 ### DNS en Porkbun
 

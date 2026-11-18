@@ -22,7 +22,7 @@ export default function Regalo() {
   return (
     <Screen footer={<View style={{ padding: 16, backgroundColor: colors.bg }}><Button label={`Pagar ${formatSoles(cents || 0)}`} onPress={() => {
       if (!form.buyerPhone.trim() || !form.recipientPhone.trim()) {
-        setError("Ingresa tu celular y el de quien recibe la gift card.");
+        setError("Ingresa tu celular y el de quien recibe la tarjeta de regalo.");
         return;
       }
       if (!isEmail(form.buyerEmail)) {
@@ -33,7 +33,7 @@ export default function Regalo() {
       setPay(true);
     }} /></View>}>
       <View style={{ padding: 16, gap: 12 }}>
-        <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>Gift card</Text>
+        <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>Tarjeta de regalo</Text>
         <Text style={{ fontFamily: font.body, color: colors.muted }}>Llega por WhatsApp y, si dejas un correo, también por email. Se canjea al pagar un marco.</Text>
         <View style={{ flexDirection: "row", gap: 8 }}>
           {PRESETS.map((value) => (

@@ -84,11 +84,12 @@ export function Countdown({ target, now }: { target: Date; now: Date }) {
   );
 }
 
-export function GuaranteeNote({ guarantee }: { guarantee: Guarantee }) {
+export function GuaranteeNote({ guarantee, align }: { guarantee: Guarantee; align?: "center" }) {
+  const centered = align === "center" ? ({ textAlign: "center" as const } ) : null;
   return (
     <View style={[styles.note, { backgroundColor: guarantee.guaranteed ? "#E7F6EE" : "#FFF1DE" }]}>
-      <Text style={[styles.noteTitle, { color: guarantee.guaranteed ? colors.good : colors.warn }]}>{guarantee.headline}</Text>
-      <Text style={styles.noteBody}>{guarantee.detail}</Text>
+      <Text style={[styles.noteTitle, centered, { color: guarantee.guaranteed ? colors.good : colors.warn }]}>{guarantee.headline}</Text>
+      <Text style={[styles.noteBody, centered]}>{guarantee.detail}</Text>
     </View>
   );
 }
@@ -197,9 +198,9 @@ export function PaySheet({
   onReject: () => void;
 }) {
   const copy = {
-    card: { title: "Mercado Pago sandbox", body: "Simula una tarjeta aprobada. En vivo esto abre el checkout de Mercado Pago." },
-    yape: { title: "Yape sandbox", body: "Simula el pago con Yape. En vivo se cobra por el proveedor configurado." },
-    plin: { title: "Plin sandbox", body: "Simula la confirmación de Plin. En vivo mostramos el número de la tienda." },
+    card: { title: "Mercado Pago de prueba", body: "Simula una tarjeta aprobada. En vivo esto abre el pago de Mercado Pago." },
+    yape: { title: "Yape de prueba", body: "Simula el pago con Yape. En vivo se cobra por el proveedor configurado." },
+    plin: { title: "Plin de prueba", body: "Simula la confirmación de Plin. En vivo mostramos el número de la tienda." },
   }[method];
   return (
     <View style={styles.sheet}>

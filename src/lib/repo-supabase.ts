@@ -1,10 +1,13 @@
 import { defaultCampaign, type Campaign } from "./campaign";
 import { createLocalRepo } from "./repo-local";
 import { getSupabase } from "./supabase";
+import { frames as catalogFrames } from "./catalog";
+import { stockChecksEnabled } from "./env";
 import { mapFrameRow, mapGiftRow, mapInventoryRow, mapOrderRow, mapProfile, mapPromoRow } from "./db-map";
+import { frameLowStock, framesWhenStockUnknown } from "./inventory";
 import { uploadOrderPhotos } from "./photo-upload";
-import { readPhoneSession } from "./phone-session";
-import type { CheckoutInput, CustomerProfile, OrderStatus } from "./types";
+import { isOpenShipment, type PublicShipment } from "./tracking";
+import type { CheckoutInput, CustomerProfile, FrameOffer, OrderStatus } from "./types";
 
 const PATHS: Record<string, string> = {
   "otp-send": "/api/otp-send",
@@ -45,7 +48,7 @@ export function createSupabaseRepo() {
       const row = await supabase.from("admin_users").select("user_id").eq("user_id", data.user.id).maybeSingle();
       if (row.error || !row.data) {
         await supabase.auth.signOut();
-        return { ok: false as const, error: "Esta cuenta no está en admin_users." };
+        return { ok: false as const, error: "Esta cuenta no está autorizada como administrador." };
       }
       return { ok: true as const };
     },
@@ -57,13 +60,32 @@ export function createSupabaseRepo() {
       return Boolean(data.session);
     },
     async listFrames() {
-      const [{ data, error }, stock] = await Promise.all([
-        db().from("frames").select("*").order("sort"),
-        db().from("inventory").select("sku, quantity"),
-      ]);
-      if (error) throw new Error(error.message);
-      const quantities = Object.fromEntries((stock.data ?? []).map((row) => [row.sku, row.quantity]));
-      return (data ?? []).map((row) => mapFrameRow(row, quantities));
+      const hide = (rows: FrameOffer[]): FrameOffer[] =>
+        stockChecksEnabled() ? rows : rows.map((frame) => ({ ...frame, available: 99, lowStock: false, stockUncertain: false }));
+      try {
+        const json = await shop("frames", {});
+        if (Array.isArray(json.frames) && json.frames.length && !json.stockUncertain) return hide(json.frames as FrameOffer[]);
+      } catch {
+        // The shop route can be down. Fall through to a direct read, then assume stock is available.
+      }
+      try {
+        const [{ data, error }, stock] = await Promise.all([
+          db().from("frames").select("*").order("sort"),
+          db().from("inventory").select("sku, quantity, low_stock_at"),
+        ]);
+        if (error || !data?.length) return hide(framesWhenStockUnknown(catalogFrames));
+        if (stock.error || !stock.data) {
+          return hide(data.map((row) => ({ ...mapFrameRow(row, {}), available: 99, lowStock: false, stockUncertain: true })));
+        }
+        const quantities = Object.fromEntries(stock.data.map((row) => [row.sku, row.quantity]));
+        const lowAt = Object.fromEntries(stock.data.map((row) => [row.sku, row.low_stock_at ?? 5]));
+        return hide(data.map((row) => {
+          const offer = mapFrameRow(row, quantities);
+          return { ...offer, lowStock: frameLowStock(offer, quantities, lowAt), stockUncertain: false };
+        }));
+      } catch {
+        return hide(framesWhenStockUnknown(catalogFrames));
+      }
     },
     async listReviews() {
       const { data, error } = await db().from("reviews").select("*").order("sort");
@@ -161,21 +183,44 @@ export function createSupabaseRepo() {
         const photos = await uploadOrderPhotos(item.photoId);
         items.push({ ...item, photoOriginalPath: photos.original, photoPrintPath: photos.print });
       }
-      return shop("orders-create", { ...input, items });
+      const { data } = await db().auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error("Entra con tu correo y contraseña.");
+      return shop("orders-create", { ...input, items }, token);
     },
     async markPaid(orderId: string, payment: { method: string; provider: string; ref: string }) {
       return shop("orders-mark-paid", { orderId, ...payment });
     },
-    async listOrdersByPhone(_phone: string) {
-      const session = readPhoneSession();
-      if (!session) return [];
-      const json = await shop("orders-by-phone", {}, session.token);
+    async listOrdersByPhone(phone: string) {
+      const rows = await this.listPublicTracking(phone);
+      return rows.map((row: PublicShipment) => ({
+        publicToken: row.number,
+        number: row.number,
+        status: row.status,
+        createdAt: "",
+        etaLabel: row.etaLabel,
+        christmasNote: "",
+        trackingNumber: null,
+        totalCents: 0,
+        addressMasked: "",
+        recipientPhoneMasked: null,
+        itemCount: 1,
+      }));
+    },
+    async listMyOrders() {
+      const { data } = await db().auth.getSession();
+      if (!data.session) return [];
+      const json = await shop("orders-by-phone", { mine: true }, data.session.access_token);
       return json.orders ?? [];
     },
-    async getOrderByToken(token: string, phone: string) {
-      const session = readPhoneSession();
-      if (!session) return null;
-      const json = await shop("orders-by-token", { token }, session.token);
+    async listPublicTracking(phone: string) {
+      const json = await shop("orders-by-phone", { phone });
+      return (json.orders ?? []).filter((order: { status?: string }) => !order.status || isOpenShipment(order.status));
+    },
+    async getOrderByToken(token: string, _phone: string) {
+      const { data } = await db().auth.getSession();
+      if (!data.session) return null;
+      const json = await shop("orders-by-token", { token }, data.session.access_token);
       return json.order ?? null;
     },
     async setStatus(id: string, status: OrderStatus) {
@@ -209,7 +254,8 @@ export function createSupabaseRepo() {
       }));
     },
     async createClaim(input: { token: string; phone: string; note: string; photoId?: string }) {
-      return shop("claim", input, readPhoneSession()?.token);
+      const { data } = await db().auth.getSession();
+      return shop("claim", input, data.session?.access_token);
     },
     async listRetabloInquiries() {
       const { data, error } = await db().from("retablo_inquiries").select("*").order("created_at", { ascending: false });
@@ -229,15 +275,15 @@ export function createSupabaseRepo() {
       return { id, size: "", status, createdAt: new Date().toISOString() };
     },
     async getProfile() {
-      const session = readPhoneSession();
-      if (!session) return null;
-      const json = await shop("profile", { read: true }, session.token);
+      const { data } = await db().auth.getSession();
+      if (!data.session) return null;
+      const json = await shop("profile", { read: true }, data.session.access_token);
       return (json.profile ?? null) as CustomerProfile | null;
     },
     async saveProfile(profile: CustomerProfile) {
-      const session = readPhoneSession();
-      if (!session) throw new Error("Entra con el código de WhatsApp.");
-      const json = await shop("profile", { profile }, session.token);
+      const { data } = await db().auth.getSession();
+      if (!data.session) throw new Error("Entra con tu correo y contraseña.");
+      const json = await shop("profile", { profile }, data.session.access_token);
       return json.profile as CustomerProfile;
     },
     async signPhoto(path: string) {
