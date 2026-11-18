@@ -4,7 +4,7 @@ import { Linking, Platform, Pressable, Text, TextInput, View } from "react-nativ
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { PhoneVerify } from "../components/PhoneVerify";
 import { useReducedMotion } from "../components/fx";
-import { Button, Card, Field, Screen } from "../components/ui";
+import { Button, Card, Field, Screen, TabBar } from "../components/ui";
 import { colors, font } from "../components/theme";
 import { supportNumber } from "../lib/env";
 import { getRepo } from "../lib/repo";
@@ -70,7 +70,7 @@ export default function Cuenta() {
   }
 
   return (
-    <Screen>
+    <Screen footer={<TabBar />}>
       <View style={{ padding: 16, gap: 14 }}>
         {!ready ? <PhoneVerify title="Mi cuenta" onVerified={(value) => void enter(value)} /> : null}
         {ready ? (

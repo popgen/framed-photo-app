@@ -6,6 +6,7 @@ import Svg, { Path } from "react-native-svg";
 import * as Haptics from "expo-haptics";
 import { supportNumber } from "../lib/env";
 import { hostedWithoutDatabase } from "../lib/hosted";
+import { useCart } from "../lib/store";
 import { OptimizingPhoto } from "./OptimizingPhoto";
 import { colors, font } from "./theme";
 
@@ -71,39 +72,9 @@ export function Screen({
         ) : null}
         {body}
         {footer}
-        {path.startsWith("/admin") || path === "/cuenta" ? null : <AccountButton />}
         <OptimizingPhoto />
       </View>
     </View>
-  );
-}
-
-export function AccountButton() {
-  const insets = useSafeAreaInsets();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Mi cuenta"
-      onPress={() => router.push("/cuenta")}
-      style={{
-        position: "absolute",
-        right: 16,
-        bottom: Math.max(insets.bottom, 10) + 132,
-        zIndex: 6,
-        minHeight: 44,
-        paddingHorizontal: 14,
-        borderRadius: 999,
-        backgroundColor: colors.ink,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 8,
-      }}
-    >
-      <Svg width={18} height={18} viewBox="0 0 24 24">
-        <Path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm-7 8a7 7 0 0 1 14 0" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
-      </Svg>
-      <Text style={{ color: "white", fontFamily: font.bold, fontSize: 14 }}>Mi cuenta</Text>
-    </Pressable>
   );
 }
 
@@ -183,22 +154,37 @@ export function Progress({ step }: { step: 1 | 2 | 3 }) {
 export function TabBar() {
   const path = usePathname();
   const insets = useSafeAreaInsets();
+  const count = useCart((state) => state.items.length);
   const tabs = [
     { href: "/", label: "Inicio", icon: "M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z" },
     { href: "/crear", label: "Crear", icon: "M5 4h10l4 4v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zm9 1.5V9h3.5" },
     { href: "/muro", label: "Muro", icon: "M3 5h7v7H3zm11 0h7v7h-7zM3 16h7v5H3zm11 0h7v5h-7z" },
-    { href: "/carrito", label: "Carrito", icon: "M6 7h15l-1.5 9h-12zM6 7 5 4H2m6 16a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm8 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2z" },
+    { href: "/carrito", label: "Carrito", icon: "M6 7h15l-1.5 9h-12zM6 7 5 4H2m6 16a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm8 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2z", badge: count },
+    { href: "/cuenta", label: "Mi cuenta", icon: "M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm-7 8a7 7 0 0 1 14 0" },
   ];
   return (
     <View style={[styles.tabs, { paddingBottom: Math.max(insets.bottom, 10) }]}>
       {tabs.map((tab) => {
-        const on = path === tab.href;
+        const on = tab.href === "/" ? path === "/" : path === tab.href || path.startsWith(`${tab.href}/`);
         return (
-          <Pressable key={tab.href} accessibilityRole="button" accessibilityLabel={tab.label} onPress={() => router.push(tab.href as "/")} style={styles.tab}>
-            <Svg width={22} height={22} viewBox="0 0 24 24">
-              <Path d={tab.icon} stroke={on ? colors.red : colors.muted} strokeWidth={1.8} fill="none" strokeLinejoin="round" strokeLinecap="round" />
-            </Svg>
-            <Text style={[styles.tabLabel, on && { color: colors.red }]}>{tab.label}</Text>
+          <Pressable
+            key={tab.href}
+            accessibilityRole="button"
+            accessibilityLabel={tab.label}
+            onPress={() => router.push(tab.href as "/")}
+            style={({ pressed }) => [styles.tab, pressed && { transform: [{ scale: 0.96 }] }]}
+          >
+            <View>
+              <Svg width={20} height={20} viewBox="0 0 24 24">
+                <Path d={tab.icon} stroke={on ? colors.red : colors.muted} strokeWidth={1.8} fill="none" strokeLinejoin="round" strokeLinecap="round" />
+              </Svg>
+              {tab.badge ? (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{tab.badge > 9 ? "9+" : String(tab.badge)}</Text>
+                </View>
+              ) : null}
+            </View>
+            <Text numberOfLines={1} style={[styles.tabLabel, on && { color: colors.red }]}>{tab.label}</Text>
           </Pressable>
         );
       })}
@@ -265,8 +251,10 @@ const styles = StyleSheet.create({
   dotOn: { backgroundColor: colors.red },
   progressLabel: { fontFamily: font.medium, fontSize: 12, color: colors.muted },
   tabs: { flexDirection: "row", borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: "rgba(255,252,249,0.96)", paddingTop: 8 },
-  tab: { flex: 1, alignItems: "center", gap: 2, minHeight: 48 },
-  tabLabel: { fontFamily: font.medium, fontSize: 11, color: colors.muted },
+  tab: { flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center", gap: 1, minHeight: 48, paddingHorizontal: 1 },
+  tabLabel: { fontFamily: font.medium, fontSize: 10, lineHeight: 12, color: colors.muted, textAlign: "center" },
+  badge: { position: "absolute", top: -4, right: -8, minWidth: 14, height: 14, borderRadius: 7, backgroundColor: colors.red, alignItems: "center", justifyContent: "center", paddingHorizontal: 2 },
+  badgeText: { color: "white", fontFamily: font.bold, fontSize: 8, lineHeight: 10 },
   wa: { position: "absolute", right: 16, bottom: 86, backgroundColor: "#1FA855", borderRadius: 999, paddingHorizontal: 14, paddingVertical: 10, zIndex: 5 },
   waText: { color: "white", fontFamily: font.bold, fontSize: 13 },
   banner: { borderRadius: 16, padding: 12 },
