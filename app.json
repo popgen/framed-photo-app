@@ -1,19 +1,19 @@
 {
   "expo": {
-    "name": "Recuerdo",
-    "slug": "recuerdo",
+    "name": "Mi Fotito",
+    "slug": "mi-fotito",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "recuerdo",
+    "scheme": "mifotito",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "pe.recuerdo.app"
+      "bundleIdentifier": "pe.mifotito.app"
     },
     "android": {
-      "package": "pe.recuerdo.app",
+      "package": "pe.mifotito.app",
       "adaptiveIcon": {
         "backgroundColor": "#F6EFE6",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -32,7 +32,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Recuerdo usa tus fotos para imprimirlas dentro del marco."
+          "photosPermission": "Mi Fotito usa tus fotos para imprimirlas dentro del marco."
         }
       ],
       "expo-status-bar",
@@ -43,7 +43,7 @@
       "typedRoutes": false
     },
     "extra": {
-      "brand": "Recuerdo"
+      "brand": "Mi Fotito"
     }
   }
 }

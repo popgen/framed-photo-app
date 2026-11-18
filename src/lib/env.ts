@@ -24,7 +24,7 @@ export function supportNumber(): string {
 
 export function demoAdmin(): { email: string; password: string } {
   return {
-    email: process.env.EXPO_PUBLIC_DEMO_ADMIN_EMAIL || "admin@recuerdo.pe",
+    email: process.env.EXPO_PUBLIC_DEMO_ADMIN_EMAIL || "admin@mifotito.pe",
     password: process.env.EXPO_PUBLIC_DEMO_ADMIN_PASSWORD || "recuerdo-demo",
   };
 }

@@ -20,12 +20,12 @@ export default function RootLayout() {
     Outfit_700Bold,
   });
   useEffect(() => {
-    if (Platform.OS === "web") document.title = "Recuerdo — marcos impresos en Perú";
+    if (Platform.OS === "web") document.title = "Mi Fotito — marcos impresos en Perú";
   }, []);
   if (!loaded && !error) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" }}>
-        <Text style={{ fontSize: 28, color: colors.ink }}>Recuerdo</Text>
+        <Text style={{ fontSize: 28, color: colors.ink }}>Mi Fotito</Text>
       </View>
     );
   }

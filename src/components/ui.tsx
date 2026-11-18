@@ -175,7 +175,7 @@ export function WhatsAppButton() {
       accessibilityRole="button"
       accessibilityLabel="Escribir por WhatsApp"
       onPress={() => {
-        const url = `https://wa.me/${phone}?text=${encodeURIComponent("Hola Recuerdo, quiero armar un marco.")}`;
+        const url = `https://wa.me/${phone}?text=${encodeURIComponent("Hola Mi Fotito, quiero armar un marco.")}`;
         if (typeof window !== "undefined") window.open(url, "_blank");
       }}
       style={styles.wa}

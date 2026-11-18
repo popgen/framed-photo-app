@@ -7,7 +7,7 @@ function firstName(name: string): string {
 }
 
 export function paidMessage(order: Pick<Order, "number" | "customerName" | "totalCents" | "christmasNote" | "publicToken">): string {
-  return `Hola ${firstName(order.customerName)}, recibimos tu pedido ${order.number} en Recuerdo (${formatSoles(order.totalCents)}). ${order.christmasNote} Sigue el estado: ${siteUrl()}/pedido/${order.publicToken}`;
+  return `Hola ${firstName(order.customerName)}, recibimos tu pedido ${order.number} en Mi Fotito (${formatSoles(order.totalCents)}). ${order.christmasNote} Sigue el estado: ${siteUrl()}/pedido/${order.publicToken}`;
 }
 
 export function statusMessage(order: Pick<Order, "number" | "customerName" | "publicToken" | "trackingNumber">, status: OrderStatus): string {
@@ -31,7 +31,7 @@ export function referralMessage(name: string, code: string): string {
 
 export function giftCardMessage(card: { code: string; initialCents: number; recipientName: string; message?: string | null }): string {
   const note = card.message?.trim() ? ` Mensaje: ${card.message.trim()}` : "";
-  return `Hola ${firstName(card.recipientName)}, te regalaron ${formatSoles(card.initialCents)} en Recuerdo. Tu código es ${card.code}.${note} Úsalo al pagar en ${siteUrl()}`;
+  return `Hola ${firstName(card.recipientName)}, te regalaron ${formatSoles(card.initialCents)} en Mi Fotito. Tu código es ${card.code}.${note} Úsalo al pagar en ${siteUrl()}`;
 }
 
 export function replacementMessage(order: Pick<Order, "number" | "customerName" | "publicToken">): string {

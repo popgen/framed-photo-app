@@ -15,7 +15,7 @@ export default async function handler(req, res) {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        items: [{ title: description || "Marco Recuerdo", quantity: 1, currency_id: "PEN", unit_price: (amountCents || 0) / 100 }],
+        items: [{ title: description || "Marco Mi Fotito", quantity: 1, currency_id: "PEN", unit_price: (amountCents || 0) / 100 }],
         payer: { name: payer?.name, email: payer?.email },
         external_reference: orderId,
         metadata: { method },

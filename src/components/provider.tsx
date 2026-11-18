@@ -49,7 +49,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   if (error) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center", padding: 24 }}>
-        <Text style={{ fontFamily: font.display, fontSize: 28, color: colors.ink, textAlign: "center" }}>No pudimos abrir Recuerdo</Text>
+        <Text style={{ fontFamily: font.display, fontSize: 28, color: colors.ink, textAlign: "center" }}>No pudimos abrir Mi Fotito</Text>
         <Text style={{ fontFamily: font.body, color: colors.muted, marginTop: 8, textAlign: "center" }}>{error}</Text>
       </View>
     );
@@ -57,7 +57,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   if (!ready) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" }}>
-        <Text style={{ fontFamily: font.display, fontSize: 28, color: colors.ink }}>Recuerdo</Text>
+        <Text style={{ fontFamily: font.display, fontSize: 28, color: colors.ink }}>Mi Fotito</Text>
         <Text style={{ fontFamily: font.body, color: colors.muted, marginTop: 6 }}>Preparando tus marcos…</Text>
       </View>
     );

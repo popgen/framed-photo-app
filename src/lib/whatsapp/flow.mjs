@@ -202,7 +202,7 @@ function human(session, origin, supportNumber) {
     replies: [
       {
         kind: "text",
-        body: `Te paso con el equipo de Recuerdo${supportNumber ? ` por el ${supportNumber}` : ""}.${link} Si quieres seguir por aquí, mándame otra foto.`,
+        body: `Te paso con el equipo de Mi Fotito${supportNumber ? ` por el ${supportNumber}` : ""}.${link} Si quieres seguir por aquí, mándame otra foto.`,
       },
     ],
   };

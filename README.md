@@ -1,4 +1,4 @@
-# Recuerdo
+# Mi Fotito
 
 Tienda web para imprimir una foto y recibirla enmarcada en Perú. El cliente elige la foto, la ve dentro del marco, paga en soles y se la llevan a la casa. La interfaz está en español (Perú). La misma base de Expo sirve para web hoy y para iOS/Android después.
 
@@ -24,7 +24,7 @@ npm run web
 
 Abre http://localhost:8081. Sin variables, los datos viven en el navegador (semilla incluida). Admin de la demo:
 
-- correo `admin@recuerdo.pe`
+- correo `admin@mifotito.pe`
 - contraseña `recuerdo-demo`
 
 Códigos de prueba: `NAVIDAD10` (10%), `MARCO20` (S/ 20), gift card `HOLANAVIDAD` (S/ 50), referido `AMIGO1500`. El pedido de ejemplo está en `/pedido/demo-lima` con el celular `987 654 321`.

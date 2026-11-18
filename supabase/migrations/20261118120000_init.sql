@@ -1,4 +1,4 @@
--- Recuerdo schema. Pricing rules live in src/lib/pricing.ts (20% on the second frame,
+-- Mi Fotito schema. Pricing rules live in src/lib/pricing.ts (20% on the second frame,
 -- 15% from the third, gift wrap S/ 10, referral S/ 15). Keep this file in step with that module.
 
 create extension if not exists pgcrypto;
