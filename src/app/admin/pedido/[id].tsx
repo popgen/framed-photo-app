@@ -62,7 +62,7 @@ export default function AdminOrder() {
           {item.textOverlay?.text ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Texto: {item.textOverlay.text}</Text> : null}
           {item.card?.frontMessage?.text ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Portada: {item.card.frontMessage.text}</Text> : null}
           {item.card?.insideMessage?.text ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Interior: {item.card.insideMessage.text}</Text> : null}
-          {item.card?.sizeId === "5x7" ? <Text style={{ fontFamily: font.semibold, color: colors.bad }}>requires large card stock / print shop</Text> : null}
+          {item.card?.sizeId === "5x7" ? <Text style={{ fontFamily: font.semibold, color: colors.bad }}>Se imprime en un taller, con cartulina grande.</Text> : null}
           {item.voice ? (
             <View style={{ gap: 6 }}>
               <Text style={{ fontFamily: font.body, color: colors.ink }}>Voz {item.voice.seconds}s</Text>

@@ -104,7 +104,7 @@ export default function Home() {
         </Pressable>
         <Pressable onPress={() => router.push("/regalo")}>
           <Card>
-            <Text style={section}>Gift card</Text>
+            <Text style={section}>Tarjeta de regalo</Text>
             <P style={centered}>Regala soles para un marco. Llega por WhatsApp.</P>
           </Card>
         </Pressable>

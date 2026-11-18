@@ -279,7 +279,7 @@ export default function Checkout() {
         </Pressable>
         <Field label="Código promo" autoCapitalize="characters" value={form.promoCode} onChangeText={(promoCode) => setForm({ ...form, promoCode })} />
         <Field label="Código de amigo" autoCapitalize="characters" value={form.referralCode} onChangeText={(referralCode) => setForm({ ...form, referralCode })} />
-        <Field label="Gift card" autoCapitalize="characters" value={form.giftCardCode} onChangeText={(giftCardCode) => setForm({ ...form, giftCardCode })} />
+        <Field label="Tarjeta de regalo" autoCapitalize="characters" value={form.giftCardCode} onChangeText={(giftCardCode) => setForm({ ...form, giftCardCode })} />
         {credit > 0 ? (
           <Pressable onPress={() => setForm({ ...form, useCredit: !form.useCredit })} style={{ minHeight: 44, justifyContent: "center" }}>
             <Text style={{ fontFamily: font.medium, color: colors.ink }}>{form.useCredit ? "☑" : "☐"} Usar mi saldo {formatSoles(credit)}</Text>

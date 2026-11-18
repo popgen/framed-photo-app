@@ -45,7 +45,7 @@
     },
     {
       "id": "5x7",
-      "name": "5×7 in",
+      "name": "5×7 pulgadas",
       "panelWmm": 127,
       "panelHmm": 177.8,
       "flatWmm": 381,
@@ -54,7 +54,7 @@
       "envelopeWmm": 133.35,
       "envelopeHmm": 184.15,
       "printShop": true,
-      "shopFlag": "requires large card stock / print shop",
+      "shopFlag": "Se imprime en un taller, con cartulina grande.",
       "default": false
     }
   ]

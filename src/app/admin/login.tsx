@@ -14,7 +14,7 @@ export default function AdminLogin() {
   return (
     <View style={{ padding: 16, gap: 12 }}>
       <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>Equipo Mi Fotito</Text>
-      <Text style={{ fontFamily: font.body, color: colors.muted }}>{demo ? `En la demo local entra con ${demo.email}.` : "Entra con tu usuario de Supabase. Tiene que estar en admin_users."}</Text>
+      <Text style={{ fontFamily: font.body, color: colors.muted }}>{demo ? `En la demo local entra con ${demo.email}.` : "Entra con tu usuario de Supabase. Tiene que estar autorizado como administrador."}</Text>
       <Field label="Correo" autoCapitalize="none" value={email} onChangeText={setEmail} />
       <Field label="Contraseña" secureTextEntry value={password} onChangeText={setPassword} />
       {error ? <Banner tone="bad" text={error} /> : null}

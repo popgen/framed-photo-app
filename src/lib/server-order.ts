@@ -48,7 +48,7 @@ export function evaluateOrder(input: CheckoutInput, ctx: { promos: Promo[]; stoc
   let giftCardError: string | null = null;
   let giftCardBalance: number | null = null;
   if (giftCode) {
-    if (!gift || gift.status !== "active" || gift.balanceCents <= 0) giftCardError = "Esa gift card no tiene saldo.";
+    if (!gift || gift.status !== "active" || gift.balanceCents <= 0) giftCardError = "Esa tarjeta de regalo no tiene saldo.";
     else giftCardBalance = gift.balanceCents;
   }
   const priced = quote({

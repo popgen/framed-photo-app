@@ -16,13 +16,13 @@ export default function Pago() {
     if (params.error || typeof document === "undefined") return;
     const raw = window.sessionStorage.getItem("mifotito-izipay");
     if (!raw) {
-      setMessage("El pago expiró. Vuelve al checkout e inténtalo otra vez.");
+      setMessage("El pago expiró. Vuelve al pago e inténtalo otra vez.");
       return;
     }
     const saved = JSON.parse(raw) as { formToken?: string; publicKey?: string };
     const node = host.current as unknown as HTMLElement | null;
     if (!saved.formToken || !saved.publicKey || !node) {
-      setMessage("El pago expiró. Vuelve al checkout e inténtalo otra vez.");
+      setMessage("El pago expiró. Vuelve al pago e inténtalo otra vez.");
       return;
     }
     const link = document.createElement("link");
@@ -53,7 +53,7 @@ export default function Pago() {
         <Text style={{ fontFamily: font.body, color: colors.muted, lineHeight: 22 }}>Tarjeta o Yape, en la pasarela de Izipay.</Text>
         {message ? <Text style={{ fontFamily: font.medium, color: colors.bad }}>{message}</Text> : null}
         <View ref={host} />
-        {message ? <Button label="Volver al checkout" onPress={() => router.replace("/checkout")} /> : null}
+        {message ? <Button label="Volver al pago" onPress={() => router.replace("/checkout")} /> : null}
       </View>
     </Screen>
   );

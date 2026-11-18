@@ -12,7 +12,7 @@ import { resolveTaxId } from "../src/lib/tax-id.ts";
 
 export default async function handler(req, res) {
   if (req.method !== "POST" && req.method !== "GET") {
-    res.status(405).json({ error: "method" });
+    res.status(405).json({ error: "Método no permitido." });
     return;
   }
   const op = req.query.op || req.body?.op;
@@ -30,7 +30,7 @@ export default async function handler(req, res) {
     if (op === "customers-list") return await customers(req, res);
     if (op === "gift-card") return await giftCard(req, res);
     if (op === "claim") return await claim(req, res);
-    res.status(404).json({ error: "op" });
+    res.status(404).json({ error: "No encontramos esa acción." });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "No pudimos completar eso." });

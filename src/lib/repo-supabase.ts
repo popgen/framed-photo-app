@@ -45,7 +45,7 @@ export function createSupabaseRepo() {
       const row = await supabase.from("admin_users").select("user_id").eq("user_id", data.user.id).maybeSingle();
       if (row.error || !row.data) {
         await supabase.auth.signOut();
-        return { ok: false as const, error: "Esta cuenta no está en admin_users." };
+        return { ok: false as const, error: "Esta cuenta no está autorizada como administrador." };
       }
       return { ok: true as const };
     },

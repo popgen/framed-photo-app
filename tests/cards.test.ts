@@ -44,7 +44,7 @@ describe("christmas cards", () => {
     const large = cardSizeById("5x7");
     expect(large.flatWmm).toBe(381);
     expect(large.flatHmm).toBe(177.8);
-    expect(large.shopFlag).toBe("requires large card stock / print shop");
+    expect(large.shopFlag).toBe("Se imprime en un taller, con cartulina grande.");
     expect(sheetBox(a6, true).pageWmm).toBe(315 + 14);
   });
 

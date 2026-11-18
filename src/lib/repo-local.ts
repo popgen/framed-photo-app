@@ -271,7 +271,7 @@ function priceInput(state: DB, input: CheckoutInput, phone: string | null) {
   const giftCodeValue = input.giftCardCode?.trim() || "";
   if (giftCodeValue) {
     const card = state.giftCards.find((item) => item.code.toUpperCase() === giftCodeValue.toUpperCase());
-    if (!card || card.status !== "active" || card.balanceCents <= 0) giftCardError = "Esa gift card no tiene saldo.";
+    if (!card || card.status !== "active" || card.balanceCents <= 0) giftCardError = "Esa tarjeta de regalo no tiene saldo.";
     else giftCardBalance = card.balanceCents;
   }
   const priced = quote({
@@ -564,7 +564,7 @@ export function createLocalRepo() {
       const buyer = normalizePhone(input.buyerPhone);
       const recipient = normalizePhone(input.recipientPhone);
       if (!buyer || !recipient) throw new AppError("Revisa los celulares. Deben ser números peruanos.");
-      if (input.amountCents < 3000 || input.amountCents > 50000) throw new AppError("La gift card va de S/ 30 a S/ 500.");
+      if (input.amountCents < 3000 || input.amountCents > 50000) throw new AppError("La tarjeta de regalo va de S/ 30 a S/ 500.");
       const card: GiftCard = {
         code: giftCode(),
         initialCents: input.amountCents,

@@ -15,7 +15,7 @@ export default function Inventario() {
       {(data ?? []).map((item) => (
         <View key={item.sku} style={{ backgroundColor: item.quantity <= item.lowStockAt ? "#FFF1DE" : colors.white, borderRadius: 16, padding: 12, gap: 6 }}>
           <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{item.name}</Text>
-          <Text style={{ fontFamily: font.body, color: colors.muted }}>{item.quantity <= item.lowStockAt ? "Stock bajo" : "OK"} · {item.sku}</Text>
+          <Text style={{ fontFamily: font.body, color: colors.muted }}>{item.quantity <= item.lowStockAt ? "Stock bajo" : "En orden"} · {item.sku}</Text>
           <TextInput
             defaultValue={String(item.quantity)}
             keyboardType="numeric"

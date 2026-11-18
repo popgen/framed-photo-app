@@ -19,6 +19,7 @@ export function VoiceRecorder({ value, onChange }: { value: VoiceNote | null; on
   const [name, setName] = useState(value?.senderName ?? "");
   const [selfieUrl, setSelfieUrl] = useState<string | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
   const selfieRef = useRef<{ id: string; path: string | null } | null>(value?.selfieId ? { id: value.selfieId, path: value.selfiePath ?? null } : null);
   const chunks = useRef<Blob[]>([]);
   const secondsRef = useRef(0);
@@ -134,10 +135,17 @@ export function VoiceRecorder({ value, onChange }: { value: VoiceNote | null; on
         </Animated.View>
         <Text style={{ fontFamily: font.displaySoft, fontSize: 28, color: colors.ink }}>{seconds}s</Text>
       </View>
+      {Platform.OS === "web" ? (
+        <Pressable onPress={() => fileRef.current?.click()} style={{ minHeight: 44, justifyContent: "center" }}>
+          <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Subir un audio</Text>
+        </Pressable>
+      ) : null}
       {Platform.OS === "web"
         ? createElement("input", {
+            ref: (node: HTMLInputElement) => { fileRef.current = node; },
             type: "file",
             accept: "audio/mpeg,audio/mp4,audio/wav,audio/webm,audio/x-m4a,.mp3,.m4a,.wav,.webm",
+            style: { display: "none" },
             onChange: (event: Event) => {
               const file = (event.target as HTMLInputElement).files?.[0];
               if (file) void onFile(file);

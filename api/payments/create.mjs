@@ -2,7 +2,7 @@ import { IZIPAY_CREATE_URL, createPaymentBody, izipayAuthHeader, izipayReady, re
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    res.status(405).json({ error: "method" });
+    res.status(405).json({ error: "Método no permitido." });
     return;
   }
   const { orderId, amountCents, method, description, payer } = req.body ?? {};
@@ -66,5 +66,5 @@ export default async function handler(req, res) {
     });
     return;
   }
-  res.status(501).json({ error: "Configura MERCADOPAGO_ACCESS_TOKEN o deja PAYMENTS_MODE=mock." });
+  res.status(501).json({ error: "El pago en vivo no está configurado. Escríbenos por WhatsApp." });
 }

@@ -27,8 +27,8 @@ export async function buildCardPdf(card: CardSnapshot, fonts: FontBytes, images:
   doc.setTitle(`Tarjeta ${size.name}`);
   doc.setSubject(
     size.printShop
-      ? "requires large card stock / print shop"
-      : `Card stock ${size.flatWmm}×${size.flatHmm} mm, sobre ${size.envelopeName}`,
+      ? "Se imprime en un taller, con cartulina grande."
+      : `Cartulina ${size.flatWmm}×${size.flatHmm} mm, sobre ${size.envelopeName}`,
   );
   const embedded = new Map<string, PDFFont>();
   for (const [id, bytes] of Object.entries(fonts)) {
