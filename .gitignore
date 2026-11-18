@@ -45,3 +45,11 @@ yarn-error.*
 .vercel
 coverage/
 data/runtime/
+
+# Android TWA shell (android-twa/). The generated /android from `expo prebuild`
+# is ignored above; this folder is hand-written and IS committed.
+android-twa/build/
+android-twa/app/build/
+android-twa/.gradle/
+android-twa/local.properties
+android-twa/play-assets/screenshots/

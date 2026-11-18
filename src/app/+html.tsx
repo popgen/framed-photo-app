@@ -1,6 +1,12 @@
 import { ScrollViewStyleReset } from "expo-router/html";
 import { type PropsWithChildren } from "react";
 
+// NOTE: Expo only uses this file when `web.output` is "static" or "server".
+// app.json sets "single", so the production export ignores it and Expo writes its
+// own default template. The real <head> for the deployed site is injected by
+// scripts/finish-web-build.mjs. Keep the two in sync, or move to "static" output
+// and delete the script.
+
 export default function Root({ children }: PropsWithChildren) {
   return (
     <html lang="es">

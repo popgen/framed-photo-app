@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /v/
+Disallow: /w/
+Disallow: /pedido/
+Disallow: /confirmacion/
+
+Sitemap: https://mifotito.com/sitemap.xml

@@ -1,0 +1,113 @@
+plugins {
+  id 'com.android.application'
+}
+
+// Everything that changes between builds lives here, so a release is one edit.
+def twaHost = "mifotito.com"
+def twaStartUrl = "https://${twaHost}/"
+
+android {
+  namespace 'pe.mifotito.app'
+  compileSdk 36
+
+  defaultConfig {
+    applicationId "pe.mifotito.app"
+    minSdk 24
+    targetSdk 36
+    versionCode 1
+    versionName "1.0.0"
+
+    resValue "string", "twa_start_url", twaStartUrl
+    resValue "string", "twa_host", twaHost
+    // Android string resources need their quotes backslash-escaped, so this is built
+    // here rather than in strings.xml: one edit to twaHost above updates everything.
+    resValue "string", "asset_statements",
+        "[{ \\\"relation\\\": [\\\"delegate_permission/common.handle_all_urls\\\"], " +
+        "\\\"target\\\": { \\\"namespace\\\": \\\"web\\\", \\\"site\\\": \\\"https://${twaHost}\\\" } }]"
+  }
+
+  signingConfigs {
+    release {
+      // Supply these via ~/.gradle/gradle.properties or -P flags. See PLAY_STORE.md.
+      // Unset keeps `assembleRelease` working as an unsigned build.
+      if (project.hasProperty("MIFOTITO_STORE_FILE")) {
+        storeFile file(project.property("MIFOTITO_STORE_FILE"))
+        storePassword project.property("MIFOTITO_STORE_PASSWORD")
+        keyAlias project.property("MIFOTITO_KEY_ALIAS")
+        keyPassword project.property("MIFOTITO_KEY_PASSWORD")
+      }
+    }
+  }
+
+  buildTypes {
+    debug {
+      applicationIdSuffix ".debug"
+      versionNameSuffix "-debug"
+    }
+    release {
+      minifyEnabled true
+      shrinkResources true
+      proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+      if (project.hasProperty("MIFOTITO_STORE_FILE")) {
+        signingConfig signingConfigs.release
+      }
+    }
+  }
+
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+
+  buildFeatures {
+    buildConfig true
+  }
+}
+
+dependencies {
+  implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.7.4'
+  implementation 'androidx.core:core-splashscreen:1.2.0'
+}
+
+/**
+ * Prints the assetlinks.json the website has to serve for this build's signing key.
+ *
+ *   ./gradlew :app:assetLinks                      (your local release key)
+ *   ./gradlew :app:assetLinks -Pfingerprint=AB:CD… (the key Play App Signing shows)
+ *
+ * Paste the output into public/.well-known/assetlinks.json and redeploy the site.
+ */
+tasks.register("assetLinks") {
+  description = "Prints the assetlinks.json entry for this app."
+  group = "mi fotito"
+  doLast {
+    def fingerprint = project.findProperty("fingerprint")
+    if (!fingerprint && project.hasProperty("MIFOTITO_STORE_FILE")) {
+      def out = new ByteArrayOutputStream()
+      exec {
+        commandLine "keytool", "-list", "-v",
+            "-keystore", project.property("MIFOTITO_STORE_FILE").toString(),
+            "-alias", project.property("MIFOTITO_KEY_ALIAS").toString(),
+            "-storepass", project.property("MIFOTITO_STORE_PASSWORD").toString()
+        standardOutput = out
+      }
+      def match = (out.toString() =~ /SHA256:\s*([0-9A-Fa-f:]{95})/)
+      if (match) {
+        fingerprint = match[0][1]
+      }
+    }
+    if (!fingerprint) {
+      println "No fingerprint. Pass -Pfingerprint=... (Play Console > Setup > App signing)"
+      println "or set MIFOTITO_STORE_FILE / _KEY_ALIAS / _STORE_PASSWORD to read it from your keystore."
+      return
+    }
+    println groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson([[
+      relation: ["delegate_permission/common.handle_all_urls"],
+      target  : [
+        namespace               : "android_app",
+        package_name            : android.defaultConfig.applicationId,
+        sha256_cert_fingerprints: [fingerprint.toString().toUpperCase()],
+      ],
+    ]]))
+  }
+}
