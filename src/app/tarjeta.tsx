@@ -6,9 +6,10 @@ import { TextStyleEditor } from "../components/TextStyleEditor";
 import { useReducedMotion } from "../components/fx";
 import { Button, Card, Screen, TabBar } from "../components/ui";
 import { colors, font } from "../components/theme";
-import { cardGreetings, cardSizes, cardTemplates, defaultCardSize, messageLimits, priceCards, type CardSnapshot } from "../lib/cards";
+import { cardCatalog, cardGreetings, cardSizes, cardTemplates, defaultCardSize, messageLimits, priceCards, type CardPhotos, type CardSnapshot } from "../lib/cards";
 import { formatSoles } from "../lib/money";
 import { uid } from "../lib/ids";
+import { pickAndSavePhotos, samplePhoto } from "../lib/photos";
 import { useCart } from "../lib/store";
 import type { TextOverlay } from "../lib/overlay";
 
@@ -26,10 +27,17 @@ export default function Tarjeta() {
   const [bleed, setBleed] = useState(false);
   const [frontMessage, setFrontMessage] = useState<TextOverlay | null>(null);
   const [insideMessage, setInsideMessage] = useState<TextOverlay | null>(null);
+  const [photos, setPhotos] = useState<CardPhotos>({});
   const size = cardSizes.find((item) => item.id === sizeId) ?? defaultCardSize();
   const template = cardTemplates.find((item) => item.id === templateId) ?? cardTemplates[0];
   const limits = messageLimits(size);
   const priced = priceCards(qty);
+
+  async function putPhoto(key: keyof CardPhotos, sample = false) {
+    const photo = sample ? samplePhoto() : (await pickAndSavePhotos(false))[0];
+    if (!photo) return;
+    setPhotos((current) => ({ ...current, [key]: photo.id }));
+  }
 
   function save() {
     const card: CardSnapshot = {
@@ -39,7 +47,7 @@ export default function Tarjeta() {
       templateId: template.id,
       frontMessage,
       insideMessage,
-      photos: {},
+      photos,
       bleed,
     };
     add({
@@ -89,9 +97,9 @@ export default function Tarjeta() {
         <Animated.View entering={reduced ? undefined : FadeIn.duration(400)} style={{ alignItems: "center" }}>
           <Pressable onPress={() => setOpen((value) => !value)} accessibilityLabel="Abrir la tarjeta">
             <View style={{ width: 280, height: 150, flexDirection: "row", transform: [{ rotateX: open ? "8deg" : "0deg" }] }}>
-              <Fold panel="back" color={open ? template.inside : template.outside} open={open} text={open ? "" : ""} />
-              <Fold panel="front" color={open ? template.inside : template.outside} open={open} text={open ? insideMessage?.text ?? "" : frontMessage?.text ?? ""} family={open ? insideMessage?.font : frontMessage?.font} ink={open ? insideMessage?.color : frontMessage?.color} />
-              <Fold panel="flap" color={open ? template.inside : template.outside} open={open} text="" />
+              <Fold panel="back" color={open ? template.inside : template.outside} open={open} text={photos.back ? "Foto" : ""} />
+              <Fold panel="front" color={open ? template.inside : template.outside} open={open} text={open ? insideMessage?.text ?? "" : frontMessage?.text ?? (photos.front ? "Foto" : "")} family={open ? insideMessage?.font : frontMessage?.font} ink={open ? insideMessage?.color : frontMessage?.color} />
+              <Fold panel="flap" color={open ? template.inside : template.outside} open={open} text={photos.insideCenter ? "Foto" : ""} />
             </View>
           </Pressable>
           <Text style={{ fontFamily: font.medium, color: colors.muted, marginTop: 6 }}>{open ? "Interior" : "Portada"} · toca para {open ? "cerrar" : "abrir"}</Text>
@@ -105,15 +113,30 @@ export default function Tarjeta() {
         </View>
         {panel === "Portada" ? (
           <Card>
+            <PhotoButtons label={photos.front ? "Cambiar foto de portada" : "Foto de portada"} onPick={() => void putPhoto("front")} onSample={() => void putPhoto("front", true)} />
             <TextStyleEditor label="Mensaje de portada" value={frontMessage} onChange={setFrontMessage} maxChars={limits.front} presets={cardGreetings} />
           </Card>
         ) : null}
         {panel === "Interior" ? (
           <Card>
+            <PhotoButtons label={photos.insideCenter ? "Cambiar foto interior" : "Foto interior"} onPick={() => void putPhoto("insideCenter")} onSample={() => void putPhoto("insideCenter", true)} />
             <TextStyleEditor label="Mensaje interior" value={insideMessage} onChange={setInsideMessage} maxChars={limits.inside} multiline presets={cardGreetings} />
           </Card>
         ) : null}
-        {panel === "Contraportada" ? <Text style={{ fontFamily: font.body, color: colors.muted }}>La contraportada queda para la foto. El mensaje va en la portada y en el interior.</Text> : null}
+        {panel === "Contraportada" ? (
+          <Card>
+            <PhotoButtons label={photos.back ? "Cambiar foto de contraportada" : "Foto de contraportada"} onPick={() => void putPhoto("back")} onSample={() => void putPhoto("back", true)} />
+            <Text style={{ fontFamily: font.body, color: colors.muted }}>El mensaje va en la portada y en el interior.</Text>
+          </Card>
+        ) : null}
+        <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Sobre</Text>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          {cardCatalog.envelopes.map((item) => (
+            <Pressable key={item.id} onPress={() => setEnvelope(item.id)} style={chip(envelope === item.id)}>
+              <Text style={chipText(envelope === item.id)}>{item.name}</Text>
+            </Pressable>
+          ))}
+        </View>
         <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
           <Pressable onPress={() => setQty((value) => Math.max(1, value - 1))} style={chip(false)}><Text style={chipText(false)}>−</Text></Pressable>
           <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{priced.label}</Text>
@@ -124,6 +147,15 @@ export default function Tarjeta() {
         </Pressable>
       </View>
     </Screen>
+  );
+}
+
+function PhotoButtons({ label, onPick, onSample }: { label: string; onPick: () => void; onSample: () => void }) {
+  return (
+    <View style={{ gap: 8, marginBottom: 8 }}>
+      <Button label={label} onPress={onPick} />
+      <Button label="Usar foto de ejemplo" tone="ghost" onPress={onSample} />
+    </View>
   );
 }
 
