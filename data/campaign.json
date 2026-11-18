@@ -1,0 +1,27 @@
+{
+  "id": "navidad-2026",
+  "name": "Navidad 2026",
+  "seasonalMotion": true,
+  "heroEyebrow": "Navidad 2026",
+  "heroTitle": "Regala el mejor regalo de todos: un recuerdo",
+  "heroSubtitle": "Una foto, un marco con acrílico, y llega a la puerta. En Lima o a provincias. El envío ya va en el precio.",
+  "cta": "Crear mi marco",
+  "occasionName": "Navidad",
+  "timezone": "America/Lima",
+  "cutoffs": {
+    "lima": "2026-12-18T23:59:59-05:00",
+    "provinces": "2026-12-15T23:59:59-05:00"
+  },
+  "nextOccasion": {
+    "name": "San Valentín",
+    "dateLabel": "14 de febrero",
+    "dateISO": "2027-02-14"
+  },
+  "giftWrapFeatured": true,
+  "giftWrapTitle": "Envoltorio de Navidad",
+  "giftWrapBody": "Papel verde, lazo rojo y la caja sin precios.",
+  "guaranteeYes": "Llega para Navidad",
+  "guaranteeNo": "Puede llegar después de Navidad",
+  "successTitle": "Tu recuerdo ya va en camino",
+  "successBody": "Te escribimos por WhatsApp cuando esté impreso, enmarcado y en ruta."
+}

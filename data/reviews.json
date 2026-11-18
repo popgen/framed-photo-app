@@ -1,0 +1,34 @@
+[
+  {
+    "id": "lucia",
+    "author": "Lucía",
+    "city": "Miraflores",
+    "stars": 5,
+    "quote": "Se lo regalé a mi mamá y lloró. La foto de la abuela quedó preciosa en el marco de madera.",
+    "sort": 1
+  },
+  {
+    "id": "jorge",
+    "author": "Jorge",
+    "city": "Arequipa",
+    "stars": 5,
+    "quote": "Llegó a Arequipa en cuatro días, bien embalado. El acrílico se ve nítido.",
+    "sort": 2
+  },
+  {
+    "id": "camila",
+    "author": "Camila",
+    "city": "San Borja",
+    "stars": 5,
+    "quote": "Pedí el set de tres para la sala. Parece de estudio y el precio ya incluía el envío.",
+    "sort": 3
+  },
+  {
+    "id": "diego",
+    "author": "Diego",
+    "city": "Trujillo",
+    "stars": 5,
+    "quote": "Pagué con Yape en la noche y al día siguiente ya estaba en revisión. El WhatsApp fue claro.",
+    "sort": 4
+  }
+]
