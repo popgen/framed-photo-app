@@ -26,12 +26,12 @@ export default function Home() {
   return (
     <Screen seasonal={motion ? <Ornaments kind={ornamentKind(active)} /> : null} footer={<TabBar />}>
       <View style={{ padding: 20, gap: 18 }}>
-        <View style={flagPill} accessibilityRole="text" accessibilityLabel="Mi Fotito, hecho para el Perú">
+        <View style={wordmark} accessibilityRole="header" accessibilityLabel="Mi Fotito">
           <PeruFlag />
-          <Text style={{ fontFamily: font.semibold, fontSize: 13, color: colors.ink }}>Mi Fotito</Text>
-          <Text style={{ fontFamily: font.medium, fontSize: 12, color: colors.muted }}>Hecho para el Perú</Text>
+          <Text numberOfLines={1} style={wordmarkText}>
+            Mi Fotito
+          </Text>
         </View>
-        <Text style={{ fontFamily: font.bold, color: colors.red, letterSpacing: 1.2 }}>{active.heroEyebrow.toUpperCase()}</Text>
         <H1>{active.heroTitle}</H1>
         <P>{active.heroSubtitle}</P>
         {countdownVisible(now, active) ? <Countdown target={countdownTarget(now, null, active)} now={now} /> : null}
@@ -98,7 +98,7 @@ function Tier({ title, price, body }: { title: string; price: string; body: stri
 
 function PeruFlag() {
   return (
-    <View style={{ width: 15, height: 10, flexDirection: "row", borderRadius: 1.5, overflow: "hidden" }}>
+    <View style={{ width: 22, height: 15, flexDirection: "row", borderRadius: 2, overflow: "hidden" }}>
       <View style={{ flex: 1, backgroundColor: "#D91023" }} />
       <View style={{ flex: 1, backgroundColor: "#FFFFFF" }} />
       <View style={{ flex: 1, backgroundColor: "#D91023" }} />
@@ -106,18 +106,18 @@ function PeruFlag() {
   );
 }
 
-const flagPill = {
-  alignSelf: "flex-start" as const,
-  flexDirection: "row" as const,
+const wordmark = {
+  width: "100%" as const,
   alignItems: "center" as const,
   gap: 8,
-  backgroundColor: "rgba(255,252,249,0.92)",
-  borderRadius: 999,
-  paddingVertical: 6,
-  paddingLeft: 8,
-  paddingRight: 12,
-  borderWidth: 1,
-  borderColor: colors.line,
+};
+
+const wordmarkText = {
+  fontFamily: "Pacifico_400Regular, cursive",
+  fontSize: 40,
+  lineHeight: 48,
+  color: colors.ink,
+  textAlign: "center" as const,
 };
 
 const section = { fontFamily: font.displaySoft, fontSize: 22, color: colors.ink, marginBottom: 6 };
