@@ -1,0 +1,26 @@
+{
+  "name": "Mi Fotito",
+  "short_name": "Mi Fotito",
+  "description": "Imprime tu foto y te la llevamos enmarcada a casa, en Lima y a provincias.",
+  "lang": "es-PE",
+  "dir": "ltr",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "id": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F6EFE6",
+  "theme_color": "#F6EFE6",
+  "categories": ["shopping", "photo", "lifestyle"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Crear un marco", "short_name": "Crear", "url": "/crear" },
+    { "name": "Armar un muro", "short_name": "Muro", "url": "/muro" },
+    { "name": "Rastrear mi pedido", "short_name": "Rastrear", "url": "/rastrear" }
+  ]
+}

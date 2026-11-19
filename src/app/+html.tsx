@@ -10,6 +10,13 @@ function homePage(): SeoPage {
 
 const home = homePage();
 
+// NOTE: Expo only uses this file when `web.output` is "static" or "server".
+// app.json sets "single", so the production export ignores it and Expo writes its
+// own default template. The <head> the deployed site actually serves is built by
+// scripts/publish-web.mjs from src/lib/seo.ts. This file matters only for
+// `npm run web` locally, so keep it reading from seo.ts rather than hand-editing
+// tags into it.
+
 export default function Root({ children }: PropsWithChildren) {
   return (
     <html lang="es">

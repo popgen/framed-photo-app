@@ -240,6 +240,14 @@ export function headTags(page: SeoPage, options?: { jsonLd?: boolean; spa?: bool
     `<meta data-mifotito="twitter:title" name="twitter:title" content="${title}" />`,
     `<meta data-mifotito="twitter:description" name="twitter:description" content="${description}" />`,
     `<meta name="twitter:image" content="${OG_IMAGE_URL}" />`,
+    // Makes the site installable, and gives the Play Store app (a Trusted Web
+    // Activity over this same site) its name, icon and colours. See android-twa/.
+    `<link rel="manifest" href="/manifest.webmanifest" />`,
+    `<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />`,
+    `<meta name="apple-mobile-web-app-capable" content="yes" />`,
+    `<meta name="apple-mobile-web-app-status-bar-style" content="default" />`,
+    `<meta name="apple-mobile-web-app-title" content="${SITE_NAME}" />`,
+    `<meta name="mobile-web-app-capable" content="yes" />`,
   ];
   if (options?.jsonLd) lines.push(`<script type="application/ld+json">${organizationJsonLd()}</script>`);
   const css = options?.spa === false ? BADGE_CSS : SPA_CSS;

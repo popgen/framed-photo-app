@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mirrors the web theme in src/components/theme.ts so the seam is invisible. -->
+    <color name="splashBackground">#F6EFE6</color>
+    <color name="statusBarColor">#F6EFE6</color>
+    <color name="navigationBarColor">#FFFCF9</color>
+    <color name="ink">#3B2A22</color>
+    <color name="muted">#8A7266</color>
+    <color name="red">#D1382F</color>
+    <color name="white">#FFFFFF</color>
+    <color name="iconBackground">#F6EFE6</color>
+</resources>

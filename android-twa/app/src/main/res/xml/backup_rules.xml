@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Nothing app-side is worth restoring; the cart and session live in the browser. -->
+    <exclude domain="sharedpref" path="." />
+</full-backup-content>

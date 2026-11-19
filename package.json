@@ -11,7 +11,9 @@
     "build:web": "expo export --platform web && node --experimental-strip-types scripts/publish-web.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "generate:frames": "node scripts/generate-frames.mjs"
+    "generate:frames": "node scripts/generate-frames.mjs",
+    "generate:icons": "node scripts/generate-icons.mjs",
+    "generate:legal": "node scripts/generate-legal.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/amatic-sc": "^0.4.2",

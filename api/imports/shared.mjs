@@ -4,16 +4,38 @@ export function importSecret() {
   return process.env.OTP_SIGNING_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || "mifotito-import";
 }
 
-export function siteOrigin(req) {
-  const raw = req.headers?.origin || req.headers?.referer || "";
-  if (raw) {
-    try {
-      return new URL(raw).origin;
-    } catch {
-      /* fall through */
-    }
-  }
+function configuredOrigin() {
   return (process.env.SITE_URL || process.env.EXPO_PUBLIC_SITE_URL || "https://mifotito.com").replace(/\/$/, "");
+}
+
+/**
+ * The origin we redirect back to after OAuth.
+ *
+ * Origin and Referer are set by whoever makes the request, so a bare
+ * `new URL(header).origin` turns these routes into an open redirect: a
+ * mifotito.com link that lands on someone else's page carrying our branding.
+ * Only our own hosts and Netlify deploy previews are honoured; anything else
+ * falls back to the configured site.
+ */
+export function siteOrigin(req) {
+  const fallback = configuredOrigin();
+  const raw = req.headers?.origin || req.headers?.referer || "";
+  if (!raw) return fallback;
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    return fallback;
+  }
+  if (url.protocol !== "https:" && url.hostname !== "localhost") return fallback;
+  const host = url.hostname.toLowerCase();
+  const allowed =
+    url.origin === fallback ||
+    host === "mifotito.com" ||
+    host === "www.mifotito.com" ||
+    host === "localhost" ||
+    host.endsWith(".netlify.app");
+  return allowed ? url.origin : fallback;
 }
 
 export function redirectUri(origin) {

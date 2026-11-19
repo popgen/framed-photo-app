@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The web app is light-only (userInterfaceStyle: light), so dark mode keeps the
+         same cream chrome rather than a black bar above a cream page. -->
+    <color name="splashBackground">#F6EFE6</color>
+    <color name="statusBarColor">#F6EFE6</color>
+    <color name="navigationBarColor">#FFFCF9</color>
+</resources>
