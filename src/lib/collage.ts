@@ -102,6 +102,49 @@ export function suggestTemplate(count: number): TemplateId {
   return "mosaic";
 }
 
+export function previewCount(id: TemplateId): number {
+  const template = templateById(id);
+  if (template.min === template.max) return template.min;
+  if (id === "navidad") return 4;
+  return 5;
+}
+
+export function resolveLayout(preferred: TemplateId, count: number): { id: TemplateId; notice: string | null } {
+  if (count < COLLAGE_MIN_PHOTOS || templateFits(preferred, count)) return { id: preferred, notice: null };
+  const id = suggestTemplate(count);
+  const wanted = templateById(preferred).name;
+  const used = templateById(id).name;
+  return {
+    id,
+    notice: `Con ${count} fotos, ${wanted} no entra. Las acomodamos en ${used}.`,
+  };
+}
+
+export type PhotoShape = "tall" | "wide" | "square";
+
+export function photoShape(width: number, height: number): PhotoShape {
+  if (height > width * 1.08) return "tall";
+  if (width > height * 1.08) return "wide";
+  return "square";
+}
+
+export function arrangeIndexes(
+  photos: { width: number; height: number }[],
+  cells: { wCm: number; hCm: number }[],
+): number[] {
+  const used = new Set<number>();
+  const picks: number[] = [];
+  for (const cell of cells) {
+    const want = photoShape(cell.wCm, cell.hCm);
+    let pick = photos.findIndex((photo, index) => !used.has(index) && photoShape(photo.width, photo.height) === want);
+    if (pick < 0) pick = photos.findIndex((_, index) => !used.has(index));
+    if (pick < 0) break;
+    used.add(pick);
+    picks.push(pick);
+  }
+  return picks;
+}
+
 export function backgroundHex(id: CollageBackground): string {
   return BACKGROUND_OPTIONS.find((item) => item.id === id)?.hex ?? "#FFFFFF";
 }

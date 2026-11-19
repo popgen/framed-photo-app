@@ -8,8 +8,13 @@ import {
   compositePixels,
   fitCompositeSize,
   framedPriceCents,
+  arrangeIndexes,
+  cellCentimeters,
   layoutCells,
   mergePhotoCount,
+  photoShape,
+  previewCount,
+  resolveLayout,
   panCrop,
   shuffled,
   suggestTemplate,
@@ -182,6 +187,42 @@ describe("collage order", () => {
     expect(snapshot.sources).toHaveLength(4);
     expect(snapshot.surchargeCents).toBe(0);
     expect(snapshot.sources[0].dpi).toBeGreaterThan(150);
+  });
+
+  it("adapts a layout that cannot hold the photos and keeps one that can", () => {
+    expect(previewCount("grid2")).toBe(4);
+    expect(previewCount("lado")).toBe(2);
+    expect(previewCount("mosaic")).toBe(5);
+    expect(previewCount("navidad")).toBe(4);
+    const mismatch = resolveLayout("lado", 12);
+    expect(mismatch.id).toBe("mosaic");
+    expect(mismatch.notice).toBe("Con 12 fotos, Lado a lado no entra. Las acomodamos en Mosaico.");
+    expect(resolveLayout("grid2", 4)).toEqual({ id: "grid2", notice: null });
+    expect(resolveLayout("navidad", 7).id).toBe("navidad");
+    expect(resolveLayout("hero", 1)).toEqual({ id: "hero", notice: null });
+  });
+
+  it("puts portrait photos in tall cells and landscape photos in wide cells", () => {
+    expect(photoShape(800, 1400)).toBe("tall");
+    expect(photoShape(1600, 900)).toBe("wide");
+    expect(photoShape(1000, 1000)).toBe("square");
+    const photos = [
+      { width: 1600, height: 900 },
+      { width: 900, height: 1600 },
+      { width: 800, height: 1500 },
+    ];
+    const cells = [
+      { wCm: 8, hCm: 16 },
+      { wCm: 16, hCm: 8 },
+      { wCm: 7, hCm: 14 },
+    ];
+    expect(arrangeIndexes(photos, cells)).toEqual([1, 0, 2]);
+    const grid = layoutCells({ templateId: "hero", count: 3, spacing: "none", caption: "", aspectW: 3, aspectH: 4 });
+    const placed = arrangeIndexes(photos, grid.map((cell) => cellCentimeters(cell, 15, 20, "portrait")));
+    expect(placed).toHaveLength(3);
+    expect(new Set(placed).size).toBe(3);
+    const heroTop = cellCentimeters(grid[0], 15, 20, "portrait");
+    if (photoShape(heroTop.wCm, heroTop.hCm) === "wide") expect(placed[0]).toBe(0);
   });
 
   it("blocks example photos inside a collage and caps the count at 12", () => {

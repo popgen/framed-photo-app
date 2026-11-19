@@ -116,7 +116,7 @@ export function CollageBoard({
           <Text style={{ fontFamily: font.displaySoft, fontSize: Math.max(13, height * 0.038), color: captionColor(background), textAlign: "center" }}>{caption}</Text>
         </View>
       ) : null}
-      {cells.map((cell, index) => (
+      {cells.map((cell, index) => slots[index]?.photoId ? (
         <ReorderHandle
           key={`ordenar-${slots[index]?.photoId ?? index}`}
           index={index}
@@ -136,7 +136,7 @@ export function CollageBoard({
           }}
           onUp={finishDrag}
         />
-      ))}
+      ) : null)}
     </View>
   );
 }
@@ -282,7 +282,7 @@ function Cell({
         />
       ) : (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{index + 1}</Text>
+          <Text style={{ fontFamily: font.semibold, color: colors.ink, textAlign: "center" }}>Foto {index + 1}</Text>
         </View>
       )}
       <Text testID={`orden-${index}`} style={{ position: "absolute", width: 1, height: 1, opacity: 0 }}>{slot?.photoId ?? ""}</Text>
