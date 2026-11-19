@@ -18,6 +18,24 @@ describe("text overlay", () => {
     expect(serializeOverlay(emptyOverlay({ text: "   " }))).toBeNull();
   });
 
+  it("keeps spaces while the phrase is typed or pasted", () => {
+    expect(placeOverlay(emptyOverlay({ text: "Feliz " })).text).toBe("Feliz ");
+    expect(placeOverlay(emptyOverlay({ text: "Feliz cumpleaños mamá" })).text).toBe("Feliz cumpleaños mamá");
+    expect(placeOverlay(emptyOverlay({ text: "Feliz  cumpleaños mamá" })).text).toBe("Feliz  cumpleaños mamá");
+    const drafted = placeOverlay(emptyOverlay({ text: "Feliz cumpleaños mamá " }));
+    const restyled = placeOverlay({ ...drafted, font: "lobster" });
+    expect(restyled.text).toBe("Feliz cumpleaños mamá ");
+    expect(restyled.font).toBe("lobster");
+    expect(placeOverlay(emptyOverlay({ text: "Hola mamá \r\n" }), false, true).text).toBe("Hola mamá \n");
+  });
+
+  it("trims spaces only when the overlay is saved", () => {
+    expect(serializeOverlay(emptyOverlay({ text: "  Feliz cumpleaños mamá  " }))?.text).toBe("Feliz cumpleaños mamá");
+    expect(serializeOverlay(emptyOverlay({ text: "Feliz  cumpleaños" }))?.text).toBe("Feliz cumpleaños");
+    expect(serializeOverlay(emptyOverlay({ text: "   " }))).toBeNull();
+    expect(parseOverlay({ text: "  Te amo  ", font: "pacifico", size: 0.12, color: "#FFFFFF", x: 0.5, y: 0.72, rotation: 0 })?.text).toBe("Te amo");
+  });
+
   it("does not let a long line leave the print", () => {
     const placed = placeOverlay(emptyOverlay({ text: "Feliz Navidad para toda la familia", x: 0.02, y: 0.98, size: 0.18 }));
     expect(placed.x).toBeGreaterThan(0.2);
