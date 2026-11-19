@@ -70,6 +70,15 @@ export function FrameView({
   const open = openingOf(frame);
   const openingW = open.w * portraitW;
   const openingH = open.h * portraitH;
+  // The frame art is rotated 90deg for a landscape frame, which would carry the
+  // photo and any text round with it and lay them on their side. The content sits
+  // in a box that turns back the other way, so only the frame changes direction.
+  // Its sides are swapped, because an openingW x openingH box reads as
+  // openingH x openingW once the frame has turned.
+  const contentW = landscape ? openingH : openingW;
+  const contentH = landscape ? openingW : openingH;
+  const contentLeft = (openingW - contentW) / 2;
+  const contentTop = (openingH - contentH) / 2;
   const source = photo?.source ?? (photo?.uri ? { uri: photo.uri } : null);
 
   return (
@@ -91,40 +100,51 @@ export function FrameView({
           }}
         >
           <View style={[styles.opening, { left: open.x * portraitW, top: open.y * portraitH, width: openingW, height: openingH, backgroundColor: opening ? "transparent" : "#E7D9CC" }]}>
-            {opening ? null : animateSample && photoId === "asset:sample" && crop ? (
-              <SampleScene
-                style={{
-                  position: "absolute",
-                  width: (openingW * crop.imageWidth) / crop.width,
-                  height: (openingH * crop.imageHeight) / crop.height,
-                  left: (-crop.x * openingW) / crop.width,
-                  top: (-crop.y * openingH) / crop.height,
-                }}
-              />
-            ) : source && crop ? (
-              <Image
-                source={source}
-                contentFit="fill"
-                style={{
-                  position: "absolute",
-                  width: (openingW * crop.imageWidth) / crop.width,
-                  height: (openingH * crop.imageHeight) / crop.height,
-                  left: (-crop.x * openingW) / crop.width,
-                  top: (-crop.y * openingH) / crop.height,
-                }}
-              />
-            ) : (
-              <View style={styles.empty} />
-            )}
-            {overlay?.text ? (
-              <OverlayText
-                overlay={overlay}
-                width={openingW}
-                height={openingH}
-                landscape={landscape}
-                onChange={onOverlayChange}
-              />
-            ) : null}
+            <View
+              style={{
+                position: "absolute",
+                left: contentLeft,
+                top: contentTop,
+                width: contentW,
+                height: contentH,
+                overflow: "hidden",
+                transform: landscape ? [{ rotate: "-90deg" }] : [],
+              }}
+            >
+              {opening ? null : animateSample && photoId === "asset:sample" && crop ? (
+                <SampleScene
+                  style={{
+                    position: "absolute",
+                    width: (contentW * crop.imageWidth) / crop.width,
+                    height: (contentH * crop.imageHeight) / crop.height,
+                    left: (-crop.x * contentW) / crop.width,
+                    top: (-crop.y * contentH) / crop.height,
+                  }}
+                />
+              ) : source && crop ? (
+                <Image
+                  source={source}
+                  contentFit="fill"
+                  style={{
+                    position: "absolute",
+                    width: (contentW * crop.imageWidth) / crop.width,
+                    height: (contentH * crop.imageHeight) / crop.height,
+                    left: (-crop.x * contentW) / crop.width,
+                    top: (-crop.y * contentH) / crop.height,
+                  }}
+                />
+              ) : (
+                <View style={styles.empty} />
+              )}
+              {overlay?.text ? (
+                <OverlayText
+                  overlay={overlay}
+                  width={contentW}
+                  height={contentH}
+                  onChange={onOverlayChange}
+                />
+              ) : null}
+            </View>
             <Svg width={openingW} height={openingH} style={StyleSheet.absoluteFill} pointerEvents="none">
               <Defs>
                 <LinearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
@@ -152,17 +172,15 @@ function OverlayText({
   overlay,
   width,
   height,
-  landscape,
   onChange,
 }: {
   overlay: TextOverlay;
   width: number;
   height: number;
-  landscape: boolean;
   onChange?: (next: TextOverlay) => void;
 }) {
-  const live = useRef({ overlay, onChange, width, height, landscape });
-  live.current = { overlay, onChange, width, height, landscape };
+  const live = useRef({ overlay, onChange, width, height });
+  live.current = { overlay, onChange, width, height };
   const family = fontById(overlay.font).family;
   const fontSize = Math.max(10, overlay.size * height);
   const origin = useRef(overlay);
@@ -179,8 +197,10 @@ function OverlayText({
   function move(gesture: { dx: number; dy: number }, snap: boolean) {
     const current = live.current;
     if (!current.onChange) return;
-    const dx = current.landscape ? gesture.dy : gesture.dx;
-    const dy = current.landscape ? -gesture.dx : gesture.dy;
+    // The content box is upright on screen in both orientations, so a drag maps
+    // straight through; it used to need its axes swapped for the rotated frame.
+    const dx = gesture.dx;
+    const dy = gesture.dy;
     current.onChange(placeOverlay({ ...origin.current, x: origin.current.x + dx / current.width, y: origin.current.y + dy / current.height }, snap));
   }
   return (

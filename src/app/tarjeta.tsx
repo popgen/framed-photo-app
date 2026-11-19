@@ -272,7 +272,7 @@ function Diptych({
           transitionTimingFunction: ease,
         })}
       >
-        {reduced && open ? <PaperBack width={panelW} height={panelH} color={inside} /> : null}
+        {reduced && open ? <PaperBack width={panelW} height={panelH} color={inside} half="top" /> : null}
       </View>
       <Pressable onPress={onPress} accessibilityLabel={motion.hint}>
         <View
@@ -284,7 +284,7 @@ function Diptych({
           })}
         >
           <View style={webStyle({ position: "absolute", top: 0, left: 0, width: panelW, height: panelH, opacity: motion.insideOpacity, transitionProperty: "opacity", transitionDuration: `${motion.durationMs}ms` })}>
-            <PanelFace width={panelW} height={panelH} color={inside} photo={null} overlay={insideMessage} onLight />
+            <PanelFace width={panelW} height={panelH} color={inside} photo={null} overlay={insideMessage} onLight half={open ? "bottom" : null} />
           </View>
           <View
             style={webStyle({
@@ -327,16 +327,31 @@ function Diptych({
                 transform: "rotateX(180deg)",
                 backgroundColor: inside,
                 ...coverFaceStyle("paper", reduced, open, armed.current, motion.durationMs),
-                borderRadius: 10,
                 alignItems: "center",
                 justifyContent: "center",
                 borderWidth: 1,
                 borderColor: "rgba(42,27,22,0.2)",
+                ...foldEdge("top"),
               })}
             >
               <Text style={{ fontFamily: font.display, fontSize: 22, color: colors.red }}>Mi Fotito</Text>
             </View>
           </View>
+          <View
+            pointerEvents="none"
+            style={webStyle({
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: panelW,
+              height: 2,
+              zIndex: 3,
+              opacity: open ? 1 : 0,
+              background: "linear-gradient(to bottom, rgba(42,27,22,0.22), rgba(255,255,255,0.35))",
+              transitionProperty: "opacity",
+              transitionDuration: `${motion.durationMs}ms`,
+            })}
+          />
         </View>
       </Pressable>
       <Text style={{ fontFamily: font.medium, color: colors.muted, marginTop: 8 }}>{motion.hint}</Text>
@@ -344,9 +359,24 @@ function Diptych({
   );
 }
 
-function PaperBack({ width, height, color }: { width: number; height: number; color: string }) {
+/**
+ * Corner and border treatment for one half of the opened sheet.
+ * "top" is the half above the crease, "bottom" the half below it; the edge that
+ * meets the fold loses its radius and its border so the halves join seamlessly.
+ */
+function foldEdge(half: "top" | "bottom" | null) {
+  if (half === "top") {
+    return { borderTopLeftRadius: 10, borderTopRightRadius: 10, borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderBottomWidth: 0 };
+  }
+  if (half === "bottom") {
+    return { borderTopLeftRadius: 0, borderTopRightRadius: 0, borderBottomLeftRadius: 10, borderBottomRightRadius: 10, borderTopWidth: 0 };
+  }
+  return { borderRadius: 10 };
+}
+
+function PaperBack({ width, height, color, half = null }: { width: number; height: number; color: string; half?: "top" | "bottom" | null }) {
   return (
-    <View style={{ width, height, backgroundColor: color, borderRadius: 10, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(42,27,22,0.2)" }}>
+    <View style={{ width, height, backgroundColor: color, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(42,27,22,0.2)", ...foldEdge(half) }}>
       <Text style={{ fontFamily: font.display, fontSize: 22, color: colors.red }}>Mi Fotito</Text>
     </View>
   );
@@ -401,6 +431,7 @@ function PanelFace({
   photo,
   overlay,
   onLight = false,
+  half = null,
 }: {
   width: number;
   height: number;
@@ -408,6 +439,7 @@ function PanelFace({
   photo: PanelPhoto | null;
   overlay: TextOverlay | null;
   onLight?: boolean;
+  half?: "top" | "bottom" | null;
 }) {
   const crop = photo?.crop;
   const source = photo?.source?.source ?? (photo?.source?.uri ? { uri: photo.source.uri } : null);
@@ -429,7 +461,7 @@ function PanelFace({
       : Math.min(Math.max(4, overlay!.y * height - blockH / 2), Math.max(4, height - blockH - 4))
     : 0;
   return (
-    <View style={{ width, height, backgroundColor: color, overflow: "hidden", borderWidth: 1, borderColor: "rgba(42,27,22,0.28)", borderRadius: 10, boxShadow: "0 10px 24px rgba(42,27,22,0.12)" }}>
+    <View style={{ width, height, backgroundColor: color, overflow: "hidden", borderWidth: 1, borderColor: "rgba(42,27,22,0.28)", ...foldEdge(half), boxShadow: half ? "none" : "0 10px 24px rgba(42,27,22,0.12)" }}>
       {photo?.id === "asset:sample" && crop ? (
         <SampleScene
           style={{
