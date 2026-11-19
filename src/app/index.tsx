@@ -63,18 +63,6 @@ export default function Home() {
             </View>
           </Pressable>
         ) : null}
-        <Card>
-          <Text accessibilityRole="header" style={section}>Ideas de regalos de Navidad</Text>
-          <P style={centered}>
-            Mi Fotito es una tienda de fotos en Lima, Perú. Puedes imprimir fotos en línea y recibirlas enmarcadas: fotos personalizadas, un recuerdo personalizado para mamá, papá, los abuelos o tu pareja. Son regalos fáciles y regalos originales para Navidad, un cumpleaños, un aniversario o San Valentín.
-          </P>
-          <P style={centered}>
-            Si buscas regalos baratos para Navidad, el marco básico cuesta S/ 59 y el envío ya va incluido en el precio. Son regalos en Lima y también a provincias: un regalo económico, más cálido que un póster y más a la mano que un álbum de fotos. Son fotos en marco, no en un lienzo.
-          </P>
-          <P style={centered}>
-            También hay regalos personalizados: una tarjeta con foto, cuadros personalizados para la pared y, por correo, un retablo de madera hecho a mano. En el marco puedes dejar una foto con mensaje de voz.
-          </P>
-        </Card>
         <Text style={section}>Super simple</Text>
         <Step n="1" title="Elige tu foto" body="Desde el teléfono, iCloud o una foto de ejemplo. Así empieza la impresión de fotos." icon={<PhotoIcon />} />
         <Step n="2" title="Elige tu marco" body="Desliza para enmarcar fotos, o arma una tarjeta navideña." icon={<FrameIcon />} />
@@ -138,6 +126,18 @@ export default function Home() {
           </Svg>
           <Text style={{ fontFamily: font.semibold, color: colors.ink, textAlign: "center" }}>Haz clic aquí para rastrear tu pedido</Text>
         </Pressable>
+        <Card>
+          <Text accessibilityRole="header" style={section}>Ideas de regalos de Navidad</Text>
+          <P style={centered}>
+            Mi Fotito es una tienda de fotos en Lima, Perú. Puedes imprimir fotos en línea y recibirlas enmarcadas: fotos personalizadas, un recuerdo personalizado para mamá, papá, los abuelos o tu pareja. Son regalos fáciles y regalos originales para Navidad, un cumpleaños, un aniversario o San Valentín.
+          </P>
+          <P style={centered}>
+            Si buscas regalos baratos para Navidad, el marco básico cuesta S/ 59 y el envío ya va incluido en el precio. Son regalos en Lima y también a provincias: un regalo económico, más cálido que un póster y más a la mano que un álbum de fotos. Son fotos en marco, no en un lienzo.
+          </P>
+          <P style={centered}>
+            También hay regalos personalizados: una tarjeta con foto, cuadros personalizados para la pared y, por correo, un retablo de madera hecho a mano. En el marco puedes dejar una foto con mensaje de voz.
+          </P>
+        </Card>
       </View>
     </Screen>
   );
