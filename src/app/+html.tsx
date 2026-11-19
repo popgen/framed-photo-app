@@ -42,6 +42,11 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="twitter:title" content={home.title} />
         <meta name="twitter:description" content={home.description} />
         <meta name="twitter:image" content={OG_IMAGE_URL} />
+        <link rel="manifest" href="/manifest.webmanifest" />
+        <link rel="icon" href="/favicon.ico?v=2" sizes="48x48" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=2" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16.png?v=2" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=2" />
         <ScrollViewStyleReset />
         <style>{SPA_CSS}</style>
       </head>
