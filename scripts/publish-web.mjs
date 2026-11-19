@@ -28,7 +28,9 @@ assertHead(indexPath, home);
 
 for (const page of spaShellPages()) {
   if (page.path === "/") continue;
-  const file = join("dist", page.path.slice(1), "index.html");
+  // A file at /crear.html is what Netlify serves for /crear. A directory
+  // index would 301 /crear to /crear/, and redirect rules cannot remove that slash.
+  const file = join("dist", `${page.path.slice(1)}.html`);
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, applySeoToHtml(base, page));
   assertHead(file, page);

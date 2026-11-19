@@ -79,14 +79,14 @@ describe("seo files", () => {
 
   it("keeps the Netlify files from being swallowed by the SPA fallback", () => {
     const toml = readFileSync("netlify.toml", "utf8");
+    const script = readFileSync("scripts/publish-web.mjs", "utf8");
     expect(toml).toContain('Content-Type = "text/plain; charset=utf-8"');
     expect(toml).toContain('Content-Type = "application/xml; charset=utf-8"');
     expect(toml).not.toMatch(/from = "\/\*"[\s\S]{0,80}force = true/);
+    expect(script).toContain('`${page.path.slice(1)}.html`');
     for (const page of spaShellPages()) {
       if (page.path === "/") continue;
-      expect(toml).toContain(`from = "${page.path}"`);
-      expect(toml).toContain(`to = "${page.path}/index.html"`);
-      expect(toml).toContain(`from = "${page.path}/"`);
+      expect(toml).not.toContain(`to = "${page.path}/index.html"`);
     }
   });
 

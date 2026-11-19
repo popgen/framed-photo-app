@@ -47,8 +47,9 @@
 
 [[redirects]]
   from = "/privacidad/"
-  to = "/privacidad"
-  status = 301
+  to = "/privacidad/index.html"
+  status = 200
+  force = true
 
 [[redirects]]
   from = "/terminos"
@@ -58,90 +59,15 @@
 
 [[redirects]]
   from = "/terminos/"
-  to = "/terminos"
-  status = 301
-
-# Each public route is a real HTML file, so a crawler sees that page's title
-# without JavaScript. force stops Netlify from adding a trailing slash.
-# The slash form redirects to the canonical URL. The catch-all below is not
-# forced, so /robots.txt and /sitemap.xml are served as files.
-
-[[redirects]]
-  from = "/crear/"
-  to = "/crear"
-  status = 301
-
-[[redirects]]
-  from = "/crear"
-  to = "/crear/index.html"
+  to = "/terminos/index.html"
   status = 200
   force = true
 
-[[redirects]]
-  from = "/tarjeta/"
-  to = "/tarjeta"
-  status = 301
-
-[[redirects]]
-  from = "/tarjeta"
-  to = "/tarjeta/index.html"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/muro/"
-  to = "/muro"
-  status = 301
-
-[[redirects]]
-  from = "/muro"
-  to = "/muro/index.html"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/regalo/"
-  to = "/regalo"
-  status = 301
-
-[[redirects]]
-  from = "/regalo"
-  to = "/regalo/index.html"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/retablo/"
-  to = "/retablo"
-  status = 301
-
-[[redirects]]
-  from = "/retablo"
-  to = "/retablo/index.html"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/rastrear/"
-  to = "/rastrear"
-  status = 301
-
-[[redirects]]
-  from = "/rastrear"
-  to = "/rastrear/index.html"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/reclamo/"
-  to = "/reclamo"
-  status = 301
-
-[[redirects]]
-  from = "/reclamo"
-  to = "/reclamo/index.html"
-  status = 200
-  force = true
+# Public routes other than the legal pages are real files such as /crear.html.
+# With Pretty URLs, /crear serves that file and /crear/ redirects to /crear.
+# Redirect rules cannot add or remove a trailing slash: Netlify matches them
+# either way. Do not add a /crear rule here. The catch-all below is not forced,
+# so /robots.txt, /sitemap.xml, and those html files are served as files.
 
 # Expo single-page export: client routes fall back to index.html.
 [[redirects]]
@@ -171,6 +97,11 @@
 
 [[headers]]
   for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/*.html"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
 
