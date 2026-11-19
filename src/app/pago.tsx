@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { Button, Screen } from "../components/ui";
 import { colors, font } from "../components/theme";
+import { izipayPagoCopy, izipaySmartFormExpanded } from "../lib/izipay";
 
 const SCRIPT = "https://static.micuentaweb.pe/static/js/krypton-client/V4.0/stable/kr-payment-form.min.js";
 const STYLE = "https://static.micuentaweb.pe/static/js/krypton-client/V4.0/ext/classic.css";
@@ -19,6 +20,7 @@ export default function Pago() {
   const host = useRef(null);
   const waiting = params.estado === "esperando";
   const [message, setMessage] = useState<string | null>(params.error ? ERROR_COPY[params.error] || ERROR_COPY["1"] : waiting ? "Recibimos la respuesta del pago. Lo estamos confirmando." : null);
+  const [pagoCopy, setPagoCopy] = useState("Tarjeta o Yape, en la pasarela de Izipay.");
 
   useEffect(() => {
     if (!waiting) return;
@@ -48,19 +50,21 @@ export default function Pago() {
       setMessage("El pago expiró. Vuelve al pago e inténtalo otra vez.");
       return;
     }
-    const saved = JSON.parse(raw) as { formToken?: string; publicKey?: string };
+    const saved = JSON.parse(raw) as { formToken?: string; publicKey?: string; method?: "card" | "yape"; yapeFallback?: boolean };
     const node = host.current as unknown as HTMLElement | null;
     if (!saved.formToken || !saved.publicKey || !node) {
       setMessage("El pago expiró. Vuelve al pago e inténtalo otra vez.");
       return;
     }
+    setPagoCopy(izipayPagoCopy(saved.method, saved.yapeFallback));
     const link = document.createElement("link");
     link.rel = "stylesheet";
     link.href = STYLE;
     document.head.appendChild(link);
     const slot = document.createElement("div");
-    slot.className = "kr-embedded";
+    slot.className = "kr-smart-form";
     slot.setAttribute("kr-form-token", saved.formToken);
+    if (izipaySmartFormExpanded(saved.method, saved.yapeFallback)) slot.setAttribute("kr-card-form-expanded", "");
     node.appendChild(slot);
     const script = document.createElement("script");
     script.src = SCRIPT;
@@ -79,7 +83,7 @@ export default function Pago() {
     <Screen>
       <View style={{ padding: 16, gap: 12 }}>
         <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>Pago seguro</Text>
-        <Text style={{ fontFamily: font.body, color: colors.muted, lineHeight: 22 }}>Tarjeta o Yape, en la pasarela de Izipay.</Text>
+        <Text style={{ fontFamily: font.body, color: colors.muted, lineHeight: 22 }}>{pagoCopy}</Text>
         {message ? <Text style={{ fontFamily: font.medium, color: params.error ? colors.bad : colors.ink }}>{message}</Text> : null}
         <View ref={host} />
         {params.error ? <Button label="Intentar otra vez" onPress={() => router.replace("/checkout")} /> : null}
