@@ -16,6 +16,9 @@ import { applyStock, expandNeeds, frameLowStock, framesAvailable } from "./inven
 import { inquiryFromSize } from "./retablo";
 import { VOICE_ADDON_CENTS } from "./voice";
 import { provisionCheckoutAccount, readLocalCustomer } from "./customer-auth";
+import { ADMIN_UNAUTHORIZED } from "./admin-access";
+import { chargedGiftWrap, hidePricesForOrder } from "./gift-wrap";
+import { trackingEmail, trackingWarning } from "./tracking-mail";
 import { isEmail, normalizePhone } from "./phone";
 import { resolveTaxId } from "./tax-id";
 import { REFERRAL_FRIEND_CENTS, REFERRAL_REWARD_CENTS, quote, type QuoteItem } from "./pricing";
@@ -157,7 +160,10 @@ function seed(): DB {
       status: "paid",
       customerName: "Mateo Quispe",
       phone: "51922222222",
-      giftWrap: false,
+      email: "mateo@ejemplo.com",
+      giftWrap: true,
+      hidePrices: true,
+      giftNoteCents: 0,
       addressLine: "Av. El Sol 880",
       district: "Cusco",
       province: "Cusco",
@@ -171,8 +177,8 @@ function seed(): DB {
       referralDiscountCents: 0,
       creditAppliedCents: 0,
       giftCardAppliedCents: 0,
-      giftWrapCents: 0,
-      totalCents: 10900,
+      giftWrapCents: 1000,
+      totalCents: 11900,
       paymentMethod: "card",
       paymentStatus: "approved",
       paymentProvider: "mock",
@@ -278,7 +284,7 @@ function priceInput(state: DB, input: CheckoutInput, phone: string | null) {
   const parsedNote = giftNoteFromCheckout(input);
   const priced = quote({
     items,
-    giftWrap: input.giftWrap && input.items.some((item) => !item.card),
+    giftWrap: chargedGiftWrap(input),
     giftNote: parsedNote.ok && Boolean(parsedNote.note),
     promo,
     promoCode,
@@ -371,8 +377,8 @@ function buildOrder(state: DB, input: CheckoutInput, phone: string, status: Orde
     giftNoteTo: note.note?.to ?? null,
     giftNoteMessage: note.note?.message ?? null,
     giftNoteFrom: note.note?.from ?? null,
-    hidePrices: note.note?.hidePrices ?? false,
-    giftWrap: input.giftWrap,
+    hidePrices: hidePricesForOrder(Boolean(note.note?.hidePrices), chargedGiftWrap(input)),
+    giftWrap: chargedGiftWrap(input),
     addressLine: input.addressLine.trim(),
     district: input.district.trim(),
     city: (input.city || input.district).trim(),
@@ -573,13 +579,23 @@ export function createLocalRepo() {
     async setTracking(id: string, tracking: string) {
       const state = required();
       const order = mustOrder(state, id);
-      if (!tracking.trim()) throw new AppError("Escribe el número de guía.");
-      order.trackingNumber = tracking.trim();
+      const clean = tracking.trim();
+      if (!clean) throw new AppError("Escribe el número de guía.");
+      order.trackingNumber = clean;
       order.status = "shipped";
       order.updatedAt = new Date().toISOString();
-      await notify(state, { orderId: order.id, channel: "whatsapp", to: order.phone, event: "tracking", body: statusMessage(order, "shipped") });
+      const warning = trackingWarning({ email: order.email, smtpReady: true, sent: Boolean(order.email) });
+      if (order.email) {
+        const mail = trackingEmail({
+          number: order.number,
+          publicToken: order.publicToken,
+          trackingNumber: clean,
+          customerName: order.customerName,
+        });
+        await notify(state, { orderId: order.id, channel: "email", to: order.email, event: "shipped", body: mail.text });
+      }
       persist(state);
-      return order;
+      return warning ? { ...order, emailWarning: warning } : order;
     },
     async listInventory() {
       return required().inventory;
@@ -733,8 +749,10 @@ export function createLocalRepo() {
       if (typeof localStorage !== "undefined") localStorage.setItem(ADMIN_KEY, "0");
     },
     async adminSession() {
-      if (typeof localStorage === "undefined") return false;
-      return localStorage.getItem(ADMIN_KEY) === "1";
+      if (typeof localStorage === "undefined") return { ok: false as const, message: null };
+      if (localStorage.getItem(ADMIN_KEY) === "1") return { ok: true as const };
+      if (readLocalCustomer()) return { ok: false as const, message: ADMIN_UNAUTHORIZED };
+      return { ok: false as const, message: null };
     },
     async saveWhatsAppDraft(draft: WaDraft) {
       const state = required();

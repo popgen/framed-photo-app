@@ -1,3 +1,4 @@
+import { adminSessionFromClient, type AdminAuthClient } from "./admin-access";
 import { defaultCampaign, type Campaign } from "./campaign";
 import { signInCustomer } from "./customer-auth";
 import { createLocalRepo } from "./repo-local";
@@ -16,6 +17,7 @@ const PATHS: Record<string, string> = {
   "orders-by-phone": "/api/track-orders",
   "orders-by-token": "/api/track-orders",
   "orders-create": "/api/create-order",
+  "tracking-email": "/api/tracking-email",
   profile: "/api/account",
   "customers-list": "/api/account",
 };
@@ -57,8 +59,7 @@ export function createSupabaseRepo() {
       await db().auth.signOut();
     },
     async adminSession() {
-      const { data } = await db().auth.getSession();
-      return Boolean(data.session);
+      return adminSessionFromClient(db() as unknown as AdminAuthClient);
     },
     async listFrames() {
       const hide = (rows: FrameOffer[]): FrameOffer[] =>
@@ -280,9 +281,30 @@ export function createSupabaseRepo() {
       return (await this.getOrder(id))!;
     },
     async setTracking(id: string, tracking: string) {
-      const { error } = await db().from("orders").update({ tracking_number: tracking, status: "shipped", updated_at: new Date().toISOString() }).eq("id", id);
-      if (error) throw new Error(error.message);
-      return (await this.getOrder(id))!;
+      const clean = tracking.trim();
+      if (!clean) throw new Error("Escribe el número de guía.");
+      const { data } = await db().auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error("Entra otra vez como administrador.");
+      const json = await shop("tracking-email", { orderId: id, tracking: clean }, token);
+      const order = await this.getOrder(id);
+      if (!order) throw new Error("No encontramos el pedido.");
+      return json.warning ? { ...order, emailWarning: String(json.warning) } : order;
+    },
+    async listNotifications(orderId?: string) {
+      let query = db().from("notification_log").select("*").order("created_at", { ascending: false });
+      if (orderId) query = query.eq("order_id", orderId);
+      const { data, error } = await query;
+      if (error) return local.listNotifications(orderId);
+      return (data ?? []).map((row) => ({
+        id: row.id,
+        orderId: row.order_id,
+        channel: row.channel === "email" ? ("email" as const) : ("whatsapp" as const),
+        to: row.to_address,
+        body: row.body,
+        event: row.event ?? "",
+        createdAt: row.created_at,
+      }));
     },
     async flagBlurry(orderId: string, itemId: string, note: string) {
       await db().from("order_items").update({ blurry: true, blurry_note: note }).eq("id", itemId);

@@ -9,6 +9,7 @@ import { expandNeeds } from "./inventory";
 import { normalizePhone } from "./phone";
 import { REFERRAL_FRIEND_CENTS, quote, type QuoteItem } from "./pricing";
 import { shippingZone } from "./zone";
+import { chargedGiftWrap, hidePricesForOrder } from "./gift-wrap";
 import { giftNoteFromCheckout } from "./gift-note";
 import { VOICE_ADDON_CENTS } from "./voice";
 import type { CheckoutInput, GiftCard, Promo, Referral } from "./types";
@@ -59,9 +60,10 @@ export function evaluateOrder(input: CheckoutInput, ctx: { promos: Promo[]; stoc
   }
   const parsedNote = giftNoteFromCheckout(input);
   if (!parsedNote.ok) return { error: parsedNote.error };
+  const giftWrap = chargedGiftWrap(input);
   const priced = quote({
     items: quoteLines(input),
-    giftWrap: input.giftWrap && input.items.some((item) => !item.card),
+    giftWrap,
     giftNote: Boolean(parsedNote.note),
     promo,
     promoCode,
@@ -98,5 +100,7 @@ export function evaluateOrder(input: CheckoutInput, ctx: { promos: Promo[]; stoc
     etaLabel: eta.label,
     giftNote: parsedNote.note,
     isGift: parsedNote.isGift,
+    giftWrap,
+    hidePrices: hidePricesForOrder(Boolean(parsedNote.note?.hidePrices), giftWrap),
   };
 }

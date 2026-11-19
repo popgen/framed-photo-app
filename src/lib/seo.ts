@@ -243,7 +243,10 @@ export function headTags(page: SeoPage, options?: { jsonLd?: boolean; spa?: bool
     // Makes the site installable, and gives the Play Store app (a Trusted Web
     // Activity over this same site) its name, icon and colours. See android-twa/.
     `<link rel="manifest" href="/manifest.webmanifest" />`,
-    `<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />`,
+    `<link rel="icon" href="/favicon.ico?v=2" sizes="48x48" />`,
+    `<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=2" />`,
+    `<link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16.png?v=2" />`,
+    `<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=2" />`,
     `<meta name="apple-mobile-web-app-capable" content="yes" />`,
     `<meta name="apple-mobile-web-app-status-bar-style" content="default" />`,
     `<meta name="apple-mobile-web-app-title" content="${SITE_NAME}" />`,

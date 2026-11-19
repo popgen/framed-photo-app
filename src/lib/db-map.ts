@@ -52,6 +52,7 @@ export function mapOrderRow(row: Record<string, any>): Order {
     giftCardAppliedCents: row.gift_card_applied_cents ?? 0,
     giftWrapCents: row.gift_wrap_cents ?? 0,
     giftNoteCents: row.gift_note_cents ?? 0,
+    shippingCents: row.shipping_cents ?? row.shipping_cost_cents ?? null,
     totalCents: row.total_cents,
     paymentMethod: row.payment_method,
     paymentStatus: row.payment_status,
