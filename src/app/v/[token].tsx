@@ -89,7 +89,7 @@ export default function VoicePage() {
                 controls: true,
                 onPlay: () => setPlaying(true),
                 onPause: () => setPlaying(false),
-              })}
+              }, createElement("source", { src: uri, type: note?.mime || "audio/mp4" }))}
             </>
           ) : <Text style={{ fontFamily: font.body, color: colors.muted, textAlign: "center" }}>Este mensaje no está en este navegador.</Text>}
         </View>

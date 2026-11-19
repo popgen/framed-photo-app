@@ -1,4 +1,6 @@
 import { cardMessageError, priceCards } from "./cards";
+import { framedPriceCents } from "./collage";
+import { EXAMPLE_PHOTO_PROMPT, usesExamplePhoto } from "./example-photo";
 import { frameById } from "./catalog";
 import { defaultCampaign } from "./campaign";
 import { guaranteeFor } from "./cutoff";
@@ -7,6 +9,7 @@ import { expandNeeds } from "./inventory";
 import { normalizePhone } from "./phone";
 import { REFERRAL_FRIEND_CENTS, quote, type QuoteItem } from "./pricing";
 import { shippingZone } from "./zone";
+import { giftNoteFromCheckout } from "./gift-note";
 import { VOICE_ADDON_CENTS } from "./voice";
 import type { CheckoutInput, GiftCard, Promo, Referral } from "./types";
 
@@ -14,7 +17,7 @@ export function quoteLines(input: CheckoutInput): QuoteItem[] {
   return input.items.flatMap((item) => {
     const lines: QuoteItem[] = item.card
       ? [{ unitPriceCents: priceCards(item.card.quantity).cents, quantity: 1, kind: "plain" }]
-      : [{ unitPriceCents: frameById(item.frameId).priceCents, quantity: 1, kind: "frame" }];
+      : [{ unitPriceCents: framedPriceCents(frameById(item.frameId).priceCents, Boolean(item.collage)), quantity: 1, kind: "frame" }];
     if (item.voice) lines.push({ unitPriceCents: item.voice.addonCents || VOICE_ADDON_CENTS, quantity: 1, kind: "plain" });
     return lines;
   });
@@ -32,6 +35,7 @@ export function evaluateOrder(input: CheckoutInput, ctx: { promos: Promo[]; stoc
   const phone = normalizePhone(input.phone);
   if (!phone) return { error: "Revisa el celular." };
   if (!input.items.length) return { error: "Tu carrito está vacío." };
+  if (input.items.some((item) => usesExamplePhoto(item))) return { error: EXAMPLE_PHOTO_PROMPT };
   const cardError = cardMessageError(input.items);
   if (cardError) return { error: cardError };
   const promoCode = input.promoCode?.trim() || null;
@@ -53,9 +57,12 @@ export function evaluateOrder(input: CheckoutInput, ctx: { promos: Promo[]; stoc
     if (!gift || gift.status !== "active" || gift.balanceCents <= 0) giftCardError = "Esa tarjeta de regalo no tiene saldo.";
     else giftCardBalance = gift.balanceCents;
   }
+  const parsedNote = giftNoteFromCheckout(input);
+  if (!parsedNote.ok) return { error: parsedNote.error };
   const priced = quote({
     items: quoteLines(input),
     giftWrap: input.giftWrap && input.items.some((item) => !item.card),
+    giftNote: Boolean(parsedNote.note),
     promo,
     promoCode,
     referralDiscountCents: referralDiscount,
@@ -89,5 +96,7 @@ export function evaluateOrder(input: CheckoutInput, ctx: { promos: Promo[]; stoc
     etaMin: eta.min,
     etaMax: eta.max,
     etaLabel: eta.label,
+    giftNote: parsedNote.note,
+    isGift: parsedNote.isGift,
   };
 }

@@ -1,10 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://mifotito.com/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
-  <url><loc>https://mifotito.com/crear</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
-  <url><loc>https://mifotito.com/muro</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://mifotito.com/tarjeta</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://mifotito.com/regalo</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://mifotito.com/retablo</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
-  <url><loc>https://mifotito.com/rastrear</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://mifotito.com/</loc><lastmod>2026-11-19</lastmod></url>
+  <url><loc>https://mifotito.com/crear</loc><lastmod>2026-11-19</lastmod></url>
+  <url><loc>https://mifotito.com/collage</loc><lastmod>2026-11-19</lastmod></url>
+  <url><loc>https://mifotito.com/tarjeta</loc><lastmod>2026-11-19</lastmod></url>
+  <url><loc>https://mifotito.com/muro</loc><lastmod>2026-11-19</lastmod></url>
+  <url><loc>https://mifotito.com/regalo</loc><lastmod>2026-11-19</lastmod></url>
+  <url><loc>https://mifotito.com/retablo</loc><lastmod>2026-11-19</lastmod></url>
+  <url><loc>https://mifotito.com/rastrear</loc><lastmod>2026-11-19</lastmod></url>
+  <url><loc>https://mifotito.com/reclamo</loc><lastmod>2026-11-19</lastmod></url>
+  <url><loc>https://mifotito.com/privacidad</loc><lastmod>2026-11-19</lastmod></url>
+  <url><loc>https://mifotito.com/terminos</loc><lastmod>2026-11-19</lastmod></url>
 </urlset>

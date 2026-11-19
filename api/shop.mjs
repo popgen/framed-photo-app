@@ -6,9 +6,11 @@ import { maskPhone, maskStreet } from "../src/lib/order-number.ts";
 import { isOpenShipment, toPublicShipment, toTrackingCard, trackLimitMessage, TRACK_IP_LIMIT, TRACK_PHONE_LIMIT } from "../src/lib/tracking.ts";
 import { cardMessageError, priceCards } from "../src/lib/cards.ts";
 import { frameById } from "../src/lib/catalog.ts";
+import { framedPriceCents } from "../src/lib/collage.ts";
 import { frameLowStock } from "../src/lib/inventory.ts";
 import { giftCode } from "../src/lib/ids.ts";
 import { normalizePhone } from "../src/lib/phone.ts";
+import { giftNoteJson } from "../src/lib/gift-note.ts";
 import { resolveTaxId } from "../src/lib/tax-id.ts";
 import { serverStockChecksEnabled } from "../src/lib/env.ts";
 
@@ -122,8 +124,7 @@ async function saveRecord(record) {
 }
 
 function supportLink(text) {
-  const phone = String(process.env.EXPO_PUBLIC_WHATSAPP_SUPPORT_NUMBER || "51999999999").replace(/\D/g, "");
-  return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+  return `mailto:pedidos@mifotito.com?subject=${encodeURIComponent("Mi pedido")}&body=${encodeURIComponent(text)}`;
 }
 
 function supportPayload() {
@@ -131,7 +132,7 @@ function supportPayload() {
     ok: true,
     channel: "support",
     supportUrl: supportLink("Hola Mi Fotito, quiero ver el estado de mi pedido."),
-    message: "Todavía no podemos enviarte un código. Escríbenos por WhatsApp y te ayudamos a ver tu pedido.",
+    message: "Todavía no podemos enviarte un código. Escríbenos a pedidos@mifotito.com y te ayudamos a ver tu pedido.",
   };
 }
 
@@ -458,9 +459,8 @@ async function createOrder(req, res) {
     .select("id")
     .single();
   const now = new Date().toISOString();
-  const { data: inserted, error } = await supabase
-    .from("orders")
-    .insert({
+  const note = evaluated.giftNote;
+  const orderRow = {
       public_token: crypto.randomUUID().replace(/-/g, "").slice(0, 12),
       number,
       status: "pending_payment",
@@ -469,7 +469,13 @@ async function createOrder(req, res) {
       email: req.body.email || null,
       recipient_name: req.body.recipientName || null,
       recipient_phone: normalizePhone(req.body.recipientPhone || "") || null,
-      gift_note: req.body.giftNote || null,
+      is_gift: Boolean(evaluated.isGift),
+      gift_note: note?.message || null,
+      gift_note_to: note?.to || null,
+      gift_note_message: note?.message || null,
+      gift_note_from: note?.from || null,
+      hide_prices: Boolean(note?.hidePrices),
+      gift_note_cents: evaluated.priced.giftNoteCents,
       gift_wrap: Boolean(req.body.giftWrap),
       address_line: req.body.addressLine,
       district: req.body.district,
@@ -505,34 +511,50 @@ async function createOrder(req, res) {
       user_id: authUser.id,
       created_at: now,
       updated_at: now,
-    })
-    .select("id, public_token")
-    .single();
+  };
+  let { data: inserted, error } = await supabase.from("orders").insert(orderRow).select("id, public_token").single();
+  if (error && /gift_note_to|gift_note_message|gift_note_from|hide_prices|gift_note_cents|is_gift/i.test(error.message || "")) {
+    const legacy = { ...orderRow, gift_note: evaluated.isGift || note ? giftNoteJson(note, Boolean(evaluated.isGift)) : null };
+    delete legacy.is_gift;
+    delete legacy.gift_note_to;
+    delete legacy.gift_note_message;
+    delete legacy.gift_note_from;
+    delete legacy.hide_prices;
+    delete legacy.gift_note_cents;
+    ({ data: inserted, error } = await supabase.from("orders").insert(legacy).select("id, public_token").single());
+  }
   if (error || !inserted) {
     res.status(500).json({ error: error?.message || "No pudimos guardar el pedido." });
     return;
   }
   if ((req.body.items ?? []).length) {
-    const { error: itemError } = await supabase.from("order_items").insert(
-      req.body.items.map((item) => ({
-        order_id: inserted.id,
-        frame_id: item.frameId || "card",
-        photo_path: item.photoPrintPath || null,
-        original_path: item.photoOriginalPath || null,
-        print_path: item.photoPrintPath || null,
-        crop: item.crop ?? {},
-        orientation: item.orientation || "portrait",
-        quantity: 1,
-        unit_price_cents: linePrice(item),
-        dpi: item.dpi || null,
-        resolution_status: item.resolutionStatus || null,
-        text_overlay: item.textOverlay || null,
-        card: item.card || null,
-        voice: item.voice || null,
-        bundle_id: item.bundleId || null,
-        bundle_label: item.bundleLabel || null,
-      })),
-    );
+    const rows = req.body.items.map((item) => ({
+      order_id: inserted.id,
+      frame_id: item.frameId || "card",
+      photo_path: item.photoPrintPath || null,
+      original_path: item.photoOriginalPath || null,
+      print_path: item.photoPrintPath || null,
+      crop: item.crop ?? {},
+      orientation: item.orientation || "portrait",
+      quantity: 1,
+      unit_price_cents: linePrice(item),
+      dpi: item.dpi || null,
+      resolution_status: item.resolutionStatus || null,
+      text_overlay: item.textOverlay || null,
+      card: item.card || null,
+      voice: item.voice || null,
+      collage: item.collage || null,
+      bundle_id: item.bundleId || null,
+      bundle_label: item.bundleLabel || null,
+    }));
+    let itemError = (await supabase.from("order_items").insert(rows)).error;
+    if (itemError && /collage/i.test(itemError.message || "")) {
+      if (rows.some((row) => row.collage)) {
+        res.status(500).json({ error: "Falta aplicar la migración del collage antes de guardar este pedido." });
+        return;
+      }
+      itemError = (await supabase.from("order_items").insert(rows.map(({ collage, ...rest }) => rest))).error;
+    }
     if (itemError) {
       res.status(500).json({ error: itemError.message });
       return;
@@ -545,7 +567,7 @@ async function createOrder(req, res) {
 function linePrice(item) {
   if (item.card) return priceCards(item.card.quantity).cents;
   try {
-    return frameById(item.frameId).priceCents + (item.voice ? item.voice.addonCents || 0 : 0);
+    return framedPriceCents(frameById(item.frameId).priceCents, Boolean(item.collage)) + (item.voice ? item.voice.addonCents || 0 : 0);
   } catch {
     return 0;
   }

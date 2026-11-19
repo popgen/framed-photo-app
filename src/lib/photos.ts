@@ -80,27 +80,51 @@ export async function saveAudioBlob(blob: Blob): Promise<{ id: string }> {
   return { id };
 }
 
+function fromStored(value: unknown): Blob | null {
+  if (value instanceof Blob) return value;
+  if (value && typeof value === "object" && "bytes" in value) {
+    const record = value as { bytes?: unknown; type?: string };
+    if (record.bytes instanceof ArrayBuffer) return new Blob([record.bytes], { type: record.type || "image/jpeg" });
+  }
+  return null;
+}
+
 export async function readPhotoBlob(id: string): Promise<Blob | null> {
   if (typeof indexedDB === "undefined") return null;
   const database = await openDb();
-  const blob = await new Promise<Blob | undefined>((resolve, reject) => {
+  const value = await new Promise<unknown>((resolve, reject) => {
     const tx = database.transaction("photos", "readonly");
     const request = tx.objectStore("photos").get(id);
-    request.onsuccess = () => resolve(request.result as Blob | undefined);
-    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error("No pudimos leer esa foto."));
   });
-  return blob ?? null;
+  return fromStored(value);
+}
+
+function plainBlob(blob: Blob): Blob {
+  return blob.slice(0, blob.size, blob.type || "image/jpeg");
+}
+
+async function storeBlob(database: IDBDatabase, id: string, blob: Blob): Promise<void> {
+  const record = { bytes: await blob.arrayBuffer(), type: blob.type || "image/jpeg" };
+  await new Promise<void>((resolve, reject) => {
+    const tx = database.transaction("photos", "readwrite");
+    const request = tx.objectStore("photos").put(record, id);
+    const fail = () => reject(request.error ?? tx.error ?? new Error("No pudimos guardar la foto."));
+    request.onerror = fail;
+    tx.onerror = fail;
+    tx.oncomplete = () => resolve();
+  });
 }
 
 async function putBlob(id: string, blob: Blob) {
   if (typeof indexedDB === "undefined") return;
-  const database = await openDb();
-  await new Promise<void>((resolve, reject) => {
-    const tx = database.transaction("photos", "readwrite");
-    tx.objectStore("photos").put(blob, id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+  try {
+    const database = await openDb();
+    await storeBlob(database, id, blob);
+  } catch {
+    // The photo stays in memory for this visit.
+  }
 }
 
 export async function savePhotoPair(
@@ -164,17 +188,10 @@ async function encodeJpeg(bitmap: ImageBitmap, longEdge: number, quality: number
 
 export async function savePhotoBlob(blob: Blob): Promise<{ id: string; width: number; height: number }> {
   const id = uid("ph_");
-  const size = await measure(blob);
-  if (typeof indexedDB !== "undefined") {
-    const database = await openDb();
-    await new Promise<void>((resolve, reject) => {
-      const tx = database.transaction("photos", "readwrite");
-      tx.objectStore("photos").put(blob, id);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-  }
-  memory.set(id, { url: URL.createObjectURL(blob), ...size });
+  const stored = plainBlob(blob);
+  const size = await measure(stored);
+  await putBlob(id, stored);
+  memory.set(id, { url: URL.createObjectURL(stored), ...size });
   return { id, ...size };
 }
 
@@ -184,13 +201,7 @@ export async function resolvePhoto(id: string): Promise<{ uri?: string; source?:
   const cached = memory.get(id);
   if (cached) return { uri: cached.url };
   if (typeof indexedDB === "undefined") return null;
-  const database = await openDb();
-  const blob = await new Promise<Blob | undefined>((resolve, reject) => {
-    const tx = database.transaction("photos", "readonly");
-    const request = tx.objectStore("photos").get(id);
-    request.onsuccess = () => resolve(request.result as Blob | undefined);
-    request.onerror = () => reject(request.error);
-  });
+  const blob = await readPhotoBlob(id);
   if (!blob) return null;
   const url = URL.createObjectURL(blob);
   let size = { width: 0, height: 0 };
@@ -209,13 +220,29 @@ export function samplePhoto(kind: "sample" | "sample-small" = "sample"): { id: s
   return { id: `asset:${kind}`, width: info.width, height: info.height };
 }
 
-export function pickPhotoFiles(multiple = false): Promise<File[]> {
+export type PhotoSource = "gallery" | "camera" | "icloud";
+
+export function pickPhotoFiles(multiple = false, source: PhotoSource = "gallery"): Promise<File[]> {
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*,.heic,.heif";
-    input.multiple = multiple;
-    input.onchange = () => resolve(Array.from(input.files ?? []));
+    input.multiple = multiple && source !== "camera";
+    input.tabIndex = -1;
+    input.setAttribute("aria-hidden", "true");
+    input.style.position = "fixed";
+    input.style.left = "0";
+    input.style.top = "0";
+    input.style.width = "1px";
+    input.style.height = "1px";
+    input.style.opacity = "0";
+    if (source === "camera") input.setAttribute("capture", "environment");
+    input.onchange = () => {
+      const files = Array.from(input.files ?? []);
+      input.remove();
+      resolve(files);
+    };
+    document.body.appendChild(input);
     input.click();
   });
 }
@@ -223,9 +250,10 @@ export function pickPhotoFiles(multiple = false): Promise<File[]> {
 export async function pickAndSavePhotos(
   multiple = false,
   print?: { printWcm: number; printHcm: number },
+  source: PhotoSource = "gallery",
 ): Promise<{ id: string; width: number; height: number }[]> {
   if (Platform.OS === "web") {
-    const files = await pickPhotoFiles(multiple);
+    const files = await pickPhotoFiles(multiple, source);
     const saved = [];
     for (const file of files) saved.push(await savePhotoPair(await fileToJpegBlob(file), print));
     return saved;
@@ -275,7 +303,20 @@ export async function fileToJpegBlob(file: File): Promise<Blob> {
   const name = file.name.toLowerCase();
   const heic = name.endsWith(".heic") || name.endsWith(".heif") || file.type === "image/heic" || file.type === "image/heif";
   if (!heic) return file;
-  const heic2any = (await import("heic2any")).default;
-  const converted = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.92 });
-  return Array.isArray(converted) ? converted[0] : converted;
+  try {
+    const heic2any = (await import("heic2any")).default;
+    const converted = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.92 });
+    return Array.isArray(converted) ? converted[0] : converted;
+  } catch {
+    if (typeof createImageBitmap === "function") {
+      try {
+        const bitmap = await createImageBitmap(file);
+        bitmap.close();
+        return file;
+      } catch {
+        throw new Error("No pudimos convertir el HEIC. Prueba con JPG o PNG.");
+      }
+    }
+    throw new Error("No pudimos convertir el HEIC. Prueba con JPG o PNG.");
+  }
 }

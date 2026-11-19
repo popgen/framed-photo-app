@@ -25,8 +25,8 @@ export default function Regalo() {
         setError("Ingresa tu celular y el de quien recibe la tarjeta de regalo.");
         return;
       }
-      if (!isEmail(form.buyerEmail)) {
-        setError("Ingresa tu correo.");
+      if (!isEmail(form.buyerEmail) || !isEmail(form.recipientEmail)) {
+        setError("Ingresa tu correo y el de quien recibe la tarjeta.");
         return;
       }
       setError(null);
@@ -34,7 +34,7 @@ export default function Regalo() {
     }} /></View>}>
       <View style={{ padding: 16, gap: 12 }}>
         <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>Tarjeta de regalo</Text>
-        <Text style={{ fontFamily: font.body, color: colors.muted }}>Llega por WhatsApp y, si dejas un correo, también por email. Se canjea al pagar un marco.</Text>
+        <Text style={{ fontFamily: font.body, color: colors.muted }}>Llega por correo a quien la recibe y se canjea al pagar un marco. Un regalo personalizado, y si quieres, un regalo sorpresa.</Text>
         <View style={{ flexDirection: "row", gap: 8 }}>
           {PRESETS.map((value) => (
             <Pressable key={value} onPress={() => { setAmount(value); setCustom(""); }} style={{ flex: 1, minHeight: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: !custom && amount === value ? colors.ink : colors.white }}>
@@ -48,10 +48,10 @@ export default function Regalo() {
         <Field label="Tu correo" autoCapitalize="none" keyboardType="email-address" value={form.buyerEmail} onChangeText={(buyerEmail) => setForm({ ...form, buyerEmail })} />
         <Field label="Nombre de quien la recibe" value={form.recipientName} onChangeText={(recipientName) => setForm({ ...form, recipientName })} />
         <Field label="Celular de quien la recibe" value={form.recipientPhone} onChangeText={(recipientPhone) => setForm({ ...form, recipientPhone })} />
-        <Field label="Correo (opcional)" value={form.recipientEmail} onChangeText={(recipientEmail) => setForm({ ...form, recipientEmail })} />
+        <Field label="Correo de quien la recibe" autoCapitalize="none" keyboardType="email-address" value={form.recipientEmail} onChangeText={(recipientEmail) => setForm({ ...form, recipientEmail })} />
         <Field label="Mensaje" value={form.message} onChangeText={(message) => setForm({ ...form, message })} />
         {error ? <Banner tone="bad" text={error} /> : null}
-        {card ? <Banner tone="good" text={`Lista. El código es ${card.code}. Se lo enviamos por WhatsApp.`} /> : null}
+        {card ? <Banner tone="good" text={`Lista. El código es ${card.code}. Se lo enviamos por correo.`} /> : null}
         {pay ? (
           <PaySheet
             method="yape"

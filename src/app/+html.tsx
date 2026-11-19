@@ -1,11 +1,21 @@
 import { ScrollViewStyleReset } from "expo-router/html";
 import { type PropsWithChildren } from "react";
+import { KEYWORDS, OG_IMAGE_URL, SITE_NAME, SPA_CSS, THEME_COLOR, pageForPath, type SeoPage } from "../lib/seo";
+
+function homePage(): SeoPage {
+  const page = pageForPath("/");
+  if (!page) throw new Error("Falta la página de inicio en el SEO.");
+  return page;
+}
+
+const home = homePage();
 
 // NOTE: Expo only uses this file when `web.output` is "static" or "server".
 // app.json sets "single", so the production export ignores it and Expo writes its
-// own default template. The real <head> for the deployed site is injected by
-// scripts/finish-web-build.mjs. Keep the two in sync, or move to "static" output
-// and delete the script.
+// own default template. The <head> the deployed site actually serves is built by
+// scripts/publish-web.mjs from src/lib/seo.ts. This file matters only for
+// `npm run web` locally, so keep it reading from seo.ts rather than hand-editing
+// tags into it.
 
 export default function Root({ children }: PropsWithChildren) {
   return (
@@ -14,21 +24,41 @@ export default function Root({ children }: PropsWithChildren) {
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-        <title>Mi Fotito — marcos impresos en Perú</title>
-        <meta name="description" content="Mi Fotito imprime tu foto y te la lleva enmarcada a casa, en Lima y a provincias." />
-        <meta property="og:title" content="Mi Fotito" />
-        <meta property="og:description" content="Una foto, un marco, y llega a la puerta." />
-        <meta name="theme-color" content="#F6EFE6" />
+        <title>{home.title}</title>
+        <meta name="description" content={home.description} />
+        <meta name="keywords" content={KEYWORDS} />
+        <meta name="theme-color" content={THEME_COLOR} />
+        <link rel="canonical" href={home.canonical} />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content={SITE_NAME} />
+        <meta property="og:locale" content="es_PE" />
+        <meta property="og:title" content={home.title} />
+        <meta property="og:description" content={home.description} />
+        <meta property="og:url" content={home.canonical} />
+        <meta property="og:image" content={OG_IMAGE_URL} />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={home.title} />
+        <meta name="twitter:description" content={home.description} />
+        <meta name="twitter:image" content={OG_IMAGE_URL} />
         <ScrollViewStyleReset />
-        <style>{`
-          html, body, #root { height: 100%; background: #E7D3C3; }
-          body { overflow-x: hidden; }
-          /* Netlify injects the public HUD iframe on the free plan. It cannot be
-             turned off in project settings, and its inline position covers the tab bar. */
-          #nl-badge-frame, #nl-hud-frame { display: none !important; }
-        `}</style>
+        <style>{SPA_CSS}</style>
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <noscript>
+          <div style={{ maxWidth: 640, margin: "0 auto", padding: 24, fontFamily: "Georgia, serif", color: "#241714" }}>
+            <p style={{ fontSize: 32, marginBottom: 8 }}>Mi Fotito</p>
+            <p>Marcos impresos en Lima, Perú.</p>
+            <p>
+              <a href="/privacidad">Política de privacidad</a>
+              {" · "}
+              <a href="/terminos">Términos y condiciones</a>
+            </p>
+          </div>
+        </noscript>
+      </body>
     </html>
   );
 }

@@ -1,4 +1,5 @@
 import type { CardSnapshot } from "./cards";
+import type { CollageSnapshot } from "./collage";
 import type { FrameDef } from "./catalog";
 import type { Zone } from "./cutoff";
 import type { TextOverlay } from "./overlay";
@@ -46,6 +47,7 @@ export type OrderItem = {
   textOverlay?: TextOverlay | null;
   card?: CardSnapshot | null;
   voice?: VoiceNote | null;
+  collage?: CollageSnapshot | null;
   photoOriginalPath?: string | null;
   photoPrintPath?: string | null;
 };
@@ -64,7 +66,12 @@ export type Order = {
   taxIdSkipped?: boolean;
   recipientName?: string | null;
   recipientPhone?: string | null;
+  isGift?: boolean;
   giftNote?: string | null;
+  giftNoteTo?: string | null;
+  giftNoteMessage?: string | null;
+  giftNoteFrom?: string | null;
+  hidePrices?: boolean;
   giftWrap: boolean;
   addressLine: string;
   district: string;
@@ -84,6 +91,7 @@ export type Order = {
   giftCardCode?: string | null;
   giftCardAppliedCents: number;
   giftWrapCents: number;
+  giftNoteCents?: number;
   totalCents: number;
   paymentMethod?: string | null;
   paymentStatus: "pending" | "approved" | "rejected";
@@ -197,6 +205,7 @@ export type CheckoutInput = {
     textOverlay?: TextOverlay | null;
     card?: CardSnapshot | null;
     voice?: VoiceNote | null;
+    collage?: CollageSnapshot | null;
     photoOriginalPath?: string | null;
     photoPrintPath?: string | null;
   }[];
@@ -209,7 +218,13 @@ export type CheckoutInput = {
   province: string;
   recipientName?: string;
   recipientPhone?: string;
+  isGift?: boolean;
   giftNote?: string;
+  giftPrinted?: boolean;
+  giftNoteTo?: string;
+  giftNoteMessage?: string;
+  giftNoteFrom?: string;
+  hidePrices?: boolean;
   giftWrap: boolean;
   addressLine: string;
   district: string;

@@ -6,8 +6,21 @@ export const INSTAGRAM_SCOPE = "instagram_business_basic";
 
 const PROVIDERS: ImportProvider[] = ["instagram", "facebook", "google"];
 
+const IMPORT_RETURNS = new Set(["/crear", "/collage", "/muro", "/tarjeta"]);
+
+export function safeImportReturn(value: unknown): string {
+  if (typeof value !== "string") return "/crear";
+  const path = value.split("?")[0];
+  if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\")) return "/crear";
+  return IMPORT_RETURNS.has(path) ? path : "/crear";
+}
+
 export function isImportProvider(value: string): value is ImportProvider {
   return PROVIDERS.includes(value as ImportProvider);
+}
+
+export function visibleImportSources(flags: { instagram: boolean; facebook: boolean; googlePhotos: boolean }): ImportProvider[] {
+  return PROVIDERS.filter((provider) => (provider === "google" ? flags.googlePhotos : flags[provider]));
 }
 
 export function authorizeUrl(provider: ImportProvider, input: { clientId: string; redirectUri: string; state: string }): string {

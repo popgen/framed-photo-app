@@ -8,6 +8,8 @@ import { estimateDelivery } from "./delivery";
 import { notifyMode } from "./env";
 import { giftCode, referralCodeFrom, uid } from "./ids";
 import { cardMessageError, priceCards } from "./cards";
+import { framedPriceCents } from "./collage";
+import { EXAMPLE_PHOTO_PROMPT, usesExamplePhoto } from "./example-photo";
 import { stockChecksEnabled } from "./env";
 import { formatOrderNumber } from "./order-number";
 import { isOpenShipment, sortTracking, toPublicShipment, toTrackingCard } from "./tracking";
@@ -19,6 +21,7 @@ import { isEmail, normalizePhone } from "./phone";
 import { resolveTaxId } from "./tax-id";
 import { REFERRAL_FRIEND_CENTS, REFERRAL_REWARD_CENTS, quote, type QuoteItem } from "./pricing";
 import { assessResolution, centeredCrop } from "./print-size";
+import { giftNoteFromCheckout } from "./gift-note";
 import { districtsFor, shippingZone } from "./zone";
 import {
   blurryMessage,
@@ -264,7 +267,7 @@ function priceInput(state: DB, input: CheckoutInput, phone: string | null) {
   const items: QuoteItem[] = input.items.flatMap((item) => {
     const lines: QuoteItem[] = item.card
       ? [{ unitPriceCents: priceCards(item.card.quantity).cents, quantity: 1, kind: "plain" }]
-      : [{ unitPriceCents: frameById(item.frameId).priceCents, quantity: 1, kind: "frame" }];
+      : [{ unitPriceCents: framedPriceCents(frameById(item.frameId).priceCents, Boolean(item.collage)), quantity: 1, kind: "frame" }];
     if (item.voice) lines.push({ unitPriceCents: item.voice.addonCents || VOICE_ADDON_CENTS, quantity: 1, kind: "plain" });
     return lines;
   });
@@ -287,9 +290,11 @@ function priceInput(state: DB, input: CheckoutInput, phone: string | null) {
     if (!card || card.status !== "active" || card.balanceCents <= 0) giftCardError = "Esa tarjeta de regalo no tiene saldo.";
     else giftCardBalance = card.balanceCents;
   }
+  const parsedNote = giftNoteFromCheckout(input);
   const priced = quote({
     items,
     giftWrap: input.giftWrap && input.items.some((item) => !item.card),
+    giftNote: parsedNote.ok && Boolean(parsedNote.note),
     promo,
     promoCode,
     referralDiscountCents: referralDiscount,
@@ -307,6 +312,7 @@ function priceInput(state: DB, input: CheckoutInput, phone: string | null) {
 
 function assertCheckout(input: CheckoutInput, phone: string | null) {
   if (!input.items.length) throw new AppError("Tu carrito está vacío.");
+  if (input.items.some((item) => usesExamplePhoto(item))) throw new AppError(EXAMPLE_PHOTO_PROMPT);
   const cardError = cardMessageError(input.items);
   if (cardError) throw new AppError(cardError);
   if (input.items.some((item) => item.resolutionStatus === "low") && !input.ackLowRes) {
@@ -324,6 +330,8 @@ function assertCheckout(input: CheckoutInput, phone: string | null) {
   if (!known.some((item) => item.toLowerCase() === input.district.trim().toLowerCase())) {
     throw new AppError("Ese distrito no corresponde a la provincia elegida.");
   }
+  const note = giftNoteFromCheckout(input);
+  if (!note.ok) throw new AppError(note.error);
 }
 
 function buildOrder(state: DB, input: CheckoutInput, phone: string, status: OrderStatus): Order {
@@ -334,6 +342,8 @@ function buildOrder(state: DB, input: CheckoutInput, phone: string, status: Orde
   if (priced.giftCardError) throw new AppError(priced.giftCardError);
   const tax = resolveTaxId({ taxId: input.taxId, skipped: input.taxIdSkipped });
   if (!tax.ok) throw new AppError(tax.error);
+  const note = giftNoteFromCheckout(input);
+  if (!note.ok) throw new AppError(note.error);
   const zone = shippingZone(input.department, input.province, input.district);
   const now = new Date();
   const fest = festive(zone, now, state.campaign);
@@ -346,7 +356,7 @@ function buildOrder(state: DB, input: CheckoutInput, phone: string, status: Orde
     crop: item.crop,
     orientation: item.orientation,
     quantity: 1,
-    unitPriceCents: item.card ? priceCards(item.card.quantity).cents : frameById(item.frameId).priceCents,
+    unitPriceCents: item.card ? priceCards(item.card.quantity).cents : framedPriceCents(frameById(item.frameId).priceCents, Boolean(item.collage)),
     bundleId: item.bundleId,
     bundleLabel: item.bundleLabel,
     dpi: Math.round(item.dpi),
@@ -355,6 +365,7 @@ function buildOrder(state: DB, input: CheckoutInput, phone: string, status: Orde
     textOverlay: item.textOverlay ?? null,
     card: item.card ?? null,
     voice: item.voice ?? null,
+    collage: item.collage ?? null,
   }));
   return {
     id: uid("ord_"),
@@ -370,7 +381,12 @@ function buildOrder(state: DB, input: CheckoutInput, phone: string, status: Orde
     province: input.province.trim(),
     recipientName: input.recipientName?.trim() || null,
     recipientPhone: input.recipientPhone ? normalizePhone(input.recipientPhone) : null,
-    giftNote: input.giftNote?.trim() || null,
+    isGift: note.isGift,
+    giftNote: note.note?.message ?? null,
+    giftNoteTo: note.note?.to ?? null,
+    giftNoteMessage: note.note?.message ?? null,
+    giftNoteFrom: note.note?.from ?? null,
+    hidePrices: note.note?.hidePrices ?? false,
     giftWrap: input.giftWrap,
     addressLine: input.addressLine.trim(),
     district: input.district.trim(),
@@ -389,6 +405,7 @@ function buildOrder(state: DB, input: CheckoutInput, phone: string, status: Orde
     giftCardCode: priced.giftCardAppliedCents > 0 ? input.giftCardCode?.trim().toUpperCase() : null,
     giftCardAppliedCents: priced.giftCardAppliedCents,
     giftWrapCents: priced.giftWrapCents,
+    giftNoteCents: priced.giftNoteCents,
     totalCents: priced.totalCents,
     paymentMethod: input.paymentMethod,
     paymentStatus: status === "pending_payment" ? "pending" : "approved",

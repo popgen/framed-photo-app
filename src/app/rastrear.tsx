@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Platform, Text, View } from "react-native";
+import { useState } from "react";
+import { Text, View } from "react-native";
 import { Button, Field, Screen } from "../components/ui";
 import { colors, font } from "../components/theme";
 import { normalizePhone } from "../lib/phone";
@@ -12,10 +12,6 @@ export default function Rastrear() {
   const [orders, setOrders] = useState<PublicShipment[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    if (Platform.OS === "web") document.title = "Rastrea tu pedido";
-  }, []);
 
   async function load() {
     const normalized = normalizePhone(phone);
@@ -42,7 +38,7 @@ export default function Rastrear() {
     <Screen>
       <View style={{ padding: 16, gap: 14 }}>
         <Text accessibilityRole="header" style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>Rastrea tu pedido</Text>
-        <Text style={{ fontFamily: font.body, color: colors.muted }}>Solo mostramos envíos que todavía no se entregaron. No pedimos una cuenta.</Text>
+        <Text style={{ fontFamily: font.body, color: colors.muted }}>Delivery en Lima, de 2 a 3 días hábiles, y a provincias de 3 a 5. Solo mostramos envíos que todavía no se entregaron. No pedimos una cuenta.</Text>
         <Field label="Celular" keyboardType="phone-pad" placeholder="987 654 321" value={phone} onChangeText={setPhone} />
         <Button label={busy ? "Un momento…" : "Ver envíos"} disabled={busy} onPress={() => void load()} />
         {error ? <Text style={{ fontFamily: font.body, color: colors.muted }}>{error}</Text> : null}

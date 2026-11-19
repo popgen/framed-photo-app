@@ -1,8 +1,10 @@
 import { Image } from "expo-image";
-import { useEffect, useRef, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { PanResponder, StyleSheet, Text, View } from "react-native";
+import { SampleScene } from "./SampleScene";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { openingOf, type FrameDef } from "../lib/catalog";
+import { frameStage } from "../lib/frame-stage";
 import { fontById, placeOverlay, type TextOverlay } from "../lib/overlay";
 import { resolvePhoto } from "../lib/photos";
 import type { Crop, Orientation } from "../lib/print-size";
@@ -35,6 +37,8 @@ export function FrameView({
   width,
   overlay,
   onOverlayChange,
+  animateSample = false,
+  opening,
 }: {
   frame: FrameDef;
   photoId?: string | null;
@@ -43,6 +47,8 @@ export function FrameView({
   width: number;
   overlay?: TextOverlay | null;
   onOverlayChange?: (next: TextOverlay) => void;
+  animateSample?: boolean;
+  opening?: ReactNode;
 }) {
   const [photo, setPhoto] = useState<{ uri?: string; source?: number } | null>(null);
   useEffect(() => {
@@ -59,11 +65,8 @@ export function FrameView({
     };
   }, [photoId]);
 
-  const portraitW = width;
-  const portraitH = width * (frame.outerHcm / frame.outerWcm);
-  const landscape = orientation === "landscape" && frame.aspect !== "1:1";
-  const boxW = landscape ? portraitH : portraitW;
-  const boxH = landscape ? portraitW : portraitH;
+  const stage = frameStage(frame, orientation, width);
+  const { portraitW, portraitH, boxW, boxH, landscape } = stage;
   const open = openingOf(frame);
   const openingW = open.w * portraitW;
   const openingH = open.h * portraitH;
@@ -73,7 +76,7 @@ export function FrameView({
     <View style={{ width: boxW, height: boxH + (frame.stand && !landscape ? 16 : 0), alignItems: "center" }}>
       {frame.stand && !landscape ? <View style={[styles.stand, { width: portraitW * 0.46 }]} /> : null}
       <View style={{ width: boxW, height: boxH }}>
-        <View
+        <View pointerEvents={opening ? "none" : "auto"}
           style={{
             width: portraitW,
             height: portraitH,
@@ -87,8 +90,18 @@ export function FrameView({
             shadowOffset: { width: 0, height: 12 },
           }}
         >
-          <View style={[styles.opening, { left: open.x * portraitW, top: open.y * portraitH, width: openingW, height: openingH }]}>
-            {source && crop ? (
+          <View style={[styles.opening, { left: open.x * portraitW, top: open.y * portraitH, width: openingW, height: openingH, backgroundColor: opening ? "transparent" : "#E7D9CC" }]}>
+            {opening ? null : animateSample && photoId === "asset:sample" && crop ? (
+              <SampleScene
+                style={{
+                  position: "absolute",
+                  width: (openingW * crop.imageWidth) / crop.width,
+                  height: (openingH * crop.imageHeight) / crop.height,
+                  left: (-crop.x * openingW) / crop.width,
+                  top: (-crop.y * openingH) / crop.height,
+                }}
+              />
+            ) : source && crop ? (
               <Image
                 source={source}
                 contentFit="fill"
@@ -125,6 +138,11 @@ export function FrameView({
           </View>
           <Image source={ART[frame.id]} style={StyleSheet.absoluteFill} contentFit="fill" pointerEvents="none" />
         </View>
+        {opening ? (
+          <View style={{ position: "absolute", zIndex: 2, left: stage.opening.x, top: stage.opening.y, width: stage.opening.w, height: stage.opening.h, overflow: "hidden" }}>
+            {opening}
+          </View>
+        ) : null}
       </View>
     </View>
   );

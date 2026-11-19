@@ -1,11 +1,14 @@
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useApp, useRepo } from "../../../components/provider";
 import { BackButton, Banner } from "../../../components/ui";
 import { colors, font } from "../../../components/theme";
+import { GiftNoteCard } from "../../../components/GiftNoteCard";
 import { cardOrderLine, envelopeLabel } from "../../../lib/cards";
+import { openGiftNotePrint } from "../../../lib/gift-note";
 import { frameById } from "../../../lib/catalog";
+import { backgroundLabel, spacingLabel } from "../../../lib/collage";
 import { downloadCardPdf, downloadPrint } from "../../../lib/print-export";
 import { getRepo } from "../../../lib/repo";
 import { STATUS_FLOW, STATUS_LABEL, type OrderStatus } from "../../../lib/types";
@@ -48,7 +51,20 @@ export default function AdminOrder() {
       <Text style={{ fontFamily: font.body, color: colors.ink }}>{order.taxIdSkipped || !order.taxId ? "Sin DNI/RUC" : `${order.taxIdType} ${order.taxId}`}</Text>
       <Text style={{ fontFamily: font.body, color: colors.muted }}>{order.phone} · {order.email}</Text>
       <Text style={{ fontFamily: font.body, color: colors.muted }}>{order.christmasNote}</Text>
-      {order.giftNote ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Nota: {order.giftNote}</Text> : null}
+      {order.isGift ? <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Regalo</Text> : null}
+      {order.giftNoteMessage ? (
+        <View style={{ gap: 8 }}>
+          <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Nota impresa</Text>
+          <GiftNoteCard to={order.giftNoteTo} message={order.giftNoteMessage} from={order.giftNoteFrom} />
+          {order.hidePrices ? <Text style={{ fontFamily: font.body, color: colors.ink }}>No incluir precios en la caja.</Text> : null}
+          <Pressable onPress={() => router.push(`/admin/nota/${order.id}`)} style={chip(false)}>
+            <Text style={chipText(false)}>Ver nota</Text>
+          </Pressable>
+          <Pressable onPress={() => openGiftNotePrint({ to: order.giftNoteTo, message: order.giftNoteMessage || "", from: order.giftNoteFrom, isGift: order.isGift })} style={chip(true)}>
+            <Text style={chipText(true)}>Imprimir nota</Text>
+          </Pressable>
+        </View>
+      ) : null}
       {error ? <Banner tone="bad" text={error} /> : null}
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
         {STATUS_FLOW.map((status) => (
@@ -59,7 +75,19 @@ export default function AdminOrder() {
       </View>
       {order.items.map((item) => (
         <View key={item.id} style={{ backgroundColor: colors.white, borderRadius: 16, padding: 12, gap: 8 }}>
-          <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{item.card ? `Tarjeta ${item.card.sizeId}` : `${frameById(item.frameId).name} · ${item.dpi} dpi`}</Text>
+          <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{item.card ? `Tarjeta ${item.card.sizeId}` : item.collage ? `Collage · ${item.collage.templateName} · ${frameById(item.frameId).name}` : `${frameById(item.frameId).name} · ${item.dpi} dpi`}</Text>
+          {item.collage ? (
+            <View style={{ gap: 4 }}>
+              <Text style={{ fontFamily: font.body, color: colors.ink }}>{item.collage.sources.length} fotos · separación {spacingLabel(item.collage.spacing)} · fondo {backgroundLabel(item.collage.background)}</Text>
+              {item.collage.caption ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Leyenda: {item.collage.caption}</Text> : null}
+              <Text style={{ fontFamily: font.body, color: colors.muted }}>La impresión ya es el collage armado, a 300 dpi del marco.</Text>
+              {item.collage.sources.map((source, index) => (
+                <Text key={`${item.id}-${index}`} style={{ fontFamily: font.body, color: colors.muted }}>
+                  Foto {index + 1}: {source.dpi} dpi{source.storagePath ? ` · ${source.storagePath}` : ""}
+                </Text>
+              ))}
+            </View>
+          ) : null}
           {item.textOverlay?.text ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Texto: {item.textOverlay.text}</Text> : null}
           {item.card ? <Text style={{ fontFamily: font.body, color: colors.ink }}>{cardOrderLine(item.card)}</Text> : null}
           {item.card ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Portada: {item.card.frontMessage?.text || "Sin texto"}{item.card.photos.front ? " · con foto" : ""}</Text> : null}

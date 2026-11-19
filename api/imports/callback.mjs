@@ -1,4 +1,4 @@
-import { openImport } from "../../src/lib/photo-import.ts";
+import { openImport, safeImportReturn } from "../../src/lib/photo-import.ts";
 import { clientFor, importSecret, redirectUri, sealSession, sessionCookie, siteOrigin } from "./shared.mjs";
 
 export default async function handler(req, res) {
@@ -7,12 +7,13 @@ export default async function handler(req, res) {
     return;
   }
   const origin = siteOrigin(req);
-  const fail = () => res.redirect(`${origin}/crear?import=error`);
+  const state = await openImport(String(req.query?.state || ""), importSecret(), Date.now());
+  const next = safeImportReturn(state?.next);
+  const fail = () => res.redirect(`${origin}${next}?import=error`);
   if (req.query?.error) {
     fail();
     return;
   }
-  const state = await openImport(String(req.query?.state || ""), importSecret(), Date.now());
   const provider = state?.provider;
   const code = String(req.query?.code || "");
   if (!state || (provider !== "instagram" && provider !== "facebook" && provider !== "google") || !code) {
@@ -29,7 +30,7 @@ export default async function handler(req, res) {
       session.pickerUri = created.pickerUri;
     }
     const sealed = await sealSession(session);
-    res.redirect(`${origin}/crear?import=${provider}`, { "set-cookie": sessionCookie(sealed, origin) });
+    res.redirect(`${origin}${next}?import=${provider}`, { "set-cookie": sessionCookie(sealed, origin) });
   } catch (error) {
     console.warn("[mifotito] No se pudo conectar la red de fotos.", error instanceof Error ? error.message : error);
     fail();

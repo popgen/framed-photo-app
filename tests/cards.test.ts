@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { buildCardPdf } from "../src/lib/card-pdf";
 import { cardsPromoVisible, defaultCampaign } from "../src/lib/campaign";
 import { CARD_TEXT_MIN_PT, layoutCardText } from "../src/lib/card-text";
-import { cardCatalog, cardMessageError, cardOrderLine, cardSheetCopy, cardSizeById, envelopeFill, envelopeLabel, messageLimits, mmToPt, priceCards, sheetBox } from "../src/lib/cards";
+import { cardCatalog, cardMessageError, cardOrderLine, cardSheetCopy, cardSizeById, defaultCardSize, envelopeFill, envelopeLabel, messageLimits, mmToPt, offeredCardSizes, priceCards, sheetBox } from "../src/lib/cards";
 import { emptyOverlay } from "../src/lib/overlay";
 import { quote } from "../src/lib/pricing";
 
@@ -44,7 +44,18 @@ describe("christmas cards", () => {
     expect(a6.envelopeHmm).toBe(162);
     expect(a6.printShop).toBe(false);
     expect(cardSheetCopy(a6)).toContain("105×296");
-    expect(cardSheetCopy(a6)).toContain("A4");
+    expect(defaultCardSize().id).toBe("a4");
+    expect(offeredCardSizes().map((item) => item.id)).toEqual(["a4", "letter"]);
+    const a4 = cardSizeById("a4");
+    expect(a4.flatWmm).toBe(297);
+    expect(a4.flatHmm).toBe(210);
+    expect(a4.panelWmm).toBe(148.5);
+    expect(a4.panelHmm).toBe(210);
+    expect(a4.envelopeName).toBe("C5");
+    expect(a4.envelopeWmm).toBe(162);
+    expect(a4.envelopeHmm).toBe(229);
+    expect(cardSheetCopy(a4)).toContain("148×210");
+    expect(cardOrderLine({ sizeId: "letter" })).toContain("5.5×8.5");
     const large = cardSizeById("5x7");
     expect(large.flatWmm).toBe(127);
     expect(large.flatHmm).toBe(355.6);
@@ -135,6 +146,48 @@ describe("christmas cards", () => {
     const a4 = mmToPt(297);
     expect(sheet.getHeight()).toBeLessThan(a4);
     expect(sheet.getWidth()).toBeLessThan(mmToPt(210));
+  });
+
+  it("prints a half-fold card as two landscape pages the size of the sheet", async () => {
+    const font = await readFile("node_modules/@expo-google-fonts/pacifico/400Regular/Pacifico_400Regular.ttf");
+    const bytes = await buildCardPdf(
+      {
+        sizeId: "a4",
+        quantity: 1,
+        envelopeColor: "blanco",
+        templateId: "noche",
+        frontMessage: null,
+        insideMessage: emptyOverlay({ text: "Feliz Navidad", color: "#241714", y: 0.5 }),
+        photos: {},
+        bleed: true,
+        layout: "half-fold",
+      },
+      { pacifico: font },
+    );
+    const doc = await PDFDocument.load(bytes);
+    expect(doc.getPageCount()).toBe(2);
+    const [outside, inside] = doc.getPages();
+    expect(outside.getWidth()).toBeCloseTo(mmToPt(297), 1);
+    expect(outside.getHeight()).toBeCloseTo(mmToPt(210), 1);
+    expect(inside.getWidth()).toBeCloseTo(outside.getWidth(), 1);
+    expect(inside.getHeight()).toBeCloseTo(outside.getHeight(), 1);
+    const letter = await buildCardPdf(
+      {
+        sizeId: "letter",
+        quantity: 1,
+        envelopeColor: "blanco",
+        templateId: "oro",
+        frontMessage: null,
+        insideMessage: null,
+        photos: {},
+        bleed: false,
+      },
+      { pacifico: font },
+    );
+    const letterDoc = await PDFDocument.load(letter);
+    expect(letterDoc.getPageCount()).toBe(2);
+    expect(letterDoc.getPages()[0].getWidth()).toBeCloseTo(mmToPt(279.4), 1);
+    expect(letterDoc.getPages()[0].getHeight()).toBeCloseTo(mmToPt(215.9), 1);
   });
 
   it("still prints a stored card that used the older photo keys", async () => {

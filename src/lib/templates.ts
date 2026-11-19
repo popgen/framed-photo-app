@@ -6,8 +6,28 @@ function firstName(name: string): string {
   return name.trim().split(/\s+/)[0] || "hola";
 }
 
-export function paidMessage(order: Pick<Order, "number" | "customerName" | "totalCents" | "christmasNote" | "publicToken">): string {
-  return `Hola ${firstName(order.customerName)}, recibimos tu pedido ${order.number} en Mi Fotito (${formatSoles(order.totalCents)}). ${order.christmasNote} Sigue el estado: ${siteUrl()}/pedido/${order.publicToken}`;
+export function paidMessage(order: Pick<Order, "number" | "customerName" | "totalCents" | "christmasNote" | "publicToken" | "isGift" | "giftNote" | "giftNoteTo" | "giftNoteMessage" | "giftNoteFrom" | "hidePrices">): string {
+  return `Hola ${firstName(order.customerName)}, recibimos tu pedido ${order.number} en Mi Fotito (${formatSoles(order.totalCents)}). ${order.christmasNote}${giftNoteSentence(order)} Sigue el estado: ${siteUrl()}/pedido/${order.publicToken}`;
+}
+
+function storedJson(message: string): boolean {
+  if (!message.startsWith("{")) return false;
+  try {
+    const parsed = JSON.parse(message) as { message?: unknown };
+    return typeof parsed.message === "string";
+  } catch {
+    return false;
+  }
+}
+
+function giftNoteSentence(order: Pick<Order, "isGift" | "giftNote" | "giftNoteTo" | "giftNoteMessage" | "giftNoteFrom" | "hidePrices">): string {
+  const message = (order.giftNoteMessage || order.giftNote || "").trim();
+  if (!message || storedJson(message)) return " ";
+  const to = order.giftNoteTo?.trim() ? ` para ${order.giftNoteTo.trim()}` : "";
+  const from = order.giftNoteFrom?.trim() ? `, de ${order.giftNoteFrom.trim()}` : "";
+  const prices = order.hidePrices ? " La caja va sin precios." : "";
+  const gift = order.isGift ? " Es un regalo." : "";
+  return ` Incluimos una nota impresa${to}${from}: «${message}».${prices}${gift} `;
 }
 
 export function statusMessage(order: Pick<Order, "number" | "customerName" | "publicToken" | "trackingNumber">, status: OrderStatus): string {

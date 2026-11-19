@@ -1,5 +1,19 @@
+import { frames as catalogFrames } from "./catalog";
+import { readStoredGiftNote, readStoredIsGift } from "./gift-note";
 import { framesAvailable } from "./inventory";
 import type { CustomerProfile, FrameOffer, GiftCard, InventoryItem, Order, OrderItem, Promo, SavedAddress } from "./types";
+
+function mappedGiftNote(row: Record<string, any>) {
+  const note = readStoredGiftNote(row);
+  return {
+    isGift: readStoredIsGift(row),
+    giftNote: note?.message ?? null,
+    giftNoteTo: note?.to ?? null,
+    giftNoteMessage: note?.message ?? null,
+    giftNoteFrom: note?.from ?? null,
+    hidePrices: note?.hidePrices ?? false,
+  };
+}
 
 export function mapOrderRow(row: Record<string, any>): Order {
   const items = (row.order_items ?? []).map(mapItemRow);
@@ -17,7 +31,7 @@ export function mapOrderRow(row: Record<string, any>): Order {
     taxIdSkipped: Boolean(row.tax_id_skipped),
     recipientName: row.recipient_name,
     recipientPhone: row.recipient_phone,
-    giftNote: row.gift_note,
+    ...mappedGiftNote(row),
     giftWrap: Boolean(row.gift_wrap),
     addressLine: row.address_line,
     district: row.district,
@@ -37,6 +51,7 @@ export function mapOrderRow(row: Record<string, any>): Order {
     giftCardCode: row.gift_card_code,
     giftCardAppliedCents: row.gift_card_applied_cents ?? 0,
     giftWrapCents: row.gift_wrap_cents ?? 0,
+    giftNoteCents: row.gift_note_cents ?? 0,
     totalCents: row.total_cents,
     paymentMethod: row.payment_method,
     paymentStatus: row.payment_status,
@@ -76,6 +91,7 @@ export function mapItemRow(row: Record<string, any>): OrderItem {
     textOverlay: row.text_overlay,
     card: row.card,
     voice: row.voice,
+    collage: row.collage ?? null,
     photoOriginalPath: row.original_path,
     photoPrintPath: row.print_path ?? row.photo_path,
   };
@@ -102,8 +118,8 @@ export function mapFrameRow(row: Record<string, any>, stock: Record<string, numb
     consumes: row.consumes ?? [],
     blurb: row.blurb ?? "",
     sort: row.sort ?? 0,
-    category: row.category ?? undefined,
-    style: row.style ?? undefined,
+    category: row.category || catalogFrames.find((item) => item.id === row.id)?.category || undefined,
+    style: row.style || catalogFrames.find((item) => item.id === row.id)?.style || undefined,
     border: row.border ?? undefined,
   };
   return { ...frame, available: framesAvailable(frame, stock) };

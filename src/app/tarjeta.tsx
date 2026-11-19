@@ -1,19 +1,22 @@
 import { Image } from "expo-image";
+import { SampleScene } from "../components/SampleScene";
 import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Platform, Pressable, Text, View } from "react-native";
 import { Cropper } from "../components/Cropper";
-import { PhotoImport } from "../components/PhotoImport";
+import { PhotoSources } from "../components/PhotoSources";
 import { TextStyleEditor } from "../components/TextStyleEditor";
 import { useReducedMotion } from "../components/fx";
 import { Button, Card, Screen, TabBar } from "../components/ui";
 import { colors, font } from "../components/theme";
 import { layoutCardText, CARD_TEXT_MIN_PX } from "../lib/card-text";
-import { cardGreetings, cardSheetCopy, cardSizes, cardTemplates, DEFAULT_ENVELOPE, defaultCardSize, messageLimits, priceCards, type CardSnapshot } from "../lib/cards";
+import { A5_PANEL_RATIO, foldPreview } from "../lib/card-preview";
+import { cardGreetings, cardSheetCopy, cardSizes, cardTemplates, DEFAULT_ENVELOPE, defaultCardSize, messageLimits, offeredCardSizes, priceCards, type CardSnapshot } from "../lib/cards";
 import { importFlags } from "../lib/env";
 import { formatSoles } from "../lib/money";
 import { uid } from "../lib/ids";
-import { pickAndSavePhotos, resolvePhoto, samplePhoto } from "../lib/photos";
+import { EXAMPLE_PHOTO_PROMPT, isExamplePhoto } from "../lib/example-photo";
+import { resolvePhoto, samplePhoto } from "../lib/photos";
 import { centeredCrop, type Crop } from "../lib/print-size";
 import { useCart } from "../lib/store";
 import { fontById, type TextOverlay } from "../lib/overlay";
@@ -42,11 +45,15 @@ export default function Tarjeta() {
   const [insideMessage, setInsideMessage] = useState<TextOverlay | null>(null);
   const [frontPhoto, setFrontPhoto] = useState<PanelPhoto | null>(null);
   const [insidePhoto, setInsidePhoto] = useState<PanelPhoto | null>(null);
+  const [sampleNote, setSampleNote] = useState<string | null>(null);
   const size = cardSizes.find((item) => item.id === sizeId) ?? defaultCardSize();
   const template = cardTemplates.find((item) => item.id === templateId) ?? cardTemplates[0];
   const limits = messageLimits(size);
   const priced = priceCards(qty);
-  const active = panel === "Interior" ? insidePhoto : frontPhoto;
+
+  useEffect(() => {
+    void place("Portada", samplePhoto());
+  }, []);
 
   async function place(which: PanelName, photo: { id: string; width: number; height: number }) {
     const crop = centeredCrop(photo.width, photo.height, size.panelWmm, size.panelHmm);
@@ -54,9 +61,14 @@ export default function Tarjeta() {
     const next = { ...photo, crop, source };
     if (which === "Portada") setFrontPhoto(next);
     else setInsidePhoto(next);
+    if (!isExamplePhoto(photo.id)) setSampleNote(null);
   }
 
   function save() {
+    if (!frontPhoto || isExamplePhoto(frontPhoto.id)) {
+      setSampleNote(EXAMPLE_PHOTO_PROMPT);
+      return;
+    }
     const card: CardSnapshot = {
       sizeId: size.id,
       quantity: qty,
@@ -70,7 +82,7 @@ export default function Tarjeta() {
       },
       frontCrop: frontPhoto?.crop ?? null,
       insideCrop: insidePhoto?.crop ?? null,
-      layout: "diptych",
+      layout: "half-fold",
       bleed,
     };
     add({
@@ -89,8 +101,9 @@ export default function Tarjeta() {
   return (
     <Screen
       footer={
-        <View>
+        <View nativeID="card-footer">
           <View style={{ padding: 16, gap: 8, backgroundColor: colors.bg }}>
+            {sampleNote ? <Text style={{ fontFamily: font.medium, color: colors.bad, textAlign: "center" }}>{sampleNote}</Text> : null}
             <Button label={`Agregar · ${formatSoles(priced.cents)}`} onPress={save} />
           </View>
           <TabBar />
@@ -99,9 +112,9 @@ export default function Tarjeta() {
     >
       <View style={{ padding: 16, gap: 14 }}>
         <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>Tarjeta navideña</Text>
-        <Text style={{ fontFamily: font.body, color: colors.muted }}>Dos paneles y un pliegue arriba. Más barata que un marco.</Text>
+        <Text style={{ fontFamily: font.body, color: colors.muted }}>Una hoja horizontal doblada a la mitad. La portada lleva la foto y adentro va el mensaje.</Text>
         <View style={{ flexDirection: "row", gap: 8 }}>
-          {cardSizes.map((item) => (
+          {offeredCardSizes().map((item) => (
             <Pressable key={item.id} onPress={() => setSizeId(item.id)} style={chip(item.id === size.id)}>
               <Text style={chipText(item.id === size.id)}>{item.name}</Text>
             </Pressable>
@@ -124,6 +137,7 @@ export default function Tarjeta() {
           insidePhoto={insidePhoto}
           frontMessage={frontMessage}
           insideMessage={insideMessage}
+          example={isExamplePhoto(frontPhoto?.id)}
           onPress={() => setOpen((value) => !value)}
         />
         <View style={{ flexDirection: "row", gap: 8 }}>
@@ -140,40 +154,34 @@ export default function Tarjeta() {
             </Pressable>
           ))}
         </View>
-        <Card>
-          <Text style={{ fontFamily: font.semibold, color: colors.ink, marginBottom: 8 }}>{panel}</Text>
-          {active ? (
-            <>
-              <Text style={{ fontFamily: font.semibold, color: colors.ink, marginBottom: 8 }}>Encadra la foto</Text>
-              <Cropper
-                source={active.source ?? {}}
-                crop={active.crop}
-                aspect={[size.panelWmm, size.panelHmm]}
-                width={300}
-                onChange={(crop) => {
-                  if (panel === "Portada") setFrontPhoto((current) => (current ? { ...current, crop } : current));
-                  else setInsidePhoto((current) => (current ? { ...current, crop } : current));
-                }}
-              />
-              <View style={{ height: 8 }} />
-              <Button label="Cambiar foto" tone="ghost" onPress={() => void pick(panel, place)} />
-            </>
-          ) : (
-            <>
-              <Text style={{ fontFamily: font.body, color: colors.muted, marginBottom: 8 }}>JPG, PNG o HEIC. La foto se acomoda dentro del panel.</Text>
-              <Button label="Desde tu iPhone / iCloud" onPress={() => void pick(panel, place)} />
-              <View style={{ height: 8 }} />
-              <Button label="Usar foto de ejemplo" tone="ghost" onPress={() => void place(panel, samplePhoto())} />
-            </>
-          )}
-          <View style={{ height: 8 }} />
-          <PhotoImport
-            flags={importFlags()}
-            notice={params.import}
-            frame={{ printWcm: size.panelWmm / 10, printHcm: size.panelHmm / 10 }}
-            onUse={(photo) => place(panel, photo)}
-          />
-        </Card>
+        {panel === "Portada" ? (
+          <Card>
+            <Text style={{ fontFamily: font.semibold, color: colors.ink, marginBottom: 8 }}>Portada</Text>
+            {frontPhoto ? (
+              <>
+                <Text style={{ fontFamily: font.semibold, color: colors.ink, marginBottom: 8 }}>Encadra la foto</Text>
+                <Cropper
+                  source={frontPhoto.source ?? {}}
+                  crop={frontPhoto.crop}
+                  aspect={[size.panelWmm, size.panelHmm]}
+                  width={300}
+                  onChange={(crop) => setFrontPhoto((current) => (current ? { ...current, crop } : current))}
+                />
+                <View style={{ height: 8 }} />
+              </>
+            ) : (
+              <Text style={{ fontFamily: font.body, color: colors.muted, marginBottom: 8 }}>Una sola foto en la portada. JPG, PNG o HEIC.</Text>
+            )}
+            <PhotoSources
+              print={{ printWcm: size.panelWmm / 10, printHcm: size.panelHmm / 10 }}
+              flags={importFlags()}
+              notice={params.import}
+              onPhoto={(photo) => place("Portada", photo)}
+            />
+          </Card>
+        ) : (
+          <Text style={{ fontFamily: font.body, color: colors.muted }}>El mensaje va en la mitad de adentro. Puedes usar hasta 300 caracteres.</Text>
+        )}
         <TextStyleEditor
           collapsible
           multiline
@@ -185,7 +193,7 @@ export default function Tarjeta() {
           presets={cardGreetings}
         />
         <Text style={{ fontFamily: font.body, color: colors.muted }}>El reverso lleva la marca Mi Fotito.</Text>
-        <Text style={{ fontFamily: font.body, color: colors.ink }}>Incluye sobre blanco</Text>
+        <Text style={{ fontFamily: font.body, color: colors.ink }}>Incluye sobre blanco C5</Text>
         <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
           <Pressable onPress={() => setQty((value) => Math.max(1, value - 1))} style={chip(false)}><Text style={chipText(false)}>−</Text></Pressable>
           <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{priced.label}</Text>
@@ -199,20 +207,16 @@ export default function Tarjeta() {
   );
 }
 
-async function pick(panel: PanelName, place: (panel: PanelName, photo: { id: string; width: number; height: number }) => Promise<void>) {
-  const photo = (await pickAndSavePhotos(false))[0];
-  if (photo) await place(panel, photo);
-}
-
 function Diptych({
   open,
   reduced,
   outside,
   inside,
   frontPhoto,
-  insidePhoto,
+  insidePhoto: _insidePhoto,
   frontMessage,
   insideMessage,
+  example,
   onPress,
 }: {
   open: boolean;
@@ -223,57 +227,171 @@ function Diptych({
   insidePhoto: PanelPhoto | null;
   frontMessage: TextOverlay | null;
   insideMessage: TextOverlay | null;
+  example: boolean;
   onPress: () => void;
 }) {
-  const panelW = 210;
-  const panelH = Math.round(panelW * (148 / 105));
-  const motion = {
-    transitionDuration: reduced ? "0ms" : "1000ms",
-    transitionProperty: "transform, top, opacity",
-    transformOrigin: "top center",
-  } as const;
+  const panelW = 168;
+  const panelH = Math.round(panelW * A5_PANEL_RATIO);
+  const motion = foldPreview(open, reduced);
+  const ease = "cubic-bezier(0.45, 0.05, 0.2, 1)";
+  const stage = useRef<HTMLElement | null>(null);
+  const armed = useRef(false);
+  if (open) armed.current = true;
+  useEffect(() => {
+    if (Platform.OS !== "web" || !open) return;
+    const node = stage.current;
+    if (!node) return;
+    const timer = window.setTimeout(() => {
+      const rect = node.getBoundingClientRect();
+      const footer = document.getElementById("card-footer");
+      const footerHeight = footer ? footer.getBoundingClientRect().height : 170;
+      const overflow = rect.bottom - (window.innerHeight - footerHeight) + 12;
+      if (overflow <= 0) return;
+      let parent: HTMLElement | null = node.parentElement;
+      while (parent) {
+        const style = getComputedStyle(parent);
+        if (/(auto|scroll)/.test(style.overflowY) && parent.scrollHeight > parent.clientHeight + 1) {
+          parent.scrollBy({ top: overflow, behavior: reduced ? "auto" : "smooth" });
+          return;
+        }
+        parent = parent.parentElement;
+      }
+      window.scrollBy({ top: overflow, behavior: reduced ? "auto" : "smooth" });
+    }, motion.durationMs + 40);
+    return () => window.clearTimeout(timer);
+  }, [open, reduced, motion.durationMs]);
   return (
-    <View style={{ alignItems: "center" }}>
-      <Pressable onPress={onPress} accessibilityLabel={open ? "Cerrar la tarjeta" : "Abrir la tarjeta"}>
-        <View style={{ width: panelW, height: open ? panelH * 2 + 12 : panelH }}>
-          <View
-            style={{
-              position: "absolute",
-              top: open ? panelH + 12 : 0,
-              width: panelW,
-              height: panelH,
-              opacity: open ? 1 : 0,
-              borderRadius: 10,
-              overflow: "hidden",
-              ...motion,
-            }}
-          >
-            <PanelFace width={panelW} height={panelH} color={inside} photo={insidePhoto} overlay={insideMessage} />
+    <View ref={stage as never} style={{ alignItems: "center" }}>
+      {example ? <View style={{ marginBottom: 8 }}><ExampleTag /></View> : null}
+      <View
+        style={webStyle({
+          width: panelW,
+          height: Math.round(panelH * motion.liftPxRatio),
+          transitionProperty: "height",
+          transitionDuration: `${motion.durationMs}ms`,
+          transitionTimingFunction: ease,
+        })}
+      >
+        {reduced && open ? <PaperBack width={panelW} height={panelH} color={inside} /> : null}
+      </View>
+      <Pressable onPress={onPress} accessibilityLabel={motion.hint}>
+        <View
+          style={webStyle({
+            width: panelW,
+            height: panelH,
+            perspective: motion.perspective,
+            transformStyle: "preserve-3d",
+          })}
+        >
+          <View style={webStyle({ position: "absolute", top: 0, left: 0, width: panelW, height: panelH, opacity: motion.insideOpacity, transitionProperty: "opacity", transitionDuration: `${motion.durationMs}ms` })}>
+            <PanelFace width={panelW} height={panelH} color={inside} photo={null} overlay={insideMessage} onLight />
           </View>
-          <View style={{ position: "absolute", top: 0, width: panelW, height: panelH, borderRadius: 10, backgroundColor: "#F7F4EF", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(42,27,22,0.28)", boxShadow: "0 10px 24px rgba(42,27,22,0.12)" }}>
-            <Text style={{ fontFamily: font.display, fontSize: 22, color: colors.red }}>Mi Fotito</Text>
-          </View>
           <View
-            style={{
+            style={webStyle({
               position: "absolute",
               top: 0,
+              left: 0,
               width: panelW,
               height: panelH,
               zIndex: 2,
-              borderRadius: 10,
-              overflow: "hidden",
-              backfaceVisibility: "hidden",
-              transform: [{ perspective: 900 }, { rotateX: open ? "-172deg" : "0deg" }],
-              ...motion,
-            }}
+              opacity: motion.frontOpacity,
+              transformStyle: "preserve-3d",
+              transformOrigin: motion.origin,
+              transform: `rotateX(${motion.rotateX})`,
+              transitionProperty: reduced ? "opacity" : "transform",
+              transitionDuration: `${motion.durationMs}ms`,
+              transitionTimingFunction: ease,
+            })}
           >
-            <PanelFace width={panelW} height={panelH} color={outside} photo={frontPhoto} overlay={frontMessage} />
+            <View
+              nativeID="cover-photo"
+              style={webStyle({
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: panelW,
+                height: panelH,
+                ...coverFaceStyle("photo", reduced, open, armed.current, motion.durationMs),
+              })}
+            >
+              <PanelFace width={panelW} height={panelH} color={outside} photo={frontPhoto} overlay={frontMessage} />
+            </View>
+            <View
+              nativeID="cover-paper"
+              style={webStyle({
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: panelW,
+                height: panelH,
+                transform: "rotateX(180deg)",
+                backgroundColor: inside,
+                ...coverFaceStyle("paper", reduced, open, armed.current, motion.durationMs),
+                borderRadius: 10,
+                alignItems: "center",
+                justifyContent: "center",
+                borderWidth: 1,
+                borderColor: "rgba(42,27,22,0.2)",
+              })}
+            >
+              <Text style={{ fontFamily: font.display, fontSize: 22, color: colors.red }}>Mi Fotito</Text>
+            </View>
           </View>
         </View>
       </Pressable>
-      <Text style={{ fontFamily: font.medium, color: colors.muted, marginTop: 6 }}>{open ? "Interior" : "Portada"} · toca para {open ? "cerrar" : "abrir"}</Text>
+      <Text style={{ fontFamily: font.medium, color: colors.muted, marginTop: 8 }}>{motion.hint}</Text>
     </View>
   );
+}
+
+function PaperBack({ width, height, color }: { width: number; height: number; color: string }) {
+  return (
+    <View style={{ width, height, backgroundColor: color, borderRadius: 10, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(42,27,22,0.2)" }}>
+      <Text style={{ fontFamily: font.display, fontSize: 22, color: colors.red }}>Mi Fotito</Text>
+    </View>
+  );
+}
+
+function ExampleTag() {
+  return (
+    <View style={{ backgroundColor: colors.ink, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
+      <Text style={{ fontFamily: font.semibold, color: "white", fontSize: 12 }}>Foto de ejemplo</Text>
+    </View>
+  );
+}
+
+const COVER_PHOTO_FRAMES = `
+@keyframes mifotito-cover-photo {
+  0%, 36.1% { opacity: 1; visibility: visible; }
+  36.2%, 100% { opacity: 0; visibility: hidden; }
+}
+@keyframes mifotito-cover-paper {
+  0%, 36.1% { opacity: 0; visibility: hidden; }
+  36.2%, 100% { opacity: 1; visibility: visible; }
+}
+`;
+
+function coverFaceStyle(which: "photo" | "paper", reduced: boolean, open: boolean, armed: boolean, durationMs: number) {
+  if (reduced || !armed || typeof document === "undefined") {
+    return which === "photo" ? { opacity: 1, visibility: "visible" } : { opacity: 0, visibility: "hidden" };
+  }
+  if (!document.getElementById("mifotito-cover-photo")) {
+    const sheet = document.createElement("style");
+    sheet.id = "mifotito-cover-photo";
+    sheet.textContent = COVER_PHOTO_FRAMES;
+    document.head.appendChild(sheet);
+  }
+  return {
+    animationName: which === "photo" ? "mifotito-cover-photo" : "mifotito-cover-paper",
+    animationDuration: `${durationMs}ms`,
+    animationTimingFunction: "linear",
+    animationFillMode: "both",
+    animationDirection: open ? "normal" : "reverse",
+  };
+}
+
+function webStyle(style: Record<string, unknown>) {
+  return style as object;
 }
 
 function PanelFace({
@@ -282,12 +400,14 @@ function PanelFace({
   color,
   photo,
   overlay,
+  onLight = false,
 }: {
   width: number;
   height: number;
   color: string;
   photo: PanelPhoto | null;
   overlay: TextOverlay | null;
+  onLight?: boolean;
 }) {
   const crop = photo?.crop;
   const source = photo?.source?.source ?? (photo?.source?.uri ? { uri: photo.source.uri } : null);
@@ -310,7 +430,17 @@ function PanelFace({
     : 0;
   return (
     <View style={{ width, height, backgroundColor: color, overflow: "hidden", borderWidth: 1, borderColor: "rgba(42,27,22,0.28)", borderRadius: 10, boxShadow: "0 10px 24px rgba(42,27,22,0.12)" }}>
-      {source && crop ? (
+      {photo?.id === "asset:sample" && crop ? (
+        <SampleScene
+          style={{
+            position: "absolute",
+            width: (width * crop.imageWidth) / crop.width,
+            height: (height * crop.imageHeight) / crop.height,
+            left: (-crop.x * width) / crop.width,
+            top: (-crop.y * height) / crop.height,
+          }}
+        />
+      ) : source && crop ? (
         <Image
           source={source}
           contentFit="fill"
@@ -325,7 +455,7 @@ function PanelFace({
       ) : null}
       {fitted && overlay ? (
         <View style={{ position: "absolute", left: width * 0.08, top, width: width * 0.84 }}>
-          <Text style={{ fontFamily: fontById(overlay.font).family, fontSize: fitted.size, lineHeight: fitted.leading, color: overlay.color, textAlign: "center" }}>{fitted.lines.join("\n")}</Text>
+          <Text style={{ fontFamily: fontById(overlay.font).family, fontSize: fitted.size, lineHeight: fitted.leading, color: onLight && overlay.color.toLowerCase() === "#ffffff" ? colors.ink : overlay.color, textAlign: "center" }}>{fitted.lines.join("\n")}</Text>
         </View>
       ) : null}
     </View>

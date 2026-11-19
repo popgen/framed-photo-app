@@ -4,9 +4,8 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import { useReducedMotion } from "../components/fx";
 import { Button, Card, Screen } from "../components/ui";
 import { colors, font } from "../components/theme";
-import { supportNumber } from "../lib/env";
 import { getRepo } from "../lib/repo";
-import { inquiryFromSize, retabloOffer, retabloWhatsAppUrl } from "../lib/retablo";
+import { inquiryFromSize, retabloMailUrl, retabloOffer } from "../lib/retablo";
 
 export default function Retablo() {
   const reduced = useReducedMotion();
@@ -18,8 +17,8 @@ export default function Retablo() {
     try {
       inquiryFromSize(size);
       await getRepo().createRetabloInquiry(size);
-      const url = retabloWhatsAppUrl(size, supportNumber());
-      if (Platform.OS === "web") window.open(url, "_blank", "noopener,noreferrer");
+      const url = retabloMailUrl(size);
+      if (Platform.OS === "web") window.location.href = url;
       else await Linking.openURL(url);
       setSent(true);
       setError(null);
@@ -47,8 +46,8 @@ export default function Retablo() {
         </View>
         <TextInput value={size} onChangeText={setSize} placeholder="El tamaño que imaginas" placeholderTextColor="#A89488" style={{ minHeight: 48, borderRadius: 12, backgroundColor: colors.white, paddingHorizontal: 12, fontFamily: font.body }} />
         {error ? <Text style={{ fontFamily: font.body, color: colors.bad }}>{error}</Text> : null}
-        {sent ? <Text style={{ fontFamily: font.medium, color: colors.pine }}>Listo. WhatsApp lleva tu tamaño y Lucas ve tu contacto.</Text> : null}
-        <Button label="Enviar y escribir por WhatsApp" onPress={() => void submit()} />
+        {sent ? <Text style={{ fontFamily: font.medium, color: colors.pine }}>Listo. El correo lleva tu tamaño a pedidos@mifotito.com.</Text> : null}
+        <Button label="Enviar por correo" onPress={() => void submit()} />
       </View>
     </Screen>
   );

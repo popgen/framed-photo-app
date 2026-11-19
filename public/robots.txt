@@ -1,10 +1,14 @@
 User-agent: *
 Allow: /
 Disallow: /admin
-Disallow: /api/
-Disallow: /v/
-Disallow: /w/
+Disallow: /api
 Disallow: /pedido/
 Disallow: /confirmacion/
+Disallow: /w/
+Disallow: /v/
+Disallow: /cuenta
+Disallow: /carrito
+Disallow: /checkout
+Disallow: /pago
 
 Sitemap: https://mifotito.com/sitemap.xml

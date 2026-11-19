@@ -1,10 +1,12 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { AccountAuth } from "../components/AccountAuth";
+import { InlineLink } from "../components/InlineLink";
 import { currentCustomer, type CustomerSession } from "../lib/customer-auth";
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { Countdown, GuaranteeNote, PaySheet, useNow } from "../components/fx";
 import { useApp } from "../components/provider";
+import { GiftNoteEditor } from "../components/GiftNoteCard";
 import { Banner, Button, Field, Progress, Screen } from "../components/ui";
 import { colors, font } from "../components/theme";
 import { readWaOrder, rememberWaOrder } from "../lib/boot";
@@ -14,9 +16,12 @@ import { DEPARTMENTS, districtsFor, provincesFor, shippingZone } from "../lib/zo
 import { paymentsMode, providerFor, type PaymentMethod } from "../lib/env";
 import { cardOrderLine } from "../lib/cards";
 import { frameById } from "../lib/catalog";
+import { framedPriceCents } from "../lib/collage";
 import { formatSoles } from "../lib/money";
+import { GIFT_NOTE_MESSAGE_MAX } from "../lib/gift-note";
 import { quote as priceQuote } from "../lib/pricing";
 import { getRepo } from "../lib/repo";
+import { EXAMPLE_PHOTO_PROMPT, usesExamplePhoto } from "../lib/example-photo";
 import { rememberReceipt, useCart } from "../lib/store";
 import { resolveTaxId } from "../lib/tax-id";
 import type { CheckoutInput, Order } from "../lib/types";
@@ -25,7 +30,9 @@ export default function Checkout() {
   const now = useNow();
   const params = useLocalSearchParams<{ pago?: string }>();
   const items = useCart((state) => state.items);
+  const setGift = useCart((state) => state.setGift);
   const clear = useCart((state) => state.clear);
+  const savedGift = useCart.getState().gift;
   const { refresh } = useApp();
   const [campaign, setCampaign] = useState<Awaited<ReturnType<ReturnType<typeof getRepo>["getCampaign"]>> | null>(null);
   const [account, setAccount] = useState<CustomerSession | null>(null);
@@ -39,7 +46,11 @@ export default function Checkout() {
     taxLegalName: "",
     recipientName: "",
     recipientPhone: "",
-    giftNote: "",
+    giftPrinted: savedGift.isGift,
+    giftNoteTo: savedGift.to,
+    giftNoteMessage: savedGift.message,
+    giftNoteFrom: savedGift.from,
+    hidePrices: savedGift.hidePrices,
     giftWrap: false,
     otherRecipient: false,
     addressLine: "",
@@ -87,8 +98,11 @@ export default function Checkout() {
         textOverlay: item.textOverlay,
         card: item.card,
         voice: item.voice,
+        collage: item.collage,
       })),
       ...form,
+      isGift: form.giftPrinted,
+      giftNote: form.giftNoteMessage,
       city: form.district,
       province: form.province,
       paymentMethod: method,
@@ -107,8 +121,9 @@ export default function Checkout() {
   }, [input, form.phone]);
 
   const instant = priceQuote({
-    items: items.map((item) => ({ unitPriceCents: frameById(item.frameId).priceCents })),
+    items: items.map((item) => ({ unitPriceCents: item.collage ? framedPriceCents(frameById(item.frameId).priceCents, true) : frameById(item.frameId).priceCents })),
     giftWrap: form.giftWrap,
+    giftNote: form.giftPrinted && form.giftNoteMessage.trim().length > 0 && form.giftNoteMessage.trim().length <= GIFT_NOTE_MESSAGE_MAX,
   });
   const shownTotal = quote?.totalCents ?? instant.totalCents;
   const taxCheck = resolveTaxId({ taxId: form.taxId, skipped: form.taxIdSkipped });
@@ -158,6 +173,10 @@ export default function Checkout() {
   }
 
   async function start() {
+    if (items.some((item) => usesExamplePhoto(item))) {
+      setError(EXAMPLE_PHOTO_PROMPT);
+      return;
+    }
     const tax = resolveTaxId({ taxId: form.taxId, skipped: form.taxIdSkipped });
     if (!tax.ok) {
       setTaxTouched(true);
@@ -241,6 +260,9 @@ export default function Checkout() {
       seasonal={null}
       footer={
         <View style={{ padding: 16, gap: 8, backgroundColor: colors.bg }}>
+          <Text style={{ fontFamily: font.body, color: colors.muted, textAlign: "center", lineHeight: 20 }}>
+            Al pagar aceptas los <InlineLink href="/terminos">Términos y condiciones</InlineLink> y la <InlineLink href="/privacidad">Política de privacidad</InlineLink>.
+          </Text>
           <Text style={{ fontFamily: font.display, fontSize: 28, color: colors.ink }}>{formatSoles(shownTotal)}</Text>
           <Button label={busy ? "Procesando…" : "Pagar"} disabled={busy || !items.length} onPress={() => void start()} />
         </View>
@@ -251,7 +273,7 @@ export default function Checkout() {
         <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>Entrega</Text>
         {items.filter((item) => item.card).map((item) => (
           <Text key={item.id} style={{ fontFamily: font.body, color: colors.muted }}>
-            Tarjeta {item.card?.sizeId}: {item.card ? cardOrderLine(item.card) : ""} Portada y interior. Incluye sobre blanco. El reverso lleva la marca Mi Fotito.
+            Tarjeta {item.card?.sizeId}: {item.card ? cardOrderLine(item.card) : ""} Foto en la portada y mensaje adentro. Incluye sobre blanco C5. El reverso lleva la marca Mi Fotito.
           </Text>
         ))}
         {campaign && countdownVisible(now, campaign) ? <Countdown target={countdownTarget(now, zone, campaign)} now={now} /> : null}
@@ -302,6 +324,7 @@ export default function Checkout() {
         <Text style={{ fontFamily: font.semibold, color: zone === "provinces" ? colors.warn : colors.pine }}>
           {zone === "lima" ? "Lima y Callao · 2 a 3 días hábiles" : zone === "provinces" ? "Provincias · 3 a 5 días hábiles" : "Elige departamento, provincia y distrito para ver el plazo."}
         </Text>
+        {form.giftPrinted ? <Text style={{ fontFamily: font.body, color: colors.muted }}>Si el regalo va a otra dirección, márcalo aquí.</Text> : null}
         <Pressable onPress={() => setForm({ ...form, otherRecipient: !form.otherRecipient })} style={{ minHeight: 44, justifyContent: "center" }}>
           <Text style={{ fontFamily: font.medium, color: colors.ink }}>{form.otherRecipient ? "☑" : "☐"} Se lo envío a otra persona</Text>
         </Pressable>
@@ -311,7 +334,19 @@ export default function Checkout() {
             <Field label="Celular de quien lo recibe" value={form.recipientPhone} onChangeText={(recipientPhone) => setForm({ ...form, recipientPhone })} />
           </>
         ) : null}
-        <Field label="Nota de regalo" value={form.giftNote} onChangeText={(giftNote) => setForm({ ...form, giftNote })} />
+        <GiftNoteEditor
+          printed={form.giftPrinted}
+          to={form.giftNoteTo}
+          message={form.giftNoteMessage}
+          fromName={form.giftNoteFrom}
+          buyerName={form.customerName}
+          hidePrices={form.hidePrices}
+          onChange={(next) => {
+            setGift({ isGift: next.printed, to: next.to, message: next.message, from: next.fromName, hidePrices: next.hidePrices });
+            setForm({ ...form, giftPrinted: next.printed, giftNoteTo: next.to, giftNoteMessage: next.message, giftNoteFrom: next.fromName, hidePrices: next.hidePrices });
+          }}
+        />
+        {form.giftPrinted && !form.giftWrap ? <Text style={{ fontFamily: font.body, color: colors.muted }}>Si quieres, suma el envoltorio. Va aparte de la nota.</Text> : null}
         <Pressable onPress={() => setForm({ ...form, giftWrap: !form.giftWrap })} style={{ minHeight: 52, justifyContent: "center", backgroundColor: form.giftWrap ? "#E7F6EE" : colors.white, borderRadius: 16, padding: 12 }}>
           <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{form.giftWrap ? "☑" : "☐"} {campaign?.giftWrapTitle ?? "Envoltorio de regalo"} · S/ 10</Text>
           <Text style={{ fontFamily: font.body, color: colors.muted }}>{campaign?.giftWrapBody ?? "La caja va sin precios."}</Text>

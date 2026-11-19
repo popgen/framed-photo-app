@@ -1,24 +1,32 @@
 import { router } from "expo-router";
+import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
+import { CollageStill } from "../components/CollageBoard";
+import { GiftNoteEditor } from "../components/GiftNoteCard";
 import { FrameView } from "../components/FrameView";
 import { PriceTicker } from "../components/fx";
 import { Button, Card, Progress, Screen, TabBar } from "../components/ui";
 import { colors, font } from "../components/theme";
 import { cardOrderLine, priceCards } from "../lib/cards";
 import { frameById } from "../lib/catalog";
+import { framedPriceCents } from "../lib/collage";
 import { formatSoles } from "../lib/money";
 import { quote, type QuoteItem } from "../lib/pricing";
 import { VOICE_ADDON_CENTS } from "../lib/voice";
+import { EXAMPLE_PHOTO_PROMPT, usesExamplePhoto } from "../lib/example-photo";
 import { useCart } from "../lib/store";
 
 export default function Carrito() {
   const items = useCart((state) => state.items);
+  const gift = useCart((state) => state.gift);
+  const setGift = useCart((state) => state.setGift);
   const remove = useCart((state) => state.remove);
+  const [sampleNote, setSampleNote] = useState<string | null>(null);
   const priced = quote({
     items: items.flatMap((item): QuoteItem[] => {
       const lines: QuoteItem[] = item.card
         ? [{ unitPriceCents: priceCards(item.card.quantity).cents, quantity: 1, kind: "plain" }]
-        : [{ unitPriceCents: frameById(item.frameId).priceCents, quantity: 1, kind: "frame" }];
+        : [{ unitPriceCents: framedPriceCents(frameById(item.frameId).priceCents, Boolean(item.collage)), quantity: 1, kind: "frame" }];
       if (item.voice) lines.push({ unitPriceCents: item.voice.addonCents || VOICE_ADDON_CENTS, quantity: 1, kind: "plain" });
       return lines;
     }),
@@ -29,7 +37,14 @@ export default function Carrito() {
         <View>
           <View style={{ padding: 16, gap: 8, backgroundColor: colors.bg }}>
             <PriceTicker cents={priced.totalCents} />
-            <Button label="Continuar al pago" disabled={!items.length} onPress={() => router.push("/checkout")} />
+            {sampleNote ? <Text style={{ fontFamily: font.medium, color: colors.bad, textAlign: "center" }}>{sampleNote}</Text> : null}
+            <Button label="Continuar al pago" disabled={!items.length} onPress={() => {
+              if (items.some((item) => usesExamplePhoto(item))) {
+                setSampleNote(EXAMPLE_PHOTO_PROMPT);
+                return;
+              }
+              router.push("/checkout");
+            }} />
           </View>
           <TabBar />
         </View>
@@ -46,7 +61,7 @@ export default function Carrito() {
               <Card key={item.id}>
                 <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Tarjeta {item.card.sizeId}</Text>
                 <Text style={{ fontFamily: font.body, color: colors.muted }}>{cardOrderLine(item.card)}</Text>
-                <Text style={{ fontFamily: font.body, color: colors.muted }}>Incluye sobre blanco</Text>
+                <Text style={{ fontFamily: font.body, color: colors.muted }}>Incluye sobre blanco C5</Text>
                 <Text style={{ fontFamily: font.body, color: colors.muted }}>{item.card.frontMessage?.text || "Sin mensaje de portada"}</Text>
                 <Text style={{ fontFamily: font.body, color: colors.muted }}>{item.card.insideMessage?.text || "Sin mensaje interior"}</Text>
                 <Text style={{ fontFamily: font.bold, color: colors.ink }}>{formatSoles(price.cents)}</Text>
@@ -57,15 +72,24 @@ export default function Carrito() {
             );
           }
           const frame = frameById(item.frameId);
+          const price = framedPriceCents(frame.priceCents, Boolean(item.collage));
           return (
             <Card key={item.id}>
               <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
-                <FrameView frame={frame} photoId={item.photoId} crop={item.crop} orientation={item.orientation} width={78} overlay={item.textOverlay} />
+                <FrameView
+                  frame={frame}
+                  photoId={item.collage ? undefined : item.photoId}
+                  crop={item.collage ? undefined : item.crop}
+                  orientation={item.orientation}
+                  width={78}
+                  overlay={item.collage ? undefined : item.textOverlay}
+                  opening={item.collage ? <CollageStill photoId={item.photoId} /> : undefined}
+                />
                 <View style={{ flex: 1, gap: 4 }}>
                   <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{frame.name}</Text>
-                  <Text style={{ fontFamily: font.body, color: colors.muted }}>{frame.sizeLabel}</Text>
+                  <Text style={{ fontFamily: font.body, color: colors.muted }}>{item.collage ? `Collage · ${item.collage.templateName}` : frame.sizeLabel}</Text>
                   {item.bundleLabel ? <Text style={{ fontFamily: font.medium, color: colors.pine }}>{item.bundleLabel}</Text> : null}
-                  <Text style={{ fontFamily: font.bold, color: colors.ink }}>{formatSoles(frame.priceCents)}</Text>
+                  <Text style={{ fontFamily: font.bold, color: colors.ink }}>{formatSoles(price)}</Text>
                 </View>
               </View>
               <Pressable onPress={() => remove(item.id)} style={{ minHeight: 44, justifyContent: "center" }}>
@@ -74,6 +98,15 @@ export default function Carrito() {
             </Card>
           );
         })}
+        <GiftNoteEditor
+          printed={gift.isGift}
+          to={gift.to}
+          message={gift.message}
+          fromName={gift.from}
+          buyerName=""
+          hidePrices={gift.hidePrices}
+          onChange={(next) => setGift({ isGift: next.printed, to: next.to, message: next.message, from: next.fromName, hidePrices: next.hidePrices })}
+        />
         {priced.frameDiscountLabel ? (
           <Text style={{ fontFamily: font.medium, color: colors.pine }}>
             {priced.frameDiscountLabel}: -{formatSoles(priced.frameDiscountCents)}
