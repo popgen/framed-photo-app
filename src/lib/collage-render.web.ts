@@ -6,7 +6,9 @@ import {
   cellPixels,
   compositePixels,
   fitCompositeSize,
+  polaroidCard,
   type CollageSnapshot,
+  type NormRect,
 } from "./collage";
 
 export async function renderCollageBlob(snapshot: CollageSnapshot, images: CanvasImageSource[]): Promise<Blob> {
@@ -32,16 +34,66 @@ function paint(ctx: CanvasRenderingContext2D, snapshot: CollageSnapshot, images:
   ctx.fillStyle = backgroundHex(snapshot.background);
   ctx.fillRect(0, 0, width, height);
   if (snapshot.templateId === "navidad") drawFestiveBorder(ctx, width, height);
-  snapshot.sources.forEach((source, index) => {
-    const rect = cellPixels(source.cell, width, height);
-    const radius = snapshot.rounded ? Math.min(rect.w, rect.h) * 0.12 : 0;
-    ctx.save();
-    clipRound(ctx, rect.x, rect.y, rect.w, rect.h, radius);
-    const crop = source.crop;
-    ctx.drawImage(images[index], crop.x, crop.y, crop.width, crop.height, rect.x, rect.y, rect.w, rect.h);
-    ctx.restore();
-  });
+  if (snapshot.templateId === "polaroids") {
+    snapshot.sources.forEach((source, index) => {
+      drawPolaroid(ctx, images[index], source.crop, source.cell, source.rotation ?? source.cell.rotation ?? 0, width, height);
+    });
+  } else {
+    snapshot.sources.forEach((source, index) => {
+      const rect = cellPixels(source.cell, width, height);
+      const radius = snapshot.rounded ? Math.min(rect.w, rect.h) * 0.12 : 0;
+      ctx.save();
+      clipRound(ctx, rect.x, rect.y, rect.w, rect.h, radius);
+      const crop = source.crop;
+      ctx.drawImage(images[index], crop.x, crop.y, crop.width, crop.height, rect.x, rect.y, rect.w, rect.h);
+      ctx.restore();
+    });
+  }
   if (snapshot.caption) drawCaption(ctx, snapshot, width, height);
+}
+
+function drawPolaroid(
+  ctx: CanvasRenderingContext2D,
+  image: CanvasImageSource,
+  crop: CollageSnapshot["sources"][number]["crop"],
+  photo: NormRect,
+  rotation: number,
+  width: number,
+  height: number,
+) {
+  const card = polaroidCard(photo, width, height);
+  const cardX = card.x * width;
+  const cardY = card.y * height;
+  const cardW = card.w * width;
+  const cardH = card.h * height;
+  const photoX = photo.x * width;
+  const photoY = photo.y * height;
+  const photoW = photo.w * width;
+  const photoH = photo.h * height;
+  const cx = cardX + cardW / 2;
+  const cy = cardY + cardH / 2;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate((rotation * Math.PI) / 180);
+  ctx.shadowColor = "rgba(36, 23, 20, 0.32)";
+  ctx.shadowBlur = Math.max(8, width * 0.014);
+  ctx.shadowOffsetX = width * 0.004;
+  ctx.shadowOffsetY = Math.max(6, height * 0.01);
+  ctx.fillStyle = "#FFFEFB";
+  ctx.fillRect(cardX - cx, cardY - cy, cardW, cardH);
+  ctx.shadowColor = "rgba(0, 0, 0, 0)";
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+  const localX = photoX - cx;
+  const localY = photoY - cy;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(localX, localY, photoW, photoH);
+  ctx.clip();
+  ctx.drawImage(image, crop.x, crop.y, crop.width, crop.height, localX, localY, photoW, photoH);
+  ctx.restore();
+  ctx.restore();
 }
 
 function drawFestiveBorder(ctx: CanvasRenderingContext2D, width: number, height: number) {

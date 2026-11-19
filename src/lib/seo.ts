@@ -107,7 +107,7 @@ export const pages: SeoEntry[] = [
     path: "/collage",
     title: "Collage de fotos en un marco — Mi Fotito",
     description:
-      "Arma un collage de fotos con 2 a 12 imágenes de tu dispositivo y recíbelo impreso en un marco. El precio es el del marco y el envío ya va incluido.",
+      "Arma un collage de fotos con hasta 12 imágenes de tu dispositivo y recíbelo impreso en un marco. El precio es el del marco y el envío ya va incluido.",
   },
   {
     path: "/tarjeta",
