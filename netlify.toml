@@ -67,7 +67,7 @@
 # With Pretty URLs, /crear serves that file and /crear/ redirects to /crear.
 # Redirect rules cannot add or remove a trailing slash: Netlify matches them
 # either way. Do not add a /crear rule here. The catch-all below is not forced,
-# so /robots.txt, /sitemap.xml, and those html files are served as files.
+# so /robots.txt, /sitemap.xml, IndexNow /*.txt, and those html files are served as files.
 
 # Expo single-page export: client routes fall back to index.html.
 [[redirects]]
@@ -87,6 +87,13 @@
 
 [[headers]]
   for = "/robots.txt"
+  [headers.values]
+    Content-Type = "text/plain; charset=utf-8"
+
+# IndexNow key file at /<32-hex>.txt, copied from public/ into dist.
+# The SPA fallback is not forced, so this real file is served as text/plain.
+[[headers]]
+  for = "/*.txt"
   [headers.values]
     Content-Type = "text/plain; charset=utf-8"
 

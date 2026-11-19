@@ -82,6 +82,11 @@ describe("seo files", () => {
     const script = readFileSync("scripts/publish-web.mjs", "utf8");
     expect(toml).toContain('Content-Type = "text/plain; charset=utf-8"');
     expect(toml).toContain('Content-Type = "application/xml; charset=utf-8"');
+    expect(toml).toContain('for = "/*.txt"');
+    const indexNowKeys = readdirSync("public").filter((name) => /^[a-f0-9]{32}\.txt$/.test(name));
+    expect(indexNowKeys).toHaveLength(1);
+    const indexNowKey = indexNowKeys[0].slice(0, 32);
+    expect(readFileSync(join("public", indexNowKeys[0]), "utf8").trim()).toBe(indexNowKey);
     expect(toml).not.toMatch(/from = "\/\*"[\s\S]{0,80}force = true/);
     expect(script).toContain('`${page.path.slice(1)}.html`');
     for (const page of spaShellPages()) {
