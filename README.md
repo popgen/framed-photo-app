@@ -65,8 +65,13 @@ Copia `.env.example` a `.env`. No subas `.env`.
 | `EXPO_PUBLIC_DEMO_ADMIN_EMAIL` | cliente | solo modo local |
 | `EXPO_PUBLIC_DEMO_ADMIN_PASSWORD` | cliente | solo modo local |
 | `SUPABASE_SERVICE_ROLE_KEY` | servidor | webhook y tareas admin |
-| `PAYMENTS_MODE` | servidor | `mock` o `live` |
-| `MERCADOPAGO_ACCESS_TOKEN` | servidor | Checkout Pro para tarjeta y Yape |
+| `PAYMENTS_MODE` | servidor | `mock` (default) o `live` |
+| `PAYMENT_PROVIDER` | servidor | vacío = Izipay. `stripe` solo si Lucas usa su cuenta de Estados Unidos |
+| `PAYMENT_MOCK_SECRET` | servidor | firma el sandbox. Si falta, se usa la service role |
+| `NOTIFY_SECRET` | servidor | autoriza `POST /api/notify` |
+| `STRIPE_SECRET_KEY` | servidor | solo con `PAYMENT_PROVIDER=stripe` |
+| `STRIPE_WEBHOOK_SECRET` | servidor | firma del webhook de Stripe |
+| `MERCADOPAGO_ACCESS_TOKEN` | servidor | sin uso en el cobro actual |
 | `YAPE_PHONE` | servidor | referencia del comercio |
 | `PLIN_PHONE` | servidor | número que se muestra al cliente |
 | `WHATSAPP_TOKEN` | servidor | pendiente. Déjalo vacío; sin él no se llama a la Cloud API |
@@ -79,7 +84,7 @@ Copia `.env.example` a `.env`. No subas `.env`.
 | `GOOGLE_PHOTOS_CLIENT_ID` / `GOOGLE_PHOTOS_CLIENT_SECRET` | servidor | OAuth de Google Photos |
 | `SITE_URL` | servidor | igual que el sitio público |
 
-Izipay cobra tarjeta y Yape cuando `IZIPAY_COMMERCE_ID`, `IZIPAY_API_KEY`, `IZIPAY_PUBLIC_KEY` y `IZIPAY_HMAC_KEY` están puestos. Si faltan, el modo live sigue con Mercado Pago. Plin no pasa por Izipay.
+Izipay cobra tarjeta y Yape cuando `IZIPAY_COMMERCE_ID`, `IZIPAY_API_KEY`, `IZIPAY_PUBLIC_KEY` y `IZIPAY_HMAC_KEY` están puestos y `PAYMENTS_MODE=live`. Si faltan, la tienda responde «Pagos no configurados». Plin no pasa por Izipay.
 
 ## Supabase
 
@@ -92,7 +97,7 @@ Izipay cobra tarjeta y Yape cuando `IZIPAY_COMMERCE_ID`, `IZIPAY_API_KEY`, `IZIP
 
 El modo `local` no necesita esto. Con `supabase`, el admin entra con Auth y la tienda sigue usando el motor de precios del cliente después de comprobar que el proyecto responde. El webhook de WhatsApp, si tiene `SUPABASE_SERVICE_ROLE_KEY`, guarda cada sesión en `wa_events`.
 
-`app_settings.payments_mode` nace en `mock`. Pásalo a `live` antes de cobrar de verdad para que un cliente no pueda marcar un pedido como pagado por su cuenta cuando cierres esa puerta en el servidor.
+`PAYMENTS_MODE` nace en `mock`. Pásalo a `live` (y `EXPO_PUBLIC_PAYMENTS_MODE=live`) antes de cobrar de verdad. Un cliente no puede marcar un pedido como pagado: esa ruta solo la usa un admin, o el callback ya verificado de Izipay o Stripe.
 
 ## Stock
 
@@ -105,7 +110,15 @@ Si faltan o están vacías, el cliente puede elegir cualquier marco y el servido
 
 ## Pagos
 
-En `mock`, Yape, Plin y tarjeta abren una hoja de sandbox y el pedido queda pagado. En `live`, la web llama `POST /api/payments/create`. Si las cuatro claves de Izipay están, tarjeta y Yape abren su formulario (`/pago`) y el pedido se marca pagado solo cuando la firma HMAC del regreso o del IPN coincide y el monto es el del pedido. El IPN es `https://mifotito.com/api/payments/izipay-ipn`. Sin esas claves, tarjeta y Yape crean una preferencia de Mercado Pago. Plin responde con el celular de `PLIN_PHONE` para confirmar a mano.
+Por defecto `PAYMENTS_MODE` es `mock` (sandbox). En la demo del navegador, Yape, Plin y tarjeta abren la hoja de prueba y el pedido queda pagado en ese navegador. No hay cobro real.
+
+En `live`, el monto sale del pedido guardado en el servidor. El cliente no fija el precio. Tarjeta y Yape abren el formulario embebido de Izipay (`/pago`): la tarjeta no pasa por nuestros servidores. El pedido pasa a pagado, y se muestra la confirmación, solo cuando el regreso o el IPN traen un `kr-hash` válido y el monto coincide. Un aviso repetido no vuelve a descontar stock ni a mandar el correo. El IPN es `https://mifotito.com/api/payments/izipay-ipn`.
+
+Si faltan las claves y `PAYMENTS_MODE=live`, la respuesta es «Pagos no configurados». Mercado Pago ya no abre el cobro: no tenía un webhook que verificara el pago. El código de la preferencia sigue en `api/payments/create.mjs` por si más adelante se le agrega esa verificación.
+
+Stripe es opcional y no es el proveedor por defecto. Una cuenta de Stripe de Estados Unidos puede cobrar en soles (PEN). Hace falta `PAYMENT_PROVIDER=stripe`, `STRIPE_SECRET_KEY` y `STRIPE_WEBHOOK_SECRET`. El webhook es `https://mifotito.com/api/payments/stripe-webhook` (evento `checkout.session.completed`). Yape no pasa por Stripe: Yape queda en Izipay. Plin sigue a mano; solo un admin marca ese pedido pagado.
+
+`POST /api/shop?op=orders-mark-paid` y `op=gift-card` rechazan a quien no es admin. La compra de una tarjeta de regalo crea la fila en `pending` con saldo 0 y la activa recién con el pago verificado (en sandbox, con un token firmado por el servidor). `/api/notify` exige `NOTIFY_SECRET` o sesión de admin, y tiene un tope por IP. El navegador ya no lo llama. Si hay `RESEND_API_KEY` y `EMAIL_FROM`, y el pedido tiene correo, el servidor manda el aviso de pedido pagado.
 
 ## Pendiente: WhatsApp Business
 
@@ -113,8 +126,8 @@ Lucas deja para después la cuenta de WhatsApp Business. En Netlify quedan **sin
 
 Mientras falten:
 
-- El cliente entra con correo y contraseña de Supabase Auth. Ya no hay código de 6 dígitos en la tienda. Rastrear un envío pendiente pide solo el celular. Mi cuenta muestra los pedidos de quien inició sesión.
-- El webhook `/api/webhooks/whatsapp` y `/api/notify` no llaman a Graph. Escriben una advertencia en el log y responden 200. Un POST real, sin `mock: true`, responde «próximamente».
+- El cliente compra sin crear la cuenta antes. En el mismo formulario deja el correo y una contraseña; al pagar se crea la cuenta y el pedido queda en `orders.user_id`. Mi cuenta, después de entrar, muestra ese pedido. Rastrear un envío pendiente pide solo el celular.
+- El webhook `/api/webhooks/whatsapp` no llama a Graph. `/api/notify` responde 401 si no trae `NOTIFY_SECRET` o una sesión de admin.
 - El admin, en WhatsApp, muestra «Pedidos por el bot: próximamente» y un botón al chat. La vista previa local sigue ahí para probar el flujo sin Meta.
 - La tienda no muestra WhatsApp. El contacto del cliente es pedidos@mifotito.com.
 
@@ -197,12 +210,18 @@ No hace falta ninguna para el demo. Para cobrar y escribir de verdad, en Site co
 | `OTP_SIGNING_SECRET` | firma la sesión de 30 minutos tras confirmar el celular |
 | `WHATSAPP_OTP_TEMPLATE` | pendiente. Vacío hasta que Meta apruebe `mifotito_codigo` |
 | `WHATSAPP_OTP_TEMPLATE_LANG` | pendiente. Será `es` |
-| `PAYMENTS_MODE` | `live` |
-| `IZIPAY_COMMERCE_ID` | usuario REST de Izipay. Vacío: tarjeta y Yape siguen en Mercado Pago |
+| `PAYMENTS_MODE` | `live` para cobrar. Vacío o `mock` deja el sandbox |
+| `PAYMENT_PROVIDER` | vacío = Izipay. `stripe` para la cuenta de Estados Unidos |
+| `IZIPAY_COMMERCE_ID` | usuario REST de Izipay |
 | `IZIPAY_API_KEY` | clave REST de Izipay. Solo en el servidor |
 | `IZIPAY_PUBLIC_KEY` | clave pública del formulario |
 | `IZIPAY_HMAC_KEY` | firma `kr-hash` del regreso y del IPN |
-| `MERCADOPAGO_ACCESS_TOKEN` | tarjeta y Yape cuando Izipay no está configurado |
+| `STRIPE_SECRET_KEY` | solo si `PAYMENT_PROVIDER=stripe` |
+| `STRIPE_WEBHOOK_SECRET` | firma de `checkout.session.completed` |
+| `PAYMENT_MOCK_SECRET` | opcional. Firma los pagos de prueba en el servidor |
+| `NOTIFY_SECRET` | autoriza `/api/notify` |
+| `RESEND_API_KEY` | correo del pedido pagado. Vacío = no se manda |
+| `EMAIL_FROM` | remitente de ese correo |
 | `PLIN_PHONE` | número Plin del comercio |
 | `YAPE_PHONE` | referencia Yape |
 | `WHATSAPP_TOKEN` | pendiente. Vacío en Netlify por ahora |
@@ -231,7 +250,7 @@ Sin `EXPO_PUBLIC_DATA_MODE=supabase` todo sigue en el navegador (demo). Con Supa
 
 La política de privacidad está en https://mifotito.com/privacidad y los términos en https://mifotito.com/terminos. El export de Expo es una sola página, así que `npm run build:web` copia `public/privacidad` y `public/terminos` a `dist` para que esas dos direcciones respondan 200 y se lean sin JavaScript. Las fotos del bucket `photos` se borran dentro de los 30 días después de entregar o cancelar el pedido. Las subidas que no quedaron en un pedido se borran a los 30 días. El audio del QR no se borra, para que el mensaje siga abriendo. Eso lo hace la función programada `purge-photos` (Netlify, todos los días a las 08:00 UTC, solo en el deploy de producción). No hace falta una migración nueva.
 
-En el checkout y en Mi cuenta la persona entra o crea una cuenta con correo y contraseña (mínimo 8 caracteres). «Olvidé mi contraseña» manda el enlace de Supabase. `/rastrear` no pide cuenta: con el celular (+51 y 9 dígitos) muestra solo envíos que no están entregados ni cancelados, y solo el número, el tipo (marco, muro o tarjeta), el estado y la fecha estimada. El nombre se ve como primer nombre e inicial. No salen dirección, foto, DNI/RUC ni pago. Esa consulta se limita por IP y por celular. `OTP_SIGNING_SECRET` ya no abre la sesión del cliente; puede quedar vacío. Sigue sirviendo, si está puesto, para la cookie de importación de fotos.
+En el checkout no hay una pantalla previa de entrar o crear cuenta. La persona escribe su correo y una contraseña (mínimo 8 caracteres: «Crea una contraseña para seguir tu pedido»). Al pagar, el servidor crea la cuenta con la service role (`email_confirm: true`, así el pedido no espera el correo de confirmación de Supabase) y guarda `orders.user_id`. Si ese correo ya tiene cuenta y la contraseña coincide, entra. Si no coincide, el pedido igual se guarda ligado a esa cuenta y la confirmación le pide entrar con su contraseña. La confirmación dice que puede entrar más tarde para seguir el pedido. Mi cuenta, ya con la sesión, lista ese pedido. «Olvidé mi contraseña» sigue en Mi cuenta y manda el enlace de Supabase. `/rastrear` no pide cuenta: con el celular (+51 y 9 dígitos) muestra solo envíos que no están entregados ni cancelados, y solo el número, el tipo (marco, muro o tarjeta), el estado y la fecha estimada. El nombre se ve como primer nombre e inicial. No salen dirección, foto, DNI/RUC ni pago. Esa consulta se limita por IP y por celular. `OTP_SIGNING_SECRET` ya no abre la sesión del cliente; puede quedar vacío. Sigue sirviendo, si está puesto, para la cookie de importación de fotos.
 
 ### Checklist de Supabase
 
@@ -259,7 +278,7 @@ Quita otros A o CNAME que apunten el apex o `www` a otro lado. En Netlify, Domai
 1. `npm ci && npm test && npm run typecheck && npm run build:web` termina con `dist/index.html`.
 2. El check de GitHub Actions en el PR está en verde.
 3. Tras el merge a `main`, https://mifotito.com abre la tienda y https://www.mifotito.com redirige ahí.
-4. Sin secretos, un pago de prueba en el sitio responde aprobado (sandbox). `POST /api/payments/create` con `{"orderId":"demo","amountCents":5900,"method":"yape"}` devuelve `"mock": true`.
+4. Sin secretos, un pago de prueba en el sitio se aprueba en la hoja de sandbox. `POST /api/payments/create` con `{"orderId":"demo","method":"yape"}` devuelve `"mock": true` y no marca ningún pedido. Con `PAYMENTS_MODE=live` y sin claves, la misma ruta responde «Pagos no configurados».
 
 ## iOS y Android
 

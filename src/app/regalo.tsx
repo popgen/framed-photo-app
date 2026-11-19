@@ -1,3 +1,4 @@
+import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { PaySheet } from "../components/fx";
@@ -11,6 +12,7 @@ import type { GiftCard } from "../lib/types";
 const PRESETS = [5900, 10900, 12900];
 
 export default function Regalo() {
+  const params = useLocalSearchParams<{ listo?: string; codigo?: string }>();
   const [amount, setAmount] = useState(5900);
   const [custom, setCustom] = useState("");
   const [form, setForm] = useState({ buyerName: "", buyerPhone: "", buyerEmail: "", recipientName: "", recipientPhone: "", recipientEmail: "", message: "" });
@@ -51,7 +53,7 @@ export default function Regalo() {
         <Field label="Correo de quien la recibe" autoCapitalize="none" keyboardType="email-address" value={form.recipientEmail} onChangeText={(recipientEmail) => setForm({ ...form, recipientEmail })} />
         <Field label="Mensaje" value={form.message} onChangeText={(message) => setForm({ ...form, message })} />
         {error ? <Banner tone="bad" text={error} /> : null}
-        {card ? <Banner tone="good" text={`Lista. El código es ${card.code}. Se lo enviamos por correo.`} /> : null}
+        {card || params.codigo ? <Banner tone="good" text={`Lista. El código es ${card?.code || params.codigo}. Se lo enviamos por correo.`} /> : null}
         {pay ? (
           <PaySheet
             method="yape"

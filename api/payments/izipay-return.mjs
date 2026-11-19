@@ -9,8 +9,9 @@ export default async function handler(req, res) {
   const result = await confirmIzipay(req);
   if (!result.ok) {
     console.warn("[mifotito] Izipay rechazó la vuelta del pago.", result.error);
-    res.redirect(`${origin}/pago?error=1`);
+    const code = result.status === "declined" ? "rechazado" : result.status === "bad_signature" ? "firma" : "1";
+    res.redirect(`${origin}/pago?error=${code}`);
     return;
   }
-  res.redirect(`${origin}/confirmacion/${result.publicToken}`);
+  res.redirect(`${origin}${result.redirectPath}`);
 }

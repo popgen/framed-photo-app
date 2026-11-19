@@ -5,7 +5,6 @@ import { defaultCampaign, type Campaign } from "./campaign";
 import { aspectParts, frameById, frames } from "./catalog";
 import { guaranteeFor, type Zone } from "./cutoff";
 import { estimateDelivery } from "./delivery";
-import { notifyMode } from "./env";
 import { giftCode, referralCodeFrom, uid } from "./ids";
 import { cardMessageError, priceCards } from "./cards";
 import { framedPriceCents } from "./collage";
@@ -16,7 +15,7 @@ import { isOpenShipment, sortTracking, toPublicShipment, toTrackingCard } from "
 import { applyStock, expandNeeds, frameLowStock, framesAvailable } from "./inventory";
 import { inquiryFromSize } from "./retablo";
 import { VOICE_ADDON_CENTS } from "./voice";
-import { readLocalCustomer } from "./customer-auth";
+import { provisionCheckoutAccount, readLocalCustomer } from "./customer-auth";
 import { isEmail, normalizePhone } from "./phone";
 import { resolveTaxId } from "./tax-id";
 import { REFERRAL_FRIEND_CENTS, REFERRAL_REWARD_CENTS, quote, type QuoteItem } from "./pricing";
@@ -247,20 +246,6 @@ async function notify(state: DB, notice: Omit<Notice, "id" | "createdAt">) {
   const row: Notice = { ...notice, id: uid("nt_"), createdAt: new Date().toISOString() };
   state.notifications.unshift(row);
   console.info(`[aviso:${row.event}]`, row.to, row.body);
-  if (notifyMode() === "live" && notice.orderId) {
-    const order = state.orders.find((item) => item.id === notice.orderId);
-    if (order) {
-      try {
-        await fetch("/api/notify", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token: order.publicToken, phone: order.phone, event: notice.event, body: notice.body }),
-        });
-      } catch (error) {
-        console.warn("No se pudo enviar el aviso", error);
-      }
-    }
-  }
 }
 
 function priceInput(state: DB, input: CheckoutInput, phone: string | null) {
@@ -457,13 +442,14 @@ export function createLocalRepo() {
       return { ...priced, zone, stockError };
     },
     async placeOrder(input: CheckoutInput) {
-      const session = readLocalCustomer();
-      if (!session) throw new AppError("Entra con tu correo y contraseña.");
+      const linked = await provisionCheckoutAccount(input.email || "", input.password || "", readLocalCustomer()?.id);
+      if (!linked.proceed) throw new AppError(linked.error);
       const state = required();
       const phone = normalizePhone(input.phone);
       assertCheckout(input, phone);
       const order = buildOrder(state, input, phone as string, "pending_payment");
-      order.userId = session.id;
+      order.userId = linked.userId;
+      order.accountNotice = linked.notice;
       state.orders.unshift(order);
       persist(state);
       return order;
@@ -534,7 +520,17 @@ export function createLocalRepo() {
     async listMyOrders() {
       const session = readLocalCustomer();
       if (!session) return [];
-      return sortTracking(required().orders.filter((item) => item.userId === session.id).map(toTrackingCard));
+      const state = required();
+      const email = session.email.trim().toLowerCase();
+      let changed = false;
+      for (const order of state.orders) {
+        if (!order.userId && order.email && order.email.trim().toLowerCase() === email) {
+          order.userId = session.id;
+          changed = true;
+        }
+      }
+      if (changed) persist(state);
+      return sortTracking(state.orders.filter((item) => item.userId === session.id).map(toTrackingCard));
     },
     async listPublicTracking(phone: string) {
       const normalized = normalizePhone(phone);
@@ -637,6 +633,13 @@ export function createLocalRepo() {
       }
       persist(state);
       return card;
+    },
+    async startGiftCard(input: GiftCardDraft): Promise<{ card: GiftCard | null; token: string | null; formToken: string | null; publicKey: string | null; checkoutUrl: string | null; error?: string }> {
+      const card = await this.createGiftCard(input);
+      return { card, token: null, formToken: null, publicKey: null, checkoutUrl: null };
+    },
+    async confirmGiftCard(_token: string): Promise<GiftCard> {
+      throw new AppError("Esa confirmación es del servidor.");
     },
     async listReferrals() {
       return required().referrals;
@@ -810,6 +813,8 @@ export function createLocalRepo() {
       const state = required();
       const existing = mustOrder(state, orderId);
       if (existing.paymentStatus === "approved") return existing;
+      const linked = await provisionCheckoutAccount(input.email || "", input.password || "", readLocalCustomer()?.id);
+      if (!linked.proceed) throw new AppError(linked.error);
       const phone = normalizePhone(input.phone);
       assertCheckout(input, phone);
       const rebuilt = buildOrder(state, { ...input, channel: existing.channel }, phone as string, "pending_payment");
@@ -822,6 +827,8 @@ export function createLocalRepo() {
         channel: existing.channel,
         needsHuman: existing.needsHuman,
         createdAt: existing.createdAt,
+        userId: linked.userId,
+        accountNotice: linked.notice,
       };
       const index = state.orders.findIndex((item) => item.id === orderId);
       state.orders[index] = order;

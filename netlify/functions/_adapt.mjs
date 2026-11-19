@@ -6,8 +6,10 @@ export function netlifyHandler(routeHandler) {
     for (const [key, value] of url.searchParams.entries()) query[key] = value;
 
     let body = {};
+    let rawBody = "";
     if (request.method !== "GET" && request.method !== "HEAD") {
       const text = await request.text();
+      rawBody = text;
       const contentType = request.headers.get("content-type") || "";
       if (text) {
         if (contentType.includes("application/x-www-form-urlencoded")) body = Object.fromEntries(new URLSearchParams(text));
@@ -51,7 +53,7 @@ export function netlifyHandler(routeHandler) {
         return res;
       },
     };
-    const req = { method: request.method, body, query, headers: Object.fromEntries(request.headers.entries()) };
+    const req = { method: request.method, body, rawBody, query, headers: Object.fromEntries(request.headers.entries()) };
     await routeHandler(req, res);
     return new Response(payload, { status, headers });
   };

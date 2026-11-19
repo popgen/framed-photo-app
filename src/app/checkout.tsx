@@ -1,8 +1,7 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { AccountAuth } from "../components/AccountAuth";
 import { InlineLink } from "../components/InlineLink";
-import { currentCustomer, type CustomerSession } from "../lib/customer-auth";
+import { currentCustomer, passwordError, type CustomerSession } from "../lib/customer-auth";
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { Countdown, GuaranteeNote, PaySheet, useNow } from "../components/fx";
 import { useApp } from "../components/provider";
@@ -13,7 +12,7 @@ import { readWaOrder, rememberWaOrder } from "../lib/boot";
 import { countdownVisible } from "../lib/campaign";
 import { countdownTarget, guaranteeFor } from "../lib/cutoff";
 import { DEPARTMENTS, districtsFor, provincesFor, shippingZone } from "../lib/zone";
-import { paymentsMode, providerFor, type PaymentMethod } from "../lib/env";
+import { dataMode, paymentsMode, providerFor, type PaymentMethod } from "../lib/env";
 import { cardOrderLine } from "../lib/cards";
 import { frameById } from "../lib/catalog";
 import { framedPriceCents } from "../lib/collage";
@@ -36,7 +35,9 @@ export default function Checkout() {
   const { refresh } = useApp();
   const [campaign, setCampaign] = useState<Awaited<ReturnType<ReturnType<typeof getRepo>["getCampaign"]>> | null>(null);
   const [account, setAccount] = useState<CustomerSession | null>(null);
-  const [accountReady, setAccountReady] = useState(false);
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [payToken, setPayToken] = useState<string | null>(null);
   const [form, setForm] = useState({
     customerName: "",
     phone: "",
@@ -79,7 +80,6 @@ export default function Checkout() {
     void getRepo().getCampaign().then(setCampaign);
     void currentCustomer().then((session) => {
       setAccount(session);
-      setAccountReady(true);
       if (session) setForm((current) => ({ ...current, email: current.email || session.email }));
     });
   }, []);
@@ -146,29 +146,57 @@ export default function Checkout() {
     setPicker(null);
   }
 
+  function finishPaid(order: Order) {
+    rememberReceipt(order);
+    clear();
+    rememberWaOrder(null);
+    refresh();
+    router.replace(`/confirmacion/${order.publicToken}`);
+  }
+
   async function pay(approved: boolean, order = pending) {
     if (!approved || !order) {
       setPending(null);
+      setPayToken(null);
       if (!approved) setError("El pago no se completó. Puedes intentarlo otra vez.");
       return;
     }
     setBusy(true);
     try {
+      if (order.paymentStatus === "approved") {
+        finishPaid(order);
+        return;
+      }
+      if (payToken) {
+        const response = await fetch("/api/payments/mock-confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: payToken, outcome: "approved" }),
+        });
+        const payload = (await response.json()) as { ok?: boolean; error?: string; order?: Order };
+        if (!response.ok || !payload.ok) {
+          setError(payload.error || "El pago fue rechazado. Puedes intentar otra vez.");
+          return;
+        }
+        finishPaid({ ...(payload.order || order), accountNotice: payload.order?.accountNotice || order.accountNotice, paymentStatus: "approved", status: "paid" });
+        return;
+      }
+      if (dataMode() === "supabase") {
+        setError("El pago se confirma cuando la pasarela lo verifica. Puedes intentar otra vez.");
+        return;
+      }
       const paid = await getRepo().markPaid(order.id, {
         method: order.totalCents === 0 ? "gift_card" : method,
         provider: providerFor(method, paymentsMode()),
         ref: `${providerFor(method, paymentsMode())}_${order.id.slice(0, 8)}`,
       });
-      rememberReceipt(paid);
-      clear();
-      rememberWaOrder(null);
-      refresh();
-      router.replace(`/confirmacion/${paid.publicToken}`);
+      finishPaid({ ...paid, accountNotice: paid.accountNotice || order.accountNotice });
     } catch (err) {
       setError(err instanceof Error ? err.message : "No pudimos confirmar el pago.");
     } finally {
       setBusy(false);
       setPending(null);
+      setPayToken(null);
     }
   }
 
@@ -183,44 +211,62 @@ export default function Checkout() {
       setError(tax.error);
       return;
     }
+    if (!account) {
+      const problem = passwordError(password);
+      if (problem) {
+        setError(problem);
+        return;
+      }
+    }
     setError(null);
     setBusy(true);
     try {
       const wa = readWaOrder();
-      const order = wa ? await getRepo().updatePendingOrder(wa, input) : await getRepo().placeOrder(input);
-      if (order.totalCents === 0) {
+      const orderInput = { ...input, password: account ? undefined : password };
+      const order = wa ? await getRepo().updatePendingOrder(wa, orderInput) : await getRepo().placeOrder(orderInput);
+      if (order.paymentStatus === "approved" || order.totalCents === 0) {
+        if (order.paymentStatus === "approved") {
+          finishPaid(order);
+          return;
+        }
         await pay(true, order);
         return;
       }
-      if (paymentsMode() === "live" && method !== "plin") {
+      if (dataMode() === "supabase" && method !== "plin") {
         const response = await fetch("/api/payments/create", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            orderId: order.id,
-            amountCents: order.totalCents,
-            method,
-            description: order.number,
-            payer: {
-              name: order.customerName,
-              email: order.email,
-              phone: order.phone,
-              identityType: order.taxIdType,
-              identityCode: order.taxId,
-            },
-          }),
+          body: JSON.stringify({ orderId: order.id, method }),
         });
-        const payload = (await response.json()) as { checkoutUrl?: string; formToken?: string; publicKey?: string; error?: string };
+        const payload = (await response.json()) as { checkoutUrl?: string; formToken?: string; publicKey?: string; error?: string; token?: string; mock?: boolean; instructions?: string };
         if (payload.formToken && payload.publicKey && typeof window !== "undefined") {
           window.sessionStorage.setItem("mifotito-izipay", JSON.stringify({ formToken: payload.formToken, publicKey: payload.publicKey }));
+          rememberReceipt(order);
           router.push("/pago");
           return;
         }
         if (payload.checkoutUrl && typeof window !== "undefined") {
+          rememberReceipt(order);
           window.location.href = payload.checkoutUrl;
           return;
         }
+        if (payload.mock && payload.token) {
+          rememberReceipt(order);
+          setPayToken(payload.token);
+          setPending(order);
+          return;
+        }
         setError(payload.error || "No pudimos abrir el pago.");
+        return;
+      }
+      if (dataMode() === "supabase" && method === "plin" && paymentsMode() === "live") {
+        const response = await fetch("/api/payments/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId: order.id, method }),
+        });
+        const payload = (await response.json()) as { instructions?: string; error?: string };
+        setError(payload.instructions || payload.error || "Te escribimos cuando confirmemos el Plin.");
         return;
       }
       setPending(order);
@@ -231,30 +277,6 @@ export default function Checkout() {
     }
   }
 
-  if (!accountReady) {
-    return (
-      <Screen>
-        <View style={{ padding: 16 }}>
-          <Text style={{ fontFamily: font.body, color: colors.muted }}>Un momento…</Text>
-        </View>
-      </Screen>
-    );
-  }
-  if (!account) {
-    return (
-      <Screen>
-        <View style={{ padding: 16 }}>
-          <AccountAuth
-            title="Tu cuenta"
-            onReady={(session) => {
-              setAccount(session);
-              setForm((current) => ({ ...current, email: session.email }));
-            }}
-          />
-        </View>
-      </Screen>
-    );
-  }
   return (
     <Screen
       seasonal={null}
@@ -281,6 +303,21 @@ export default function Checkout() {
         <Field label="Nombre" value={form.customerName} onChangeText={(customerName) => setForm({ ...form, customerName })} />
         <Field label="Celular" keyboardType="phone-pad" placeholder="987 654 321" value={form.phone} onChangeText={(phone) => setForm({ ...form, phone })} />
         <Field label="Correo" autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder="lucia@correo.com" value={form.email} onChangeText={(email) => setForm({ ...form, email })} />
+        {account ? null : (
+          <>
+            <Field
+              label="Contraseña"
+              hint="Crea una contraseña para seguir tu pedido. Si ya tienes cuenta, usa la misma."
+              secureTextEntry={!showPassword}
+              autoCapitalize="none"
+              value={password}
+              onChangeText={setPassword}
+            />
+            <Pressable onPress={() => setShowPassword((value) => !value)} style={{ minHeight: 44, justifyContent: "center" }}>
+              <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}</Text>
+            </Pressable>
+          </>
+        )}
         <View style={{ opacity: form.taxIdSkipped ? 0.45 : 1 }} pointerEvents={form.taxIdSkipped ? "none" : "auto"}>
           <Field
             label="DNI o RUC (para fines tributarios)"

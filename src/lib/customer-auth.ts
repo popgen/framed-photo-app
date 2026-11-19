@@ -1,3 +1,4 @@
+import { linkAccountForPurchase } from "./checkout-account";
 import { dataMode, siteUrl } from "./env";
 import { isEmail } from "./phone";
 import { uid } from "./ids";
@@ -144,4 +145,27 @@ export function readLocalCustomer(): CustomerSession | null {
 
 function writeLocalCustomer(session: CustomerSession) {
   if (typeof localStorage !== "undefined") localStorage.setItem(SESSION, JSON.stringify({ id: session.id, email: session.email }));
+}
+
+export async function provisionCheckoutAccount(email: string, password: string, sessionUserId?: string | null) {
+  return linkAccountForPurchase({ email, password, sessionUserId }, {
+    async createUser(clean, secret) {
+      const accounts = readAccounts();
+      if (accounts.some((item) => item.email === clean)) return { status: "exists" };
+      const id = uid("cu_");
+      accounts.push({ id, email: clean, password: secret });
+      writeAccounts(accounts);
+      writeLocalCustomer({ id, email: clean });
+      return { status: "created", userId: id, confirmed: true };
+    },
+    async signIn(clean, secret) {
+      const found = readAccounts().find((item) => item.email === clean && item.password === secret);
+      if (!found) return { status: "rejected" };
+      writeLocalCustomer({ id: found.id, email: found.email });
+      return { status: "ok", userId: found.id };
+    },
+    async findUserId(clean) {
+      return readAccounts().find((item) => item.email === clean)?.id ?? null;
+    },
+  });
 }
