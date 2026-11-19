@@ -198,7 +198,7 @@ export function PaySheet({
   onReject: () => void;
 }) {
   const copy = {
-    card: { title: "Mercado Pago de prueba", body: "Simula una tarjeta aprobada. En vivo esto abre el pago de Mercado Pago." },
+    card: { title: "Tarjeta de prueba", body: "Simula una tarjeta aprobada. No se hace un cobro real." },
     yape: { title: "Yape de prueba", body: "Simula el pago con Yape. En vivo se cobra por el proveedor configurado." },
     plin: { title: "Plin de prueba", body: "Simula la confirmación de Plin. En vivo mostramos el número de la tienda." },
   }[method];

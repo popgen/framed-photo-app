@@ -59,12 +59,32 @@ describe("payments create", () => {
       json: async () => ({ status: "SUCCESS", answer: { formToken: "form-1" } }),
       body: init.body,
     }));
-    vi.stubGlobal("fetch", fetchMock);
-    const { default: handler } = await import("../api/payments/create.mjs");
+    const { createPayment } = await import("../api/payments/create.mjs");
     const sent: { status?: number; body?: unknown } = {};
-    await handler(
-      { method: "POST", body: { orderId: "ord_1", amountCents: 6900, method: "card", payer: { email: "ana@example.com", name: "Ana" } } },
+    await createPayment(
+      { method: "POST", body: { orderId: "ord_1", amountCents: 1, method: "card" } },
       { status(code: number) { sent.status = code; return this; }, json(data: unknown) { sent.body = data; return this; } },
+      {
+        env: {
+          PAYMENTS_MODE: "live",
+          IZIPAY_COMMERCE_ID: "shop",
+          IZIPAY_API_KEY: "secret",
+          IZIPAY_PUBLIC_KEY: "public",
+          IZIPAY_HMAC_KEY: "hmac",
+        },
+        fetchImpl: fetchMock,
+        loadOrder: async () => ({
+          id: "ord_1",
+          totalCents: 6900,
+          email: "ana@example.com",
+          customerName: "Ana Flores",
+          phone: "51987654321",
+          number: "MF-1",
+          publicToken: "tok",
+          taxIdType: "DNI",
+          taxId: "87654321",
+        }),
+      },
     );
     const raw = String(fetchMock.mock.calls[0][1].body);
     expect(JSON.parse(raw).amount).toBe(6900);

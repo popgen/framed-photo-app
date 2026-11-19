@@ -107,6 +107,7 @@ export type Order = {
   replacementFor?: string | null;
   channel: "web" | "whatsapp";
   needsHuman?: boolean;
+  accountNotice?: string | null;
   items: OrderItem[];
   createdAt: string;
   updatedAt: string;
@@ -212,6 +213,7 @@ export type CheckoutInput = {
   customerName: string;
   phone: string;
   email?: string;
+  password?: string;
   taxId?: string;
   taxIdType?: "DNI" | "RUC";
   taxIdSkipped?: boolean;
