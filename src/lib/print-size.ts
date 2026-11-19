@@ -1,7 +1,7 @@
 import { borderOf, type FrameDef } from "./catalog";
 
 export const DPI_GOOD = 300;
-export const DPI_ACCEPT = 150;
+export const DPI_ACCEPT = 72;
 export const CM_PER_INCH = 2.54;
 
 export type Orientation = "portrait" | "landscape";
