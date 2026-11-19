@@ -19,8 +19,14 @@ import {
   shuffled,
   suggestTemplate,
   swapped,
+  templateById,
   templateFits,
   zoomCrop,
+  mulberry32,
+  polaroidCard,
+  polaroidScatterReport,
+  shuffleSeed,
+  POLAROID_MIN_VISIBLE,
   type TemplateId,
   type NormRect,
 } from "../src/lib/collage";
@@ -254,3 +260,118 @@ describe("collage order", () => {
     expect(compositePixels(square ? 20 : 20, 20, "landscape").width).toBe(2362);
   });
 });
+
+describe("polaroid collage", () => {
+  const aspects = [
+    { w: 15, h: 20 },
+    { w: 20, h: 15 },
+    { w: 20, h: 20 },
+  ];
+
+  function place(count: number, seed: number, aspect = aspects[0], caption = "") {
+    return layoutCells({
+      templateId: "polaroids",
+      count,
+      spacing: "thin",
+      caption,
+      aspectW: aspect.w,
+      aspectH: aspect.h,
+      seed,
+    });
+  }
+
+  it("is a selectable layout for 1 to 12 photos", () => {
+    expect(templateById("polaroids").name).toBe("Polaroids sobre la mesa");
+    expect(templateFits("polaroids", 1)).toBe(true);
+    expect(templateFits("polaroids", 12)).toBe(true);
+    expect(templateFits("polaroids", 0)).toBe(false);
+    expect(previewCount("polaroids")).toBe(5);
+    expect(resolveLayout("polaroids", 1)).toEqual({ id: "polaroids", notice: null });
+    expect(resolveLayout("polaroids", 8).id).toBe("polaroids");
+    expect(suggestTemplate(4)).toBe("grid2");
+  });
+
+  it("keeps the same scatter for a seed and a new scatter for another", () => {
+    const first = place(6, 42);
+    expect(place(6, 42)).toEqual(first);
+    expect(place(6, 43)).not.toEqual(first);
+    const signatures = [1, 2, 3, 4, 5, 6, 7, 8].map((seed) => place(7, seed).map((cell) => `${cell.x.toFixed(3)}:${cell.rotation?.toFixed(2)}`).join("|"));
+    expect(new Set(signatures).size).toBeGreaterThan(5);
+  });
+
+  it("stays inside the print, mostly visible, and only slightly tilted", () => {
+    const seeds = [1, 7, 11, 42, 99, 256, 1024, 4096, 99991];
+    let overlapped = 0;
+    for (const aspect of aspects) {
+      for (let count = 1; count <= 12; count += 1) {
+        for (const seed of seeds) {
+          for (const caption of ["", "Familia 2026"]) {
+            const cells = place(count, seed, aspect, caption);
+            expect(cells, `${count} ${seed}`).toHaveLength(count);
+            const report = polaroidScatterReport(cells, aspect.w, aspect.h);
+            expect(report.inside, `${count} seed ${seed}`).toBe(true);
+            expect(report.minVisible, `${count} seed ${seed}`).toBeGreaterThanOrEqual(POLAROID_MIN_VISIBLE - 0.001);
+            cells.forEach((cell) => {
+              expect(cell.rotation ?? 0).toBeGreaterThanOrEqual(-12);
+              expect(cell.rotation ?? 0).toBeLessThanOrEqual(12);
+              const card = polaroidCard(cell, aspect.w, aspect.h);
+              const photoW = cell.w * aspect.w;
+              const side = (cell.x - card.x) * aspect.w;
+              const top = (cell.y - card.y) * aspect.h;
+              const bottom = (card.y + card.h - (cell.y + cell.h)) * aspect.h;
+              expect(bottom).toBeGreaterThan(side * 2);
+              expect(bottom).toBeGreaterThan(top * 2);
+              expect(side).toBeCloseTo(POLAROID_SIDE(photoW), 5);
+            });
+            if (caption) {
+              cells.forEach((cell) => {
+                const card = polaroidCard(cell, aspect.w, aspect.h);
+                expect(card.y + card.h).toBeLessThanOrEqual(1 - 0.07);
+              });
+            }
+            if (count >= 4 && report.overlaps) overlapped += 1;
+          }
+        }
+      }
+    }
+    expect(overlapped).toBeGreaterThan(20);
+  });
+
+  it("saves the seed so the print repeats the preview", () => {
+    const photos = [0, 1, 2, 3, 4].map((index) => ({
+      photoId: `ph_${index}`,
+      width: 2400,
+      height: 3000,
+      crop: { imageWidth: 2400, imageHeight: 3000, x: 200, y: 400, width: 1800, height: 1800 },
+    }));
+    const snapshot = buildSnapshot({
+      templateId: "polaroids",
+      spacing: "thin",
+      background: "desk",
+      rounded: false,
+      caption: "",
+      frameId: "wood-15",
+      orientation: "portrait",
+      printWcm: 15,
+      printHcm: 20,
+      photos,
+      layoutSeed: 42,
+    });
+    expect(snapshot.templateName).toBe("Polaroids sobre la mesa");
+    expect(snapshot.layoutSeed).toBe(42);
+    expect(snapshot.background).toBe("desk");
+    const again = place(photos.length, snapshot.layoutSeed ?? 0, { w: 15, h: 20 });
+    snapshot.sources.forEach((source, index) => {
+      expect(source.cell).toEqual(again[index]);
+      expect(source.rotation).toBe(again[index].rotation);
+    });
+    const orderA = shuffled(["a", "b", "c", "d", "e", "f"], mulberry32(shuffleSeed(11)));
+    const orderB = shuffled(["a", "b", "c", "d", "e", "f"], mulberry32(shuffleSeed(29)));
+    expect(orderA).not.toEqual(orderB);
+    expect(shuffled(["a", "b", "c", "d", "e", "f"], mulberry32(shuffleSeed(11)))).toEqual(orderA);
+  });
+});
+
+function POLAROID_SIDE(photoW: number) {
+  return 0.065 * photoW;
+}
