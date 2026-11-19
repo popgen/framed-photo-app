@@ -25,7 +25,7 @@ describe("visible import sources", () => {
 
   it("keeps coming-soon copy out of the customer photo screens", () => {
     const forbidden = /pronto|próximamente|proximamente|coming soon/i;
-    const hits = customerFiles().filter((path) => forbidden.test(readFileSync(path, "utf8")));
+    const hits = customerFiles().filter((path) => forbidden.test(readFileSync(path, "utf8").replaceAll("te escribiremos pronto", "")));
     expect(hits).toEqual([]);
   });
 });

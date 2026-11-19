@@ -133,11 +133,11 @@ export function Button({
   );
 }
 
-export function Field({ label, hint, error, ...props }: TextInputProps & { label: string; hint?: string; error?: string }) {
+export function Field({ label, hint, error, style, ...props }: TextInputProps & { label: string; hint?: string; error?: string }) {
   return (
     <View style={{ gap: 6 }}>
       <Text style={styles.label}>{label}</Text>
-      <TextInput placeholderTextColor="#A89488" style={styles.input} {...props} />
+      <TextInput placeholderTextColor="#A89488" style={[styles.input, style]} {...props} />
       {hint ? <Text style={{ fontFamily: font.body, color: colors.muted, fontSize: 13, lineHeight: 18 }}>{hint}</Text> : null}
       {error ? <Text style={{ fontFamily: font.medium, color: colors.bad, fontSize: 13, lineHeight: 18 }}>{error}</Text> : null}
     </View>

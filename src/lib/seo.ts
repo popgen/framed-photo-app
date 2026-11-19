@@ -145,6 +145,11 @@ export const pages: SeoEntry[] = [
     description: "Si tu marco o tu tarjeta llegó dañada, cuéntanos y manda una foto. Si corresponde, reponemos el pedido.",
   },
   {
+    path: "/contacto",
+    title: "Escríbenos — Mi Fotito",
+    description: "Escríbenos sobre un pedido, un retablo o cualquier consulta. Respondemos a pedidos@mifotito.com.",
+  },
+  {
     path: "/privacidad",
     title: "Política de privacidad — Mi Fotito",
     description: "Política de privacidad de Mi Fotito, Lima, Perú. Imprimimos fotos enmarcadas. Consultas a pedidos@mifotito.com.",
