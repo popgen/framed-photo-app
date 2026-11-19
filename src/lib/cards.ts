@@ -1,5 +1,5 @@
 import cardsJson from "../../data/cards.json";
-import { placeOverlay, type TextOverlay } from "./overlay";
+import { commitOverlayText, placeOverlay, type TextOverlay } from "./overlay";
 import type { Crop } from "./print-size";
 
 export type CardSize = (typeof cardsJson.sizes)[number];
@@ -109,7 +109,8 @@ export function cardMessageError(items: Array<{ card?: { frontMessage?: { text?:
 
 export function clampMessage(message: TextOverlay | null, maxChars: number): TextOverlay | null {
   if (!message?.text.trim()) return null;
-  const text = [...message.text].slice(0, maxChars).join("");
+  const text = commitOverlayText([...message.text].slice(0, maxChars).join(""), true);
+  if (!text) return null;
   return placeOverlay({ ...message, text }, false, true);
 }
 

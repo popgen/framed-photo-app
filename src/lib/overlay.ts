@@ -57,8 +57,17 @@ export function textSpan(overlay: Pick<TextOverlay, "text" | "font" | "size">): 
   return { w, h };
 }
 
+/**
+ * Collapse whitespace for a saved overlay. The text field must not use this:
+ * trimming on each keystroke deletes the space the customer just typed.
+ */
+export function commitOverlayText(text: string, keepBreaks = false): string {
+  return keepBreaks ? keepLines(text) : text.replace(/\s+/g, " ").trim();
+}
+
 export function placeOverlay(overlay: TextOverlay, snap = false, keepBreaks = false): TextOverlay {
-  const text = keepBreaks ? keepLines(overlay.text) : overlay.text.replace(/\s+/g, " ").trim();
+  // Live edits, including a trailing space and pasted phrases, stay as typed.
+  const text = keepBreaks ? overlay.text.replace(/\r\n/g, "\n") : overlay.text;
   const span = textSpan({ ...overlay, text: text || "A" });
   let x = overlay.x;
   let y = overlay.y;
@@ -84,7 +93,7 @@ export function placeOverlay(overlay: TextOverlay, snap = false, keepBreaks = fa
 
 export function serializeOverlay(overlay: TextOverlay | null | undefined): TextOverlay | null {
   if (!overlay?.text.trim()) return null;
-  return placeOverlay(overlay);
+  return placeOverlay({ ...overlay, text: commitOverlayText(overlay.text) });
 }
 
 export function parseOverlay(raw: unknown): TextOverlay | null {
@@ -92,7 +101,7 @@ export function parseOverlay(raw: unknown): TextOverlay | null {
   const value = raw as Partial<TextOverlay>;
   if (typeof value.text !== "string" || !value.text.trim()) return null;
   return placeOverlay({
-    text: value.text,
+    text: commitOverlayText(value.text),
     font: (value.font ?? "pacifico") as OverlayFontId,
     size: Number(value.size ?? 0.12),
     color: typeof value.color === "string" ? value.color : "#FFFFFF",
