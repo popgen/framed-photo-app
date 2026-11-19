@@ -24,7 +24,7 @@ export default function Confirmacion() {
     const cached = readReceipt<Order>(String(token));
     if (!cached) return;
     void getRepo().getOrderByToken(String(token), cached.phone).then((live) => {
-      if (live) setOrder(live);
+      if (live) setOrder({ ...live, accountNotice: live.accountNotice || cached.accountNotice });
     });
   }, [token]);
 
@@ -45,7 +45,8 @@ export default function Confirmacion() {
         <GiftSuccess title={campaignTitle} body={campaignBody} />
         <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink, textAlign: "center" }}>{order.number}</Text>
         <Text style={{ fontFamily: font.semibold, color: colors.ink, textAlign: "center" }}>{formatSoles(order.totalCents)}</Text>
-        <Text style={{ fontFamily: font.medium, color: colors.muted, textAlign: "center" }}>Guarda este número. Para ver el pedido después, entra con tu celular.</Text>
+        <Text style={{ fontFamily: font.medium, color: colors.muted, textAlign: "center" }}>Guarda este número. Puedes entrar más tarde con tu correo y contraseña para seguir tu pedido.</Text>
+        {order.accountNotice ? <Text style={{ fontFamily: font.medium, color: colors.ink, textAlign: "center" }}>{order.accountNotice}</Text> : null}
         <Text style={{ fontFamily: font.body, color: colors.muted, textAlign: "center" }}>{order.etaLabel}. {order.christmasNote}</Text>
         {order.isGift ? <Text style={{ fontFamily: font.semibold, color: colors.ink, textAlign: "center" }}>Regalo</Text> : null}
         {order.giftNoteMessage ? (

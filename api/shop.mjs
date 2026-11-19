@@ -1,5 +1,18 @@
+import { linkAccountForPurchase } from "../src/lib/checkout-account.ts";
 import { mapFrameRow, mapGiftRow, mapOrderRow, mapProfile, mapPromoRow } from "../src/lib/db-map.ts";
+import { paidEmailRequest } from "../src/lib/order-mail.ts";
 import { checkOtp, otpDeliveryPlan, otpFailureMessage, otpTemplateBody, prepareSend, publicSendResult, readSession, SESSION_TTL_MS, signSession } from "../src/lib/otp.ts";
+import {
+  configuredSite,
+  giftCardAmountCents,
+  paymentMockSecret,
+  paymentsServerMode,
+  PAYMENTS_NOT_CONFIGURED,
+  requestIzipayForm,
+  requestStripeCheckout,
+  selectCardProvider,
+  signMockToken,
+} from "../src/lib/payments.ts";
 import { evaluateOrder } from "../src/lib/server-order.ts";
 import { serviceSupabase, signingSecret, warnWhatsAppPending, whatsAppOtpReady } from "../src/lib/service-supabase.ts";
 import { maskPhone, maskStreet } from "../src/lib/order-number.ts";
@@ -33,6 +46,8 @@ export default async function handler(req, res) {
     if (op === "profile") return await profile(req, res);
     if (op === "customers-list") return await customers(req, res);
     if (op === "gift-card") return await giftCard(req, res);
+    if (op === "gift-card-start") return await startGiftCard(req, res);
+    if (op === "gift-card-confirm") return await confirmGiftCard(req, res);
     if (op === "frames") return await listPublicFrames(req, res);
     if (op === "claim") return await claim(req, res);
     res.status(404).json({ error: "No encontramos esa acción." });
@@ -339,7 +354,16 @@ async function ordersByPhone(req, res) {
   const user = await customerUser(req, supabase);
   if (user && supabase && req.body?.mine) {
     const { data } = await supabase.from("orders").select("*, order_items(*)").eq("user_id", user.id).order("created_at", { ascending: false });
-    res.status(200).json({ orders: (data ?? []).map((row) => toTrackingCard(mapOrderRow(row))) });
+    let claimed = [];
+    if (user.email) {
+      const loose = await supabase.from("orders").select("*, order_items(*)").ilike("email", user.email).is("user_id", null);
+      if (loose.data?.length) {
+        await supabase.from("orders").update({ user_id: user.id }).in("id", loose.data.map((row) => row.id)).is("user_id", null);
+        claimed = loose.data.map((row) => ({ ...row, user_id: user.id }));
+      }
+    }
+    const merged = [...(data ?? []), ...claimed];
+    res.status(200).json({ orders: merged.map((row) => toTrackingCard(mapOrderRow(row))) });
     return;
   }
   const phone = normalizePhone(req.body?.phone || "");
@@ -418,11 +442,16 @@ async function createOrder(req, res) {
     res.status(503).json({ error: "Supabase no está configurado." });
     return;
   }
-  const authUser = await customerUser(req, supabase);
-  if (!authUser) {
-    res.status(401).json({ error: "Entra con tu correo y contraseña." });
+  const sessionUser = await customerUser(req, supabase);
+  const linked = await linkAccountForPurchase(
+    { email: req.body?.email, password: req.body?.password, sessionUserId: sessionUser?.id ?? null },
+    supabaseAuth(supabase),
+  );
+  if (!linked.proceed) {
+    res.status(400).json({ error: linked.error });
     return;
   }
+  const authUser = { id: linked.userId, email: req.body?.email || sessionUser?.email || null };
   const [{ data: promos }, { data: stockRows }, { data: referrals }, { data: gifts }, { data: credits }] = await Promise.all([
     supabase.from("promo_codes").select("*"),
     supabase.from("inventory").select("sku, quantity"),
@@ -453,11 +482,14 @@ async function createOrder(req, res) {
     res.status(500).json({ error: numberError?.message || "No pudimos numerar el pedido." });
     return;
   }
-  const { data: customer } = await supabase
-    .from("customers")
-    .upsert({ phone: evaluated.phone, name: req.body.customerName, email: req.body.email || authUser.email || null, auth_user_id: authUser.id, updated_at: new Date().toISOString() }, { onConflict: "phone" })
-    .select("id")
-    .single();
+  const customerRow = {
+    phone: evaluated.phone,
+    name: req.body.customerName,
+    email: req.body.email || authUser.email || null,
+    updated_at: new Date().toISOString(),
+  };
+  if (authUser.id) customerRow.auth_user_id = authUser.id;
+  const { data: customer } = await supabase.from("customers").upsert(customerRow, { onConflict: "phone" }).select("id").single();
   const now = new Date().toISOString();
   const note = evaluated.giftNote;
   const orderRow = {
@@ -560,8 +592,16 @@ async function createOrder(req, res) {
       return;
     }
   }
+  if (evaluated.priced.totalCents === 0) {
+    try {
+      await applyPaidOrder(supabase, { orderId: inserted.id, method: "gift_card", provider: "gift_card", ref: `zero_${inserted.id}` });
+    } catch (error) {
+      res.status(error.status || 500).json({ error: error.message || "No pudimos confirmar el pedido." });
+      return;
+    }
+  }
   const { data } = await supabase.from("orders").select("*, order_items(*)").eq("id", inserted.id).single();
-  res.status(200).json(mapOrderRow(data));
+  res.status(200).json({ ...mapOrderRow(data), accountNotice: linked.notice });
 }
 
 function linePrice(item) {
@@ -573,78 +613,191 @@ function linePrice(item) {
   }
 }
 
-async function markPaid(req, res) {
-  const supabase = serviceSupabase();
-  if (!supabase) {
-    res.status(503).json({ error: "Supabase no está configurado." });
-    return;
+function httpError(status, message) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
+
+export async function applyPaidOrder(supabase, payment) {
+  if (!supabase) throw httpError(503, "Supabase no está configurado.");
+  const { data: row } = await supabase.from("orders").select("*, order_items(*)").eq("id", payment?.orderId).maybeSingle();
+  if (!row) throw httpError(404, "No encontramos el pedido.");
+  if (row.payment_status === "approved") {
+    const current = await supabase.from("orders").select("*, order_items(*)").eq("id", row.id).single();
+    return { already: true, order: mapOrderRow(current.data || row) };
   }
-  const { data: row } = await supabase.from("orders").select("*, order_items(*)").eq("id", req.body?.orderId).single();
-  if (!row) {
-    res.status(404).json({ error: "No encontramos el pedido." });
-    return;
+  const order = mapOrderRow(row);
+  const { data: stockRows } = await supabase.from("inventory").select("*");
+  const stock = Object.fromEntries((stockRows ?? []).map((item) => [item.sku, item]));
+  const { frameById } = await import("../src/lib/catalog.ts");
+  for (const item of order.items) {
+    if (item.card) continue;
+    let frame;
+    try {
+      frame = frameById(item.frameId);
+    } catch {
+      continue;
+    }
+    for (const part of frame.consumes) {
+      const current = stock[part.sku];
+      if (!current) continue;
+      if (serverStockChecksEnabled() && current.quantity < part.qty) throw httpError(409, `Sin stock al confirmar (${part.sku}).`);
+    }
   }
-  if (row.payment_status !== "approved") {
-    const order = mapOrderRow(row);
-    for (const item of order.items) {
-      if (item.card || !item.frameId) continue;
-    }
-    const { data: stockRows } = await supabase.from("inventory").select("*");
-    const stock = Object.fromEntries((stockRows ?? []).map((item) => [item.sku, item]));
-    const { frameById } = await import("../src/lib/catalog.ts");
-    for (const item of order.items) {
-      if (item.card) continue;
-      let frame;
-      try {
-        frame = frameById(item.frameId);
-      } catch {
-        continue;
-      }
-      for (const part of frame.consumes) {
-        const current = stock[part.sku];
-        if (!current) continue;
-        if (serverStockChecksEnabled() && current.quantity < part.qty) {
-          res.status(409).json({ error: `Sin stock al confirmar (${part.sku}).` });
-          return;
-        }
-        current.quantity -= part.qty;
-      }
-    }
-    for (const sku of Object.keys(stock)) {
-      await supabase.from("inventory").update({ quantity: stock[sku].quantity }).eq("sku", sku);
-    }
-    if (row.promo_code) {
-      const { data: promo } = await supabase.from("promo_codes").select("used_count").eq("code", row.promo_code).maybeSingle();
-      if (promo) await supabase.from("promo_codes").update({ used_count: promo.used_count + 1 }).eq("code", row.promo_code);
-    }
-    if (row.gift_card_code && row.gift_card_applied_cents > 0) {
-      const { data: card } = await supabase.from("gift_cards").select("balance_cents").eq("code", row.gift_card_code).maybeSingle();
-      if (card) await supabase.from("gift_cards").update({ balance_cents: Math.max(0, card.balance_cents - row.gift_card_applied_cents) }).eq("code", row.gift_card_code);
-    }
-    if (row.credit_applied_cents > 0) {
-      const { data: credit } = await supabase.from("credits").select("balance_cents").eq("phone", row.phone).maybeSingle();
-      if (credit) await supabase.from("credits").update({ balance_cents: Math.max(0, credit.balance_cents - row.credit_applied_cents) }).eq("phone", row.phone);
-    }
-    if (row.referral_code) {
-      const { data: referral } = await supabase.from("referrals").select("*").eq("code", row.referral_code).maybeSingle();
-      if (referral && referral.owner_phone !== row.phone) {
-        await supabase.from("referrals").update({ redeemed_count: referral.redeemed_count + 1 }).eq("code", row.referral_code);
-        const { data: owner } = await supabase.from("credits").select("balance_cents").eq("phone", referral.owner_phone).maybeSingle();
-        const next = (owner?.balance_cents ?? 0) + (referral.referrer_credit_cents || 1500);
-        await supabase.from("credits").upsert({ phone: referral.owner_phone, balance_cents: next });
-      }
-    }
-    await supabase.from("orders").update({
+  const claimed = await supabase
+    .from("orders")
+    .update({
       payment_status: "approved",
       status: "paid",
-      payment_method: req.body?.method,
-      payment_provider: req.body?.provider,
-      payment_ref: req.body?.ref,
+      payment_method: payment?.method,
+      payment_provider: payment?.provider,
+      payment_ref: payment?.ref,
       updated_at: new Date().toISOString(),
-    }).eq("id", row.id);
+    })
+    .eq("id", row.id)
+    .neq("payment_status", "approved")
+    .select("id");
+  if (!claimed.data?.length) {
+    const current = await supabase.from("orders").select("*, order_items(*)").eq("id", row.id).single();
+    return { already: true, order: mapOrderRow(current.data || row) };
+  }
+  for (const item of order.items) {
+    if (item.card) continue;
+    let frame;
+    try {
+      frame = frameById(item.frameId);
+    } catch {
+      continue;
+    }
+    for (const part of frame.consumes) {
+      const current = stock[part.sku];
+      if (!current) continue;
+      current.quantity -= part.qty;
+    }
+  }
+  for (const sku of Object.keys(stock)) {
+    await supabase.from("inventory").update({ quantity: stock[sku].quantity }).eq("sku", sku);
+  }
+  if (row.promo_code) {
+    const { data: promo } = await supabase.from("promo_codes").select("used_count").eq("code", row.promo_code).maybeSingle();
+    if (promo) await supabase.from("promo_codes").update({ used_count: promo.used_count + 1 }).eq("code", row.promo_code);
+  }
+  if (row.gift_card_code && row.gift_card_applied_cents > 0) {
+    const { data: card } = await supabase.from("gift_cards").select("balance_cents").eq("code", row.gift_card_code).maybeSingle();
+    if (card) await supabase.from("gift_cards").update({ balance_cents: Math.max(0, card.balance_cents - row.gift_card_applied_cents) }).eq("code", row.gift_card_code);
+  }
+  if (row.credit_applied_cents > 0) {
+    const { data: credit } = await supabase.from("credits").select("balance_cents").eq("phone", row.phone).maybeSingle();
+    if (credit) await supabase.from("credits").update({ balance_cents: Math.max(0, credit.balance_cents - row.credit_applied_cents) }).eq("phone", row.phone);
+  }
+  if (row.referral_code) {
+    const { data: referral } = await supabase.from("referrals").select("*").eq("code", row.referral_code).maybeSingle();
+    if (referral && referral.owner_phone !== row.phone) {
+      await supabase.from("referrals").update({ redeemed_count: referral.redeemed_count + 1 }).eq("code", row.referral_code);
+      const { data: owner } = await supabase.from("credits").select("balance_cents").eq("phone", referral.owner_phone).maybeSingle();
+      const next = (owner?.balance_cents ?? 0) + (referral.referrer_credit_cents || 1500);
+      await supabase.from("credits").upsert({ phone: referral.owner_phone, balance_cents: next });
+    }
   }
   const { data } = await supabase.from("orders").select("*, order_items(*)").eq("id", row.id).single();
-  res.status(200).json(mapOrderRow(data));
+  const saved = mapOrderRow(data || row);
+  await sendPaidEmail(saved);
+  return { already: false, order: saved };
+}
+
+async function sendPaidEmail(order) {
+  const message = paidEmailRequest(order, process.env);
+  if (!message || !process.env.RESEND_API_KEY) return;
+  try {
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: message.from, to: message.to, subject: message.subject, text: message.text }),
+    });
+  } catch (error) {
+    console.warn("[mifotito] No se envió el correo del pedido.", error);
+  }
+}
+
+async function markPaid(req, res) {
+  const supabase = serviceSupabase();
+  if (!(await adminSession(req, supabase))) {
+    res.status(401).json({ error: "Solo un pago verificado o el admin puede marcar el pedido." });
+    return;
+  }
+  try {
+    const result = await applyPaidOrder(supabase, req.body || {});
+    res.status(200).json(result.order);
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message || "No pudimos marcar el pago." });
+  }
+}
+
+function supabaseAuth(supabase) {
+  return {
+    async createUser(email, password) {
+      const created = await supabase.auth.admin.createUser({ email, password, email_confirm: true });
+      if (!created.error && created.data?.user) return { status: "created", userId: created.data.user.id, confirmed: true };
+      const message = `${created.error?.message || ""} ${created.error?.code || ""}`.toLowerCase();
+      if (message.includes("already") || message.includes("registered") || message.includes("exists")) return { status: "exists" };
+      return { status: "failed" };
+    },
+    async signIn(email, password) {
+      const signed = await supabase.auth.signInWithPassword({ email, password });
+      if (signed.data?.user) return { status: "ok", userId: signed.data.user.id };
+      const message = (signed.error?.message || "").toLowerCase();
+      if (message.includes("confirm")) return { status: "unconfirmed", userId: signed.data?.user?.id ?? null };
+      return { status: "rejected" };
+    },
+    async findUserId(email) {
+      const linked = await supabase.auth.admin.generateLink({ type: "magiclink", email });
+      return linked.data?.user?.id ?? null;
+    },
+  };
+}
+
+export async function loadPayableOrder(orderId) {
+  const supabase = serviceSupabase();
+  if (!supabase || !orderId) return null;
+  const { data } = await supabase.from("orders").select("id, total_cents, payment_status, public_token, email, customer_name, phone, number, tax_id, tax_id_type").eq("id", orderId).maybeSingle();
+  if (!data) return null;
+  return {
+    id: data.id,
+    totalCents: Number(data.total_cents),
+    paymentStatus: data.payment_status,
+    publicToken: data.public_token,
+    email: data.email,
+    customerName: data.customer_name,
+    phone: data.phone,
+    number: data.number,
+    taxId: data.tax_id,
+    taxIdType: data.tax_id_type,
+  };
+}
+
+export function paymentStore(supabase = serviceSupabase()) {
+  return {
+    async getOrder(id) {
+      if (!supabase) return null;
+      const { data } = await supabase.from("orders").select("id, total_cents, payment_status, public_token, email, customer_name, phone, number").eq("id", id).maybeSingle();
+      if (!data) return null;
+      return {
+        id: data.id,
+        totalCents: Number(data.total_cents),
+        paymentStatus: data.payment_status,
+        publicToken: data.public_token,
+        email: data.email,
+        customerName: data.customer_name,
+        phone: data.phone,
+        number: data.number,
+      };
+    },
+    async markPaidOnce(id, payment) {
+      const result = await applyPaidOrder(supabase, { orderId: id, ...payment });
+      return { already: result.already, order: result.order };
+    },
+  };
 }
 
 async function signPhoto(req, res) {
@@ -788,29 +941,139 @@ async function profile(req, res) {
 
 async function giftCard(req, res) {
   const supabase = serviceSupabase();
-  if (!supabase) {
-    res.status(503).json({ error: "Supabase no está configurado." });
+  if (!(await adminSession(req, supabase))) {
+    res.status(401).json({ error: "Solo un pago verificado o el admin puede crear una tarjeta de regalo." });
     return;
   }
-  const code = giftCode();
-  const row = {
-    code,
-    initial_cents: req.body.amountCents,
-    balance_cents: req.body.amountCents,
-    buyer_name: req.body.buyerName,
-    buyer_phone: normalizePhone(req.body.buyerPhone || ""),
-    recipient_name: req.body.recipientName,
-    recipient_phone: normalizePhone(req.body.recipientPhone || ""),
-    recipient_email: req.body.recipientEmail || null,
-    message: req.body.message || null,
-    status: "active",
-  };
-  const { data, error } = await supabase.from("gift_cards").insert(row).select("*").single();
+  const amount = Math.round(Number(req.body?.amountCents));
+  if (!Number.isFinite(amount) || amount < 3000 || amount > 20000000) {
+    res.status(400).json({ error: "El monto de la tarjeta no es válido." });
+    return;
+  }
+  const { data, error } = await supabase.from("gift_cards").insert(giftCardRow(req.body || {}, amount, "active", amount)).select("*").single();
   if (error) {
     res.status(400).json({ error: error.message });
     return;
   }
   res.status(200).json(mapGiftRow(data));
+}
+
+function giftCardRow(body, amount, status, balance) {
+  return {
+    code: giftCode(),
+    initial_cents: amount,
+    balance_cents: balance,
+    buyer_name: body.buyerName,
+    buyer_phone: normalizePhone(body.buyerPhone || ""),
+    recipient_name: body.recipientName,
+    recipient_phone: normalizePhone(body.recipientPhone || ""),
+    recipient_email: body.recipientEmail || null,
+    message: body.message || null,
+    status,
+  };
+}
+
+async function startGiftCard(req, res) {
+  const supabase = serviceSupabase();
+  if (!supabase) {
+    res.status(503).json({ error: "Supabase no está configurado." });
+    return;
+  }
+  const amount = giftCardAmountCents(req.body?.amountCents);
+  if (!amount) {
+    res.status(400).json({ error: "La tarjeta de regalo va de S/ 30 a S/ 500." });
+    return;
+  }
+  const buyer = normalizePhone(req.body?.buyerPhone || "");
+  const recipient = normalizePhone(req.body?.recipientPhone || "");
+  if (!buyer || !recipient) {
+    res.status(400).json({ error: "Revisa los celulares. Deben ser números peruanos." });
+    return;
+  }
+  const row = giftCardRow(req.body || {}, amount, "pending", 0);
+  const { data, error } = await supabase.from("gift_cards").insert(row).select("*").single();
+  if (error || !data) {
+    res.status(400).json({ error: error?.message || "No pudimos crear la tarjeta." });
+    return;
+  }
+  const provider = selectCardProvider();
+  const orderId = `gc:${data.code}`;
+  if (provider === "mock") {
+    if (paymentsServerMode() === "live") {
+      res.status(501).json({ error: PAYMENTS_NOT_CONFIGURED });
+      return;
+    }
+    const token = await signMockToken(
+      { orderId, amountCents: amount, exp: Date.now() + 30 * 60 * 1000, kind: "gift_card", code: data.code, method: "card" },
+      paymentMockSecret(),
+    );
+    res.status(200).json({ code: data.code, token, amountCents: amount });
+    return;
+  }
+  if (provider === "unconfigured") {
+    res.status(501).json({ error: PAYMENTS_NOT_CONFIGURED });
+    return;
+  }
+  const site = configuredSite();
+  if (provider === "stripe") {
+    const opened = await requestStripeCheckout(process.env, {
+      amountCents: amount,
+      orderId,
+      email: req.body?.buyerEmail || req.body?.recipientEmail,
+      description: `Tarjeta de regalo Mi Fotito`,
+      successUrl: `${site}/pago?estado=esperando&codigo=${encodeURIComponent(data.code)}`,
+      cancelUrl: `${site}/pago?error=cancelado`,
+    });
+    if (opened.error) {
+      res.status(502).json({ error: opened.error });
+      return;
+    }
+    res.status(200).json({ code: data.code, checkoutUrl: opened.checkoutUrl });
+    return;
+  }
+  const opened = await requestIzipayForm(process.env, {
+    amountCents: amount,
+    orderId,
+    email: req.body?.buyerEmail || req.body?.recipientEmail || "pedidos@mifotito.com",
+    name: req.body?.buyerName || "Cliente",
+    phone: buyer,
+  });
+  if (opened.error) {
+    res.status(502).json({ error: opened.error });
+    return;
+  }
+  res.status(200).json({ code: data.code, formToken: opened.formToken, publicKey: opened.publicKey });
+}
+
+export async function activateGiftCardPayment(supabase, code, amountCents) {
+  if (!supabase) throw httpError(503, "Supabase no está configurado.");
+  const { data } = await supabase.from("gift_cards").select("*").eq("code", code).maybeSingle();
+  if (!data) throw httpError(404, "No encontramos la tarjeta de regalo.");
+  if (Number(data.initial_cents) !== Number(amountCents)) throw httpError(400, "El monto del pago no coincide con la tarjeta.");
+  if (data.status === "active" && Number(data.balance_cents) === Number(data.initial_cents)) return { already: true, card: mapGiftRow(data) };
+  const claimed = await supabase.from("gift_cards").update({ status: "active", balance_cents: data.initial_cents }).eq("code", code).eq("status", "pending").select("*");
+  const row = claimed.data?.[0] || data;
+  if (!claimed.data?.length && data.status !== "active") throw httpError(409, "No pudimos activar la tarjeta.");
+  return { already: !claimed.data?.length, card: mapGiftRow(row) };
+}
+
+async function confirmGiftCard(req, res) {
+  if (paymentsServerMode() === "live") {
+    res.status(401).json({ error: "Solo un pago verificado o el admin puede crear una tarjeta de regalo." });
+    return;
+  }
+  const { openMockToken } = await import("../src/lib/payments.ts");
+  const parsed = await openMockToken(String(req.body?.token || ""), paymentMockSecret());
+  if (!parsed || parsed.kind !== "gift_card" || !parsed.code) {
+    res.status(400).json({ error: "La firma del pago no coincide." });
+    return;
+  }
+  try {
+    const result = await activateGiftCardPayment(serviceSupabase(), parsed.code, parsed.amountCents);
+    res.status(200).json({ ok: true, already: result.already, card: result.card });
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message || "No pudimos activar la tarjeta." });
+  }
 }
 
 async function listPublicFrames(_req, res) {
