@@ -1,10 +1,10 @@
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { PanResponder, Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native";
+import { PanResponder, Platform, Pressable, ScrollView, Text, useWindowDimensions, View, type ViewStyle } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { Cropper } from "../components/Cropper";
-import { PhotoSources } from "../components/PhotoSources";
+import { PhotoSources, type PhotoSourcesHandle } from "../components/PhotoSources";
 import { FrameView } from "../components/FrameView";
 import { TextStyleEditor } from "../components/TextStyleEditor";
 import { VoiceRecorder } from "../components/VoiceRecorder";
@@ -16,6 +16,7 @@ import { readBoot } from "../lib/boot";
 import { aspectParts, frameById, frameChips, framesForChip, type FrameChip, type FrameDef } from "../lib/catalog";
 import { importFlags, stockChecksEnabled } from "../lib/env";
 import { uid } from "../lib/ids";
+import { EXAMPLE_PHOTO_PROMPT, isExamplePhoto } from "../lib/example-photo";
 import { resolvePhoto, samplePhoto } from "../lib/photos";
 import { assessResolution, centeredCrop, refitCrop, type Crop, type Orientation } from "../lib/print-size";
 import { serializeOverlay, type TextOverlay } from "../lib/overlay";
@@ -39,6 +40,7 @@ export default function Crear() {
   const [ack, setAck] = useState(false);
   const [overlay, setOverlay] = useState<TextOverlay | null>(null);
   const [voice, setVoice] = useState<VoiceNote | null>(null);
+  const [sampleNote, setSampleNote] = useState<string | null>(null);
   const add = useCart((state) => state.add);
   const frame = offers[index] ?? offers[0];
   const contentWidth = Math.min(width, 480) - 32;
@@ -46,15 +48,21 @@ export default function Crear() {
   const indexRef = useRef(index);
   const offersRef = useRef(offers);
   const chipRef = useRef(chip);
+  const sourcesRef = useRef<PhotoSourcesHandle>(null);
+  const exampleRef = useRef(false);
   indexRef.current = index;
   offersRef.current = offers;
   chipRef.current = chip;
+  exampleRef.current = Boolean(photo && isExamplePhoto(photo.id));
   const visible = framesForChip(offers, chip);
 
   useEffect(() => {
     if (!offers.length) return;
     const boot = readBoot();
-    if (!boot?.photo) return;
+    if (!boot?.photo) {
+      void choosePhoto(samplePhoto());
+      return;
+    }
     void choosePhoto(boot.photo);
     if (boot.frameId) {
       const found = offers.findIndex((item) => item.id === boot.frameId);
@@ -78,6 +86,7 @@ export default function Crear() {
     setPhoto(next);
     setCrop(centeredCrop(next.width, next.height, aw, ah));
     setAck(false);
+    if (!isExamplePhoto(next.id)) setSampleNote(null);
     setSource(await resolvePhoto(next.id));
   }
 
@@ -95,6 +104,7 @@ export default function Crear() {
   const pan = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_event, gesture) => Math.abs(gesture.dx) > 18 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+      onMoveShouldSetPanResponderCapture: (_event, gesture) => exampleRef.current && Math.abs(gesture.dx) > 18 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
       onPanResponderRelease: (_event, gesture) => {
         const list = framesForChip(offersRef.current, chipRef.current);
         if (!list.length) return;
@@ -133,17 +143,26 @@ export default function Crear() {
   const flags = importFlags();
   const checkStock = stockChecksEnabled();
   const soldOut = checkStock && !frame.stockUncertain && frame.available <= 0;
+  const showingExample = Boolean(photo && isExamplePhoto(photo.id));
+  const preview = (
+    <FrameView frame={frame} photoId={photo?.id} crop={photo ? activeCrop : null} orientation={orientation} width={Math.min(260, contentWidth - 20)} overlay={overlay} onOverlayChange={setOverlay} animateSample />
+  );
 
   return (
     <Screen
       footer={
         <View>
           <View style={{ paddingHorizontal: 16, paddingTop: 8, backgroundColor: colors.bg }}>
+            {sampleNote ? <Text style={{ fontFamily: font.medium, color: colors.bad, textAlign: "center" }}>{sampleNote}</Text> : null}
             <Button
               label={soldOut ? "Sin stock" : "Agregar al carrito"}
               disabled={soldOut || !photo || (assessed?.status === "low" && !ack)}
               onPress={() => {
                 if (!photo || !assessed) return;
+                if (isExamplePhoto(photo.id)) {
+                  setSampleNote(EXAMPLE_PHOTO_PROMPT);
+                  return;
+                }
                 add({
                   id: uid("ci_"),
                   frameId: frame.id,
@@ -164,20 +183,43 @@ export default function Crear() {
       }
     >
       <View style={{ padding: 16, gap: 14 }}>
-        <Progress step={photo ? 2 : 1} />
+        <Progress step={photo && !isExamplePhoto(photo.id) ? 2 : 1} />
         <View {...pan.panHandlers}>
           <Animated.View key={`${frame.id}-${orientation}`} entering={reduced ? undefined : FadeInDown.springify().damping(16)}>
-            <View style={{ alignItems: "center" }}>
-              <FrameView frame={frame} photoId={photo?.id} crop={photo ? activeCrop : null} orientation={orientation} width={Math.min(260, contentWidth - 20)} overlay={overlay} onOverlayChange={setOverlay} animateSample />
+            <View style={{ alignItems: "center", position: "relative" }}>
+              {showingExample ? (
+                <Pressable
+                  accessible={false}
+                  onPress={() => sourcesRef.current?.pickFromDevice()}
+                  style={webPointer}
+                >
+                  {preview}
+                </Pressable>
+              ) : preview}
+              {showingExample ? (
+                <View pointerEvents="box-none" style={uploadSlot}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Sube tu foto desde tu dispositivo"
+                    onPress={() => sourcesRef.current?.pickFromDevice()}
+                    style={({ pressed }) => [uploadChip, webPointer, pressed && { transform: [{ scale: 0.97 }] }]}
+                  >
+                    <Text accessibilityElementsHidden importantForAccessibility="no" style={{ color: "#F6E2A8", fontSize: 16, lineHeight: 18 }}>★</Text>
+                    <Text style={{ fontFamily: font.bold, color: "white", fontSize: 16 }}>Sube tu foto</Text>
+                  </Pressable>
+                </View>
+              ) : null}
             </View>
           </Animated.View>
         </View>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" }}>
-          <View style={{ flex: 1, paddingRight: 8 }}>
-            <Text style={{ fontFamily: font.displaySoft, fontSize: 26, color: colors.ink }}>{frame.name}</Text>
+        <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 12 }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={{ fontFamily: font.displaySoft, fontSize: 24, lineHeight: 28, color: colors.ink }}>{frame.name}</Text>
             <Text style={{ fontFamily: font.medium, color: colors.muted }}>{frame.tierLabel} · {frame.sizeLabel}</Text>
           </View>
-          <PriceTicker cents={frame.priceCents} />
+          <View style={{ flexShrink: 0 }}>
+            <PriceTicker cents={frame.priceCents} />
+          </View>
         </View>
         <Text style={{ fontFamily: font.body, color: colors.muted }}>{frame.blurb} Desliza el marco como un filtro.</Text>
         {checkStock && frame.stockUncertain ? (
@@ -229,28 +271,25 @@ export default function Crear() {
             <Text style={{ fontFamily: font.medium, color: colors.ink }}>{ack ? "☑" : "☐"} Entiendo que se verá suave y quiero seguir</Text>
           </Pressable>
         ) : null}
-        {photo && source && crop ? (
-          <Card>
-            <Text style={{ fontFamily: font.semibold, color: colors.ink, marginBottom: 8 }}>Encadra la foto</Text>
-            <Cropper source={source} crop={crop} aspect={[aw, ah]} width={contentWidth - 32} onChange={setCrop} />
-          </Card>
-        ) : (
-          <Card>
-            <Text style={{ fontFamily: font.displaySoft, fontSize: 24, color: colors.ink }}>Tu foto</Text>
-            <Text style={{ fontFamily: font.body, color: colors.muted, marginVertical: 8 }}>JPG, PNG o HEIC. La galería del teléfono es la primera opción. En el iPhone también puedes abrir iCloud, y el HEIC pasa a JPEG.</Text>
-            <PhotoSources
-              print={frame}
-              flags={flags}
-              notice={params.import}
-              onPhoto={(next) => choosePhoto(next, frame)}
-              onSample={() => void choosePhoto(samplePhoto())}
-            />
-            <Button label="Probar aviso de resolución" tone="ghost" onPress={() => void choosePhoto(samplePhoto("sample-small"))} />
-          </Card>
-        )}
-        {photo ? (
-          <PhotoSources print={frame} flags={flags} notice={params.import} onPhoto={(next) => choosePhoto(next, frame)} />
-        ) : null}
+        <Card>
+          <View style={{ gap: 16 }}>
+            {photo && source && crop ? (
+              <>
+                <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Encadra la foto</Text>
+                <Cropper source={source} crop={crop} aspect={[aw, ah]} width={contentWidth - 32} onChange={setCrop} />
+              </>
+            ) : (
+              <>
+                <Text style={{ fontFamily: font.displaySoft, fontSize: 24, color: colors.ink }}>Tu foto</Text>
+                <Text style={{ fontFamily: font.body, color: colors.muted }}>JPG, PNG o HEIC. La galería del teléfono es la primera opción. En el iPhone también puedes abrir iCloud, y el HEIC pasa a JPEG.</Text>
+              </>
+            )}
+            <PhotoSources ref={sourcesRef} print={frame} flags={flags} notice={params.import} onPhoto={(next) => choosePhoto(next, frame)} />
+            <View style={{ borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 16 }}>
+              <Button label="Probar aviso de resolución" tone="quiet" onPress={() => void choosePhoto(samplePhoto("sample-small"))} />
+            </View>
+          </View>
+        </Card>
         {photo ? <TextStyleEditor collapsible label="Agrega texto a tu foto" value={overlay} onChange={setOverlay} maxChars={48} /> : null}
         <VoiceRecorder value={voice} onChange={setVoice} />
         <Pressable onPress={() => router.push("/tarjeta")}>
@@ -266,6 +305,33 @@ export default function Crear() {
     </Screen>
   );
 }
+
+const webPointer = (Platform.OS === "web" ? { cursor: "pointer" } : null) as ViewStyle;
+
+const uploadSlot: ViewStyle = {
+  position: "absolute",
+  left: 0,
+  right: 0,
+  bottom: 26,
+  zIndex: 3,
+  alignItems: "center",
+};
+
+const uploadChip: ViewStyle = {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 8,
+  minHeight: 44,
+  paddingHorizontal: 16,
+  borderRadius: 999,
+  backgroundColor: colors.red,
+  borderWidth: 2,
+  borderColor: "#F0D48A",
+  shadowColor: "#241714",
+  shadowOpacity: 0.28,
+  shadowRadius: 10,
+  shadowOffset: { width: 0, height: 5 },
+};
 
 function Mini({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
   return (

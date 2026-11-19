@@ -6,16 +6,17 @@ import { GreatVibes_400Regular } from "@expo-google-fonts/great-vibes";
 import { Lobster_400Regular } from "@expo-google-fonts/lobster";
 import { Pacifico_400Regular } from "@expo-google-fonts/pacifico";
 import { Satisfy_400Regular } from "@expo-google-fonts/satisfy";
-import { Stack } from "expo-router";
+import { Stack, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect } from "react";
-import { Platform, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { PageSeo } from "../components/PageSeo";
 import { AppProvider } from "../components/provider";
 import { colors, font } from "../components/theme";
 import { useReducedMotion } from "../components/fx";
 
 export default function RootLayout() {
+  const path = usePathname();
   const reduced = useReducedMotion();
   const [loaded, error] = useFonts({
     Fraunces_600SemiBold,
@@ -31,9 +32,6 @@ export default function RootLayout() {
     Satisfy_400Regular,
     AmaticSC_700Bold,
   });
-  useEffect(() => {
-    if (Platform.OS === "web") document.title = "Mi Fotito — marcos impresos en Perú";
-  }, []);
   if (!loaded && !error) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" }}>
@@ -43,6 +41,7 @@ export default function RootLayout() {
   }
   return (
     <SafeAreaProvider>
+      <PageSeo path={path} />
       <StatusBar style="dark" />
       <AppProvider>
         <Stack screenOptions={{ headerShown: false, animation: reduced ? "none" : "slide_from_right", contentStyle: { backgroundColor: colors.bg } }} />

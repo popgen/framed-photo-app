@@ -80,27 +80,47 @@ export async function saveAudioBlob(blob: Blob): Promise<{ id: string }> {
   return { id };
 }
 
+function fromStored(value: unknown): Blob | null {
+  if (value instanceof Blob) return value;
+  if (value && typeof value === "object" && "bytes" in value) {
+    const record = value as { bytes?: unknown; type?: string };
+    if (record.bytes instanceof ArrayBuffer) return new Blob([record.bytes], { type: record.type || "image/jpeg" });
+  }
+  return null;
+}
+
 export async function readPhotoBlob(id: string): Promise<Blob | null> {
   if (typeof indexedDB === "undefined") return null;
   const database = await openDb();
-  const blob = await new Promise<Blob | undefined>((resolve, reject) => {
+  const value = await new Promise<unknown>((resolve, reject) => {
     const tx = database.transaction("photos", "readonly");
     const request = tx.objectStore("photos").get(id);
-    request.onsuccess = () => resolve(request.result as Blob | undefined);
-    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error("No pudimos leer esa foto."));
   });
-  return blob ?? null;
+  return fromStored(value);
+}
+
+function plainBlob(blob: Blob): Blob {
+  return blob.slice(0, blob.size, blob.type || "image/jpeg");
+}
+
+async function storeBlob(database: IDBDatabase, id: string, blob: Blob): Promise<void> {
+  const record = { bytes: await blob.arrayBuffer(), type: blob.type || "image/jpeg" };
+  await new Promise<void>((resolve, reject) => {
+    const tx = database.transaction("photos", "readwrite");
+    const request = tx.objectStore("photos").put(record, id);
+    const fail = () => reject(request.error ?? tx.error ?? new Error("No pudimos guardar la foto."));
+    request.onerror = fail;
+    tx.onerror = fail;
+    tx.oncomplete = () => resolve();
+  });
 }
 
 async function putBlob(id: string, blob: Blob) {
   if (typeof indexedDB === "undefined") return;
   const database = await openDb();
-  await new Promise<void>((resolve, reject) => {
-    const tx = database.transaction("photos", "readwrite");
-    tx.objectStore("photos").put(blob, id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+  await storeBlob(database, id, blob);
 }
 
 export async function savePhotoPair(
@@ -164,17 +184,13 @@ async function encodeJpeg(bitmap: ImageBitmap, longEdge: number, quality: number
 
 export async function savePhotoBlob(blob: Blob): Promise<{ id: string; width: number; height: number }> {
   const id = uid("ph_");
-  const size = await measure(blob);
+  const stored = plainBlob(blob);
+  const size = await measure(stored);
   if (typeof indexedDB !== "undefined") {
     const database = await openDb();
-    await new Promise<void>((resolve, reject) => {
-      const tx = database.transaction("photos", "readwrite");
-      tx.objectStore("photos").put(blob, id);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
+    await storeBlob(database, id, stored);
   }
-  memory.set(id, { url: URL.createObjectURL(blob), ...size });
+  memory.set(id, { url: URL.createObjectURL(stored), ...size });
   return { id, ...size };
 }
 
@@ -184,13 +200,7 @@ export async function resolvePhoto(id: string): Promise<{ uri?: string; source?:
   const cached = memory.get(id);
   if (cached) return { uri: cached.url };
   if (typeof indexedDB === "undefined") return null;
-  const database = await openDb();
-  const blob = await new Promise<Blob | undefined>((resolve, reject) => {
-    const tx = database.transaction("photos", "readonly");
-    const request = tx.objectStore("photos").get(id);
-    request.onsuccess = () => resolve(request.result as Blob | undefined);
-    request.onerror = () => reject(request.error);
-  });
+  const blob = await readPhotoBlob(id);
   if (!blob) return null;
   const url = URL.createObjectURL(blob);
   let size = { width: 0, height: 0 };
@@ -217,8 +227,21 @@ export function pickPhotoFiles(multiple = false, source: PhotoSource = "gallery"
     input.type = "file";
     input.accept = "image/*,.heic,.heif";
     input.multiple = multiple && source !== "camera";
+    input.tabIndex = -1;
+    input.setAttribute("aria-hidden", "true");
+    input.style.position = "fixed";
+    input.style.left = "0";
+    input.style.top = "0";
+    input.style.width = "1px";
+    input.style.height = "1px";
+    input.style.opacity = "0";
     if (source === "camera") input.setAttribute("capture", "environment");
-    input.onchange = () => resolve(Array.from(input.files ?? []));
+    input.onchange = () => {
+      const files = Array.from(input.files ?? []);
+      input.remove();
+      resolve(files);
+    };
+    document.body.appendChild(input);
     input.click();
   });
 }

@@ -63,6 +63,12 @@
   status = 200
   force = true
 
+# Public routes other than the legal pages are real files such as /crear.html.
+# With Pretty URLs, /crear serves that file and /crear/ redirects to /crear.
+# Redirect rules cannot add or remove a trailing slash: Netlify matches them
+# either way. Do not add a /crear rule here. The catch-all below is not forced,
+# so /robots.txt, /sitemap.xml, and those html files are served as files.
+
 # Expo single-page export: client routes fall back to index.html.
 [[redirects]]
   from = "/*"
@@ -80,7 +86,27 @@
     X-XSS-Protection = "0"
 
 [[headers]]
+  for = "/robots.txt"
+  [headers.values]
+    Content-Type = "text/plain; charset=utf-8"
+
+[[headers]]
+  for = "/sitemap.xml"
+  [headers.values]
+    Content-Type = "application/xml; charset=utf-8"
+
+[[headers]]
   for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/*/index.html"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
 
