@@ -83,4 +83,20 @@ describe("editor screen wiring", () => {
     expect(tarjeta).toContain("Encuadra la foto");
     expect(tarjeta).not.toContain("Encadra");
   });
+
+  it("marks the photo text and voice QR headings as optional", () => {
+    const tarjeta = readFileSync("src/app/tarjeta.tsx", "utf8");
+    const voice = readFileSync("src/components/VoiceRecorder.tsx", "utf8");
+    const textEditor = readFileSync("src/components/TextStyleEditor.tsx", "utf8");
+    expect(crear).toContain('label="Agrega texto a tu foto (opcional)"');
+    expect(crear).not.toContain('label="Agrega texto a tu foto"');
+    expect(tarjeta).toContain('label="Agrega texto a tu foto (opcional)"');
+    expect(tarjeta).not.toContain('label="Agrega texto a tu foto"');
+    expect(textEditor).toContain("title={label}");
+    expect(textEditor).not.toContain('title="Agrega texto a tu foto"');
+    expect(voice).toContain('title="Agrega un mensaje de voz con QR (opcional)"');
+    expect(voice).not.toContain('title="Agrega un mensaje de voz con QR"');
+    expect(voice).toContain("Mensaje de voz con QR ·");
+    expect(voice).not.toContain("Mensaje de voz con QR (opcional)");
+  });
 });

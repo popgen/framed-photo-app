@@ -366,7 +366,7 @@ export default function Crear() {
         {photo ? (
           <TextStyleEditor
             collapsible
-            label="Agrega texto a tu foto"
+            label="Agrega texto a tu foto (opcional)"
             value={overlay}
             onChange={setOverlay}
             maxChars={48}
