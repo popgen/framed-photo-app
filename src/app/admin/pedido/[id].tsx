@@ -11,6 +11,7 @@ import { frameById } from "../../../lib/catalog";
 import { backgroundLabel, spacingLabel } from "../../../lib/collage";
 import { downloadCardPdf, downloadPrint } from "../../../lib/print-export";
 import { getRepo } from "../../../lib/repo";
+import { giftWrapBadge, orderMoneyLines, paymentMethodLabel, paymentStatusLabel } from "../../../lib/order-admin";
 import { STATUS_FLOW, STATUS_LABEL, type OrderStatus } from "../../../lib/types";
 
 export default function AdminOrder() {
@@ -18,8 +19,11 @@ export default function AdminOrder() {
   const { refresh } = useApp();
   const { data: order } = useRepo((repo) => repo.getOrder(String(id)), [id]);
   const { data: notes } = useRepo((repo) => repo.listNotifications(String(id)), [id, order?.updatedAt]);
+  const { data: campaign } = useRepo((repo) => repo.getCampaign());
   const [tracking, setTracking] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
   if (!order) {
     return (
@@ -52,11 +56,28 @@ export default function AdminOrder() {
       <Text style={{ fontFamily: font.body, color: colors.muted }}>{order.phone} · {order.email}</Text>
       <Text style={{ fontFamily: font.body, color: colors.muted }}>{order.christmasNote}</Text>
       {order.isGift ? <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Regalo</Text> : null}
+      {order.giftWrap ? (
+        <View style={{ alignSelf: "flex-start", backgroundColor: "#E7F6EE", borderRadius: 999, paddingHorizontal: 12, minHeight: 44, justifyContent: "center" }}>
+          <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{giftWrapBadge(campaign?.giftWrapTitle)}</Text>
+        </View>
+      ) : null}
+      {order.hidePrices ? <Text style={{ fontFamily: font.semibold, color: colors.ink }}>No incluir precios en la caja</Text> : null}
+      <View style={{ backgroundColor: colors.white, borderRadius: 16, padding: 12, gap: 6 }}>
+        {orderMoneyLines(order).map((line) => (
+          <Text key={line.label} style={{ fontFamily: line.label === "Total" ? font.semibold : font.body, color: colors.ink }}>
+            {line.label} · {line.text}
+          </Text>
+        ))}
+      </View>
+      <Text style={{ fontFamily: font.semibold, color: colors.ink }}>
+        Pago · {paymentStatusLabel(order.paymentStatus)} · {paymentMethodLabel(order.paymentMethod)}
+      </Text>
+      {order.paymentProvider ? <Text style={{ fontFamily: font.body, color: colors.muted }}>Proveedor · {order.paymentProvider}</Text> : null}
+      {order.paymentRef ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Referencia · {order.paymentRef}</Text> : null}
       {order.giftNoteMessage ? (
         <View style={{ gap: 8 }}>
           <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Nota impresa</Text>
           <GiftNoteCard to={order.giftNoteTo} message={order.giftNoteMessage} from={order.giftNoteFrom} />
-          {order.hidePrices ? <Text style={{ fontFamily: font.body, color: colors.ink }}>No incluir precios en la caja.</Text> : null}
           <Pressable onPress={() => router.push(`/admin/nota/${order.id}`)} style={chip(false)}>
             <Text style={chipText(false)}>Ver nota</Text>
           </Pressable>
@@ -66,6 +87,7 @@ export default function AdminOrder() {
         </View>
       ) : null}
       {error ? <Banner tone="bad" text={error} /> : null}
+      {warning ? <Banner tone="warn" text={warning} /> : null}
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
         {STATUS_FLOW.map((status) => (
           <Pressable key={status} onPress={() => void run(() => getRepo().setStatus(order.id, status as OrderStatus))} style={chip(order.status === status)}>
@@ -73,6 +95,32 @@ export default function AdminOrder() {
           </Pressable>
         ))}
       </View>
+      {order.status === "cancelled" ? (
+        <Text style={{ fontFamily: font.semibold, color: colors.bad }}>Pedido cancelado</Text>
+      ) : confirmCancel ? (
+        <View style={{ gap: 8, backgroundColor: "#FDE8E6", borderRadius: 16, padding: 12 }}>
+          <Text style={{ fontFamily: font.semibold, color: colors.ink }}>¿Cancelar el pedido {order.number}? Quedará como cancelado.</Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() =>
+              void run(async () => {
+                await getRepo().setStatus(order.id, "cancelled");
+                setConfirmCancel(false);
+              })
+            }
+            style={chip(true)}
+          >
+            <Text style={chipText(true)}>Sí, cancelar pedido</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => setConfirmCancel(false)} style={chip(false)}>
+            <Text style={chipText(false)}>No, volver</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <Pressable accessibilityRole="button" onPress={() => setConfirmCancel(true)} style={chip(false)}>
+          <Text style={chipText(false)}>Cancelar pedido</Text>
+        </Pressable>
+      )}
       {order.items.map((item) => (
         <View key={item.id} style={{ backgroundColor: colors.white, borderRadius: 16, padding: 12, gap: 8 }}>
           <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{item.card ? `Tarjeta ${item.card.sizeId}` : item.collage ? `Collage · ${item.collage.templateName} · ${frameById(item.frameId).name}` : `${frameById(item.frameId).name} · ${item.dpi} dpi`}</Text>
@@ -140,7 +188,23 @@ export default function AdminOrder() {
         </View>
       ))}
       <TextInput value={tracking} onChangeText={setTracking} placeholder="Número de guía" placeholderTextColor="#A89488" style={{ minHeight: 48, borderRadius: 12, backgroundColor: colors.white, paddingHorizontal: 12, fontFamily: font.body }} />
-      <Pressable onPress={() => void run(() => getRepo().setTracking(order.id, tracking))} style={chip(true)}>
+      <Pressable
+        onPress={() =>
+          void (async () => {
+            try {
+              const saved = await getRepo().setTracking(order.id, tracking);
+              const note = saved && typeof saved === "object" && "emailWarning" in saved ? String(saved.emailWarning || "") : "";
+              setError(null);
+              setWarning(note || null);
+              refresh();
+            } catch (err) {
+              setWarning(null);
+              setError(err instanceof Error ? err.message : "No se pudo guardar.");
+            }
+          })()
+        }
+        style={chip(true)}
+      >
         <Text style={chipText(true)}>Guardar guía y avisar</Text>
       </Pressable>
       <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Mensajes</Text>

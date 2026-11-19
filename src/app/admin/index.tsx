@@ -5,9 +5,11 @@ import { useApp, useRepo } from "../../components/provider";
 import { colors, font } from "../../components/theme";
 import { defaultCampaign } from "../../lib/campaign";
 import { cutoffInstant, urgencyRank } from "../../lib/cutoff";
+import { formatSoles } from "../../lib/money";
+import { giftWrapBadge } from "../../lib/order-admin";
 import { STATUS_LABEL, type OrderStatus } from "../../lib/types";
 
-const FILTERS = ["all", "paid", "in_review", "printed", "framed", "shipped", "delivered"] as const;
+const FILTERS = ["all", "pending_payment", "paid", "in_review", "printed", "framed", "shipped", "delivered", "cancelled"] as const;
 
 export default function AdminHome() {
   const { refresh } = useApp();
@@ -49,6 +51,8 @@ export default function AdminHome() {
           <Text style={{ fontFamily: font.body, color: colors.muted }}>
             {order.customerName} · {order.zone === "lima" ? "Lima" : "Provincias"} · {order.christmasGuaranteed ? "Llega a la fecha" : "Sin garantía"}
             {order.needsHuman ? " · pide una persona" : ""}
+            {order.giftWrap ? ` · ${giftWrapBadge(active.giftWrapTitle)}` : ""}
+            {` · ${formatSoles(order.totalCents)}`}
           </Text>
         </Pressable>
       ))}

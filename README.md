@@ -65,6 +65,11 @@ Copia `.env.example` a `.env`. No subas `.env`.
 | `EXPO_PUBLIC_DEMO_ADMIN_EMAIL` | cliente | solo modo local |
 | `EXPO_PUBLIC_DEMO_ADMIN_PASSWORD` | cliente | solo modo local |
 | `SUPABASE_SERVICE_ROLE_KEY` | servidor | webhook y tareas admin |
+| `SMTP_HOST` | servidor | servidor SMTP. En Zoho: `smtp.zoho.com` |
+| `SMTP_PORT` | servidor | puerto SMTP. En Zoho: `465` |
+| `SMTP_USER` | servidor | usuario SMTP |
+| `SMTP_PASS` | servidor | contraseña SMTP. No la pongas en el cliente |
+| `SMTP_FROM` | servidor | remitente. En producción: `Mi Fotito <pedidos@mifotito.com>` |
 | `PAYMENTS_MODE` | servidor | `mock` (default) o `live` |
 | `PAYMENT_PROVIDER` | servidor | vacío = Izipay. `stripe` solo si Lucas usa su cuenta de Estados Unidos |
 | `PAYMENT_MOCK_SECRET` | servidor | firma el sandbox. Si falta, se usa la service role |
@@ -85,6 +90,8 @@ Copia `.env.example` a `.env`. No subas `.env`.
 | `SITE_URL` | servidor | igual que el sitio público |
 
 Izipay cobra tarjeta y Yape cuando `IZIPAY_COMMERCE_ID`, `IZIPAY_API_KEY`, `IZIPAY_PUBLIC_KEY` y `IZIPAY_HMAC_KEY` están puestos y `PAYMENTS_MODE=live`. Si faltan, la tienda responde «Pagos no configurados». Plin no pasa por Izipay.
+
+Cuando el admin guarda una guía, el servidor manda un correo «Tu pedido va en camino» al `email` del pedido por SMTP (Zoho: `smtp.zoho.com`, puerto `465`, remitente `Mi Fotito <pedidos@mifotito.com>`). Si faltan `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` o `SMTP_FROM`, o el envío falla, la guía igual se guarda y el admin ve el aviso. No se usa WhatsApp para ese mensaje. El envío queda en `notification_log` con canal `email`.
 
 ## Supabase
 

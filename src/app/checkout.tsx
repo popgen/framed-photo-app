@@ -103,6 +103,7 @@ export default function Checkout() {
       ...form,
       isGift: form.giftPrinted,
       giftNote: form.giftNoteMessage,
+      hidePrices: form.hidePrices || form.giftWrap,
       city: form.district,
       province: form.province,
       paymentMethod: method,
@@ -377,16 +378,17 @@ export default function Checkout() {
           message={form.giftNoteMessage}
           fromName={form.giftNoteFrom}
           buyerName={form.customerName}
-          hidePrices={form.hidePrices}
+          hidePrices={form.hidePrices || form.giftWrap}
           onChange={(next) => {
             setGift({ isGift: next.printed, to: next.to, message: next.message, from: next.fromName, hidePrices: next.hidePrices });
             setForm({ ...form, giftPrinted: next.printed, giftNoteTo: next.to, giftNoteMessage: next.message, giftNoteFrom: next.fromName, hidePrices: next.hidePrices });
           }}
         />
         {form.giftPrinted && !form.giftWrap ? <Text style={{ fontFamily: font.body, color: colors.muted }}>Si quieres, suma el envoltorio. Va aparte de la nota.</Text> : null}
-        <Pressable onPress={() => setForm({ ...form, giftWrap: !form.giftWrap })} style={{ minHeight: 52, justifyContent: "center", backgroundColor: form.giftWrap ? "#E7F6EE" : colors.white, borderRadius: 16, padding: 12 }}>
+        <Pressable onPress={() => setForm({ ...form, giftWrap: !form.giftWrap })} style={{ minHeight: 52, justifyContent: "center", backgroundColor: form.giftWrap ? "#E7F6EE" : colors.white, borderRadius: 16, padding: 12, gap: 4 }}>
           <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{form.giftWrap ? "☑" : "☐"} {campaign?.giftWrapTitle ?? "Envoltorio de regalo"} · S/ 10</Text>
           <Text style={{ fontFamily: font.body, color: colors.muted }}>{campaign?.giftWrapBody ?? "La caja va sin precios."}</Text>
+          {form.giftWrap ? <Text style={{ fontFamily: font.medium, color: colors.ink }}>☑ No incluir precios en la caja</Text> : null}
         </Pressable>
         <Field label="Código promo" autoCapitalize="characters" value={form.promoCode} onChangeText={(promoCode) => setForm({ ...form, promoCode })} />
         <Field label="Código de amigo" autoCapitalize="characters" value={form.referralCode} onChangeText={(referralCode) => setForm({ ...form, referralCode })} />

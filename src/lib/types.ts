@@ -92,6 +92,7 @@ export type Order = {
   giftCardAppliedCents: number;
   giftWrapCents: number;
   giftNoteCents?: number;
+  shippingCents?: number | null;
   totalCents: number;
   paymentMethod?: string | null;
   paymentStatus: "pending" | "approved" | "rejected";
@@ -111,6 +112,7 @@ export type Order = {
   items: OrderItem[];
   createdAt: string;
   updatedAt: string;
+  emailWarning?: string | null;
 };
 
 export type Promo = PromoRule & { note?: string | null };
