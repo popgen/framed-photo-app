@@ -1,4 +1,4 @@
-import { readPaidAnswer, verifyKrHash, izipayReady, readIzipayEnv, createPaymentBody, IZIPAY_CREATE_URL, izipayAuthHeader } from "./izipay";
+import { readPaidAnswer, verifyKrHash, izipayReady, readIzipayEnv, createPaymentBody, IZIPAY_CREATE_URL, izipayAuthHeader, izipayMethodRejected } from "./izipay";
 
 export const PAYMENTS_NOT_CONFIGURED = "Pagos no configurados. Escríbenos a pedidos@mifotito.com.";
 export const PAYMENT_DECLINED = "El pago fue rechazado. Puedes intentar otra vez.";
@@ -193,29 +193,46 @@ export async function settleOrderToken(store: PaymentStore, parsed: MockToken): 
 
 export async function requestIzipayForm(
   env: Record<string, string | undefined>,
-  input: { amountCents: number; orderId: string; email: string; name: string; phone?: string | null; identityType?: "DNI" | "RUC" | null; identityCode?: string | null },
+  input: { amountCents: number; orderId: string; email: string; name: string; phone?: string | null; identityType?: "DNI" | "RUC" | null; identityCode?: string | null; method?: "card" | "yape" | null },
   fetchImpl: typeof fetch = fetch,
-): Promise<{ formToken: string; publicKey: string } | { error: string }> {
+): Promise<{ formToken: string; publicKey: string; yapeFallback?: boolean } | { error: string }> {
   const izipay = readIzipayEnv(env);
-  if (!izipayReady(izipay) || !izipay.commerceId || !izipay.apiKey || !izipay.publicKey) return { error: PAYMENTS_NOT_CONFIGURED };
-  const response = await fetchImpl(IZIPAY_CREATE_URL, {
-    method: "POST",
-    headers: { Authorization: izipayAuthHeader(izipay.commerceId, izipay.apiKey), "Content-Type": "application/json" },
-    body: JSON.stringify(
-      createPaymentBody({
-        amountCents: input.amountCents,
-        orderId: input.orderId,
-        email: input.email,
-        name: input.name,
-        phone: input.phone || undefined,
-        identityType: input.identityType,
-        identityCode: input.identityCode,
-      }),
-    ),
-  });
-  const json = (await response.json().catch(() => ({}))) as { status?: string; answer?: { formToken?: string; errorMessage?: string } };
-  if (response.ok && json.status === "SUCCESS" && json.answer?.formToken) {
-    return { formToken: json.answer.formToken, publicKey: izipay.publicKey };
+  const commerceId = izipay.commerceId;
+  const apiKey = izipay.apiKey;
+  const publicKey = izipay.publicKey;
+  if (!izipayReady(izipay) || !commerceId || !apiKey || !publicKey) return { error: PAYMENTS_NOT_CONFIGURED };
+  const post = async (method?: "card" | "yape" | null) => {
+    const response = await fetchImpl(IZIPAY_CREATE_URL, {
+      method: "POST",
+      headers: { Authorization: izipayAuthHeader(commerceId, apiKey), "Content-Type": "application/json" },
+      body: JSON.stringify(
+        createPaymentBody({
+          amountCents: input.amountCents,
+          orderId: input.orderId,
+          email: input.email,
+          name: input.name,
+          phone: input.phone || undefined,
+          identityType: input.identityType,
+          identityCode: input.identityCode,
+          method,
+        }),
+      ),
+    });
+    const json = (await response.json().catch(() => ({}))) as {
+      status?: string;
+      answer?: { formToken?: string; errorMessage?: string; errorCode?: string; detailedErrorCode?: string; detailedErrorMessage?: string };
+    };
+    return { response, json };
+  };
+  const first = await post(input.method);
+  if (first.response.ok && first.json.status === "SUCCESS" && first.json.answer?.formToken) {
+    return { formToken: first.json.answer.formToken, publicKey: publicKey, yapeFallback: false };
+  }
+  if (input.method === "yape" && izipayMethodRejected(first.json)) {
+    const fallback = await post(undefined);
+    if (fallback.response.ok && fallback.json.status === "SUCCESS" && fallback.json.answer?.formToken) {
+      return { formToken: fallback.json.answer.formToken, publicKey: publicKey, yapeFallback: true };
+    }
   }
   return { error: "Izipay no pudo abrir el pago. Inténtalo otra vez." };
 }

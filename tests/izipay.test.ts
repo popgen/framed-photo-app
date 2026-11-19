@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createPaymentBody, izipayReady, krHash, readPaidAnswer, verifyKrHash } from "../src/lib/izipay";
+import { createPaymentBody, izipayMethodRejected, izipayPagoCopy, izipayReady, izipaySmartFormExpanded, krHash, paymentMethodsFor, readPaidAnswer, verifyKrHash, IZIPAY_PAYMENT_METHOD_CARDS, IZIPAY_PAYMENT_METHOD_YAPE } from "../src/lib/izipay";
+import { requestIzipayForm } from "../src/lib/payments";
 
 describe("Izipay form", () => {
   it("needs the four server keys and sends the amount in céntimos", () => {
@@ -20,6 +21,26 @@ describe("Izipay form", () => {
       email: "ana@example.com",
       billingDetails: { firstName: "Ana", lastName: "Flores", phoneNumber: "+51987654321", identityType: "DNI", identityCode: "87654321", country: "PE" },
     });
+    expect(body.paymentMethods).toBeUndefined();
+  });
+
+  it("sends the Izipay paymentMethods code for Yape or card", () => {
+    const base = { amountCents: 5900, orderId: "ord_1", email: "ana@example.com", name: "Ana Flores" };
+    expect(paymentMethodsFor("yape")).toEqual([IZIPAY_PAYMENT_METHOD_YAPE]);
+    expect(paymentMethodsFor("card")).toEqual([IZIPAY_PAYMENT_METHOD_CARDS]);
+    expect(createPaymentBody({ ...base, method: "yape" }).paymentMethods).toEqual(["YAPE"]);
+    expect(createPaymentBody({ ...base, method: "card" }).paymentMethods).toEqual(["CARDS"]);
+  });
+
+  it("explains the Yape fallback and expands the card form when Yape is unavailable", () => {
+    expect(izipayMethodRejected({ status: "ERROR", answer: { errorCode: "PSP_610", detailedErrorCode: "NO_ACCEPTANCE_AGREEMENT_AVAILABLE" } })).toBe(true);
+    expect(izipayMethodRejected({ status: "SUCCESS" })).toBe(false);
+    expect(izipayPagoCopy("yape")).toBe("Paga con Yape en la pasarela de Izipay.");
+    expect(izipayPagoCopy("card")).toBe("Paga con tarjeta en la pasarela de Izipay.");
+    expect(izipayPagoCopy("yape", true)).toMatch(/No pudimos abrir Yape/);
+    expect(izipaySmartFormExpanded("yape")).toBe(false);
+    expect(izipaySmartFormExpanded("yape", true)).toBe(true);
+    expect(izipaySmartFormExpanded("card")).toBe(true);
   });
 
   it("trusts only a matching HMAC and a paid status", async () => {
@@ -88,6 +109,63 @@ describe("payments create", () => {
     );
     const raw = String(fetchMock.mock.calls[0][1].body);
     expect(JSON.parse(raw).amount).toBe(6900);
-    expect(sent).toMatchObject({ status: 200, body: { provider: "izipay", formToken: "form-1", publicKey: "public" } });
+    expect(JSON.parse(raw).paymentMethods).toEqual(["CARDS"]);
+    expect(sent).toMatchObject({ status: 200, body: { provider: "izipay", formToken: "form-1", publicKey: "public", method: "card", yapeFallback: false } });
+  });
+
+  it("asks Izipay for Yape and retries without a method filter when the shop has no Yape agreement", async () => {
+    const keys = {
+      PAYMENTS_MODE: "live",
+      IZIPAY_COMMERCE_ID: "shop",
+      IZIPAY_API_KEY: "secret",
+      IZIPAY_PUBLIC_KEY: "public",
+      IZIPAY_HMAC_KEY: "hmac",
+    };
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body));
+      if (body.paymentMethods?.includes("YAPE")) {
+        return {
+          ok: true,
+          json: async () => ({
+            status: "ERROR",
+            answer: { errorCode: "PSP_610", detailedErrorCode: "NO_ACCEPTANCE_AGREEMENT_AVAILABLE", errorMessage: "No merchant acceptance agreement available" },
+          }),
+        };
+      }
+      return { ok: true, json: async () => ({ status: "SUCCESS", answer: { formToken: "form-fallback" } }) };
+    });
+    const opened = await requestIzipayForm(
+      keys,
+      { amountCents: 6900, orderId: "ord_1", email: "ana@example.com", name: "Ana Flores", method: "yape" },
+      fetchMock as unknown as typeof fetch,
+    );
+    expect("formToken" in opened && opened.formToken).toBe("form-fallback");
+    expect("yapeFallback" in opened && opened.yapeFallback).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1].body)).paymentMethods).toEqual(["YAPE"]);
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1].body)).paymentMethods).toBeUndefined();
+
+    const { createPayment } = await import("../api/payments/create.mjs");
+    const sent: { status?: number; body?: unknown } = {};
+    await createPayment(
+      { method: "POST", body: { orderId: "ord_1", method: "yape" } },
+      { status(code: number) { sent.status = code; return this; }, json(data: unknown) { sent.body = data; return this; } },
+      {
+        env: keys,
+        fetchImpl: fetchMock,
+        loadOrder: async () => ({
+          id: "ord_1",
+          totalCents: 6900,
+          email: "ana@example.com",
+          customerName: "Ana Flores",
+          phone: "51987654321",
+          number: "MF-1",
+          publicToken: "tok",
+          taxIdType: "DNI",
+          taxId: "87654321",
+        }),
+      },
+    );
+    expect(sent).toMatchObject({ status: 200, body: { provider: "izipay", formToken: "form-fallback", method: "yape", yapeFallback: true } });
   });
 });

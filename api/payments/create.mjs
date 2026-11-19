@@ -106,6 +106,7 @@ export async function createPayment(req, res, deps = {}) {
       phone: order.phone,
       identityType: order.taxIdType || null,
       identityCode: order.taxId || null,
+      method: method === "yape" ? "yape" : "card",
     },
     fetchImpl,
   );
@@ -113,7 +114,15 @@ export async function createPayment(req, res, deps = {}) {
     res.status(502).json({ error: opened.error });
     return;
   }
-  res.status(200).json({ provider: "izipay", status: "pending", formToken: opened.formToken, publicKey: opened.publicKey, mock: false });
+  res.status(200).json({
+    provider: "izipay",
+    status: "pending",
+    formToken: opened.formToken,
+    publicKey: opened.publicKey,
+    method: method === "yape" ? "yape" : "card",
+    yapeFallback: Boolean(opened.yapeFallback),
+    mock: false,
+  });
 }
 
 export default function handler(req, res) {

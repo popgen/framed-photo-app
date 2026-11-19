@@ -239,9 +239,9 @@ export default function Checkout() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ orderId: order.id, method }),
         });
-        const payload = (await response.json()) as { checkoutUrl?: string; formToken?: string; publicKey?: string; error?: string; token?: string; mock?: boolean; instructions?: string };
+        const payload = (await response.json()) as { checkoutUrl?: string; formToken?: string; publicKey?: string; error?: string; token?: string; mock?: boolean; instructions?: string; method?: "card" | "yape"; yapeFallback?: boolean };
         if (payload.formToken && payload.publicKey && typeof window !== "undefined") {
-          window.sessionStorage.setItem("mifotito-izipay", JSON.stringify({ formToken: payload.formToken, publicKey: payload.publicKey }));
+          window.sessionStorage.setItem("mifotito-izipay", JSON.stringify({ formToken: payload.formToken, publicKey: payload.publicKey, method: payload.method || method, yapeFallback: Boolean(payload.yapeFallback) }));
           rememberReceipt(order);
           router.push("/pago");
           return;

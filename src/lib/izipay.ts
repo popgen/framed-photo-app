@@ -25,6 +25,37 @@ export function izipayAuthHeader(commerceId: string, apiKey: string): string {
   return `Basic ${token}`;
 }
 
+/** CreatePayment paymentMethods values. Field docs: https://secure.micuentaweb.pe/doc/es-PE/rest/V4.0/api/playground/Charge/CreatePayment and https://secure.micuentaweb.pe/doc/es-PE/rest/V4.0/javascript/redirection/custom_filter.html — CARDS is the documented card value in https://secure.micuentaweb.pe/doc/schema-api-v4.json. Yape is not in that schema table; YAPE matches the IPN paymentMethodType already parsed here. */
+export const IZIPAY_PAYMENT_METHOD_CARDS = "CARDS";
+export const IZIPAY_PAYMENT_METHOD_YAPE = "YAPE";
+
+export function paymentMethodsFor(method?: "card" | "yape" | null): string[] | undefined {
+  if (method === "yape") return [IZIPAY_PAYMENT_METHOD_YAPE];
+  if (method === "card") return [IZIPAY_PAYMENT_METHOD_CARDS];
+  return undefined;
+}
+
+export function izipayMethodRejected(payload: {
+  status?: string;
+  answer?: { errorCode?: string; detailedErrorCode?: string; errorMessage?: string; detailedErrorMessage?: string };
+}): boolean {
+  if (payload.status === "SUCCESS") return false;
+  const answer = payload.answer || {};
+  const blob = `${answer.errorCode || ""} ${answer.detailedErrorCode || ""} ${answer.errorMessage || ""} ${answer.detailedErrorMessage || ""}`;
+  return /PSP_610|10103|NO_ACCEPTANCE_AGREEMENT|UNSUPPORTED_PAYMENT_METHODS/i.test(blob);
+}
+
+export function izipayPagoCopy(method?: "card" | "yape" | null, yapeFallback?: boolean): string {
+  if (method === "yape" && yapeFallback) return "No pudimos abrir Yape en Izipay. Puedes pagar con tarjeta en el formulario de abajo.";
+  if (method === "yape") return "Paga con Yape en la pasarela de Izipay.";
+  if (method === "card") return "Paga con tarjeta en la pasarela de Izipay.";
+  return "Tarjeta o Yape, en la pasarela de Izipay.";
+}
+
+export function izipaySmartFormExpanded(method?: "card" | "yape" | null, yapeFallback?: boolean): boolean {
+  return method !== "yape" || Boolean(yapeFallback);
+}
+
 export function createPaymentBody(input: {
   amountCents: number;
   orderId: string;
@@ -33,6 +64,7 @@ export function createPaymentBody(input: {
   phone?: string;
   identityType?: "DNI" | "RUC" | null;
   identityCode?: string | null;
+  method?: "card" | "yape" | null;
 }): Record<string, unknown> {
   const parts = input.name.trim().split(/\s+/).filter(Boolean);
   const firstName = parts[0] || "Cliente";
@@ -47,12 +79,15 @@ export function createPaymentBody(input: {
     billing.identityType = input.identityType;
     billing.identityCode = input.identityCode;
   }
-  return {
+  const body: Record<string, unknown> = {
     amount: Math.round(input.amountCents),
     currency: "PEN",
     orderId: input.orderId.slice(0, 64),
     customer: { email: input.email, billingDetails: billing },
   };
+  const methods = paymentMethodsFor(input.method);
+  if (methods) body.paymentMethods = methods;
+  return body;
 }
 
 export async function krHash(answer: string, hmacKey: string): Promise<string> {
