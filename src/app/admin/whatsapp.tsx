@@ -74,7 +74,9 @@ export default function WhatsAppSandbox() {
   );
 
   function openSupportChat() {
-    const url = `https://wa.me/${supportNumber()}?text=${encodeURIComponent("Hola Mi Fotito, quiero armar un marco.")}`;
+    const phone = supportNumber();
+    if (!phone) return;
+    const url = `https://wa.me/${phone}?text=${encodeURIComponent("Hola Mi Fotito, quiero armar un marco.")}`;
     if (typeof window !== "undefined") window.open(url, "_blank", "noopener,noreferrer");
   }
 

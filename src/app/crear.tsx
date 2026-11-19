@@ -10,7 +10,7 @@ import { TextStyleEditor } from "../components/TextStyleEditor";
 import { VoiceRecorder } from "../components/VoiceRecorder";
 import { PriceTicker, useReducedMotion } from "../components/fx";
 import { useApp, useRepo } from "../components/provider";
-import { Banner, Button, Card, Progress, Screen, TabBar, WhatsAppButton } from "../components/ui";
+import { Banner, Button, Card, Progress, Screen, TabBar } from "../components/ui";
 import { colors, font } from "../components/theme";
 import { readBoot } from "../lib/boot";
 import { aspectParts, frameById, frameChips, framesForChip, type FrameChip, type FrameDef } from "../lib/catalog";
@@ -184,16 +184,18 @@ export default function Crear() {
                   <Text style={{ fontFamily: font.semibold, color: "white", fontSize: 12 }}>Foto de ejemplo</Text>
                 </View>
               ) : null}
-              <FrameView frame={frame} photoId={photo?.id} crop={photo ? activeCrop : null} orientation={orientation} width={Math.min(260, contentWidth - 20)} overlay={overlay} onOverlayChange={setOverlay} />
+              <FrameView frame={frame} photoId={photo?.id} crop={photo ? activeCrop : null} orientation={orientation} width={Math.min(260, contentWidth - 20)} overlay={overlay} onOverlayChange={setOverlay} animateSample />
             </View>
           </Animated.View>
         </View>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" }}>
-          <View style={{ flex: 1, paddingRight: 8 }}>
-            <Text style={{ fontFamily: font.displaySoft, fontSize: 26, color: colors.ink }}>{frame.name}</Text>
+        <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 12 }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={{ fontFamily: font.displaySoft, fontSize: 24, lineHeight: 28, color: colors.ink }}>{frame.name}</Text>
             <Text style={{ fontFamily: font.medium, color: colors.muted }}>{frame.tierLabel} · {frame.sizeLabel}</Text>
           </View>
-          <PriceTicker cents={frame.priceCents} />
+          <View style={{ flexShrink: 0 }}>
+            <PriceTicker cents={frame.priceCents} />
+          </View>
         </View>
         <Text style={{ fontFamily: font.body, color: colors.muted }}>{frame.blurb} Desliza el marco como un filtro.</Text>
         {checkStock && frame.stockUncertain ? (
@@ -276,7 +278,6 @@ export default function Crear() {
           </Card>
         </Pressable>
       </View>
-      <WhatsAppButton />
     </Screen>
   );
 }

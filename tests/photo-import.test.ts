@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 import {
   authorizeUrl,
   facebookPhotos,
@@ -7,7 +9,31 @@ import {
   instagramPhotos,
   openImport,
   sealImport,
+  visibleImportSources,
 } from "../src/lib/photo-import";
+
+describe("visible import sources", () => {
+  it("hides a network until its flag is on", () => {
+    expect(visibleImportSources({ instagram: false, facebook: false, googlePhotos: false })).toEqual([]);
+    expect(visibleImportSources({ instagram: false, facebook: false, googlePhotos: true })).toEqual(["google"]);
+    expect(visibleImportSources({ instagram: true, facebook: true, googlePhotos: true })).toEqual(["instagram", "facebook", "google"]);
+  });
+
+  it("keeps coming-soon copy out of the customer photo screens", () => {
+    const forbidden = /pronto|próximamente|proximamente|coming soon/i;
+    const hits = customerFiles().filter((path) => forbidden.test(readFileSync(path, "utf8")));
+    expect(hits).toEqual([]);
+  });
+});
+
+function customerFiles(dir = "src"): string[] {
+  return readdirSync(dir).flatMap((name) => {
+    const path = join(dir, name);
+    if (path.includes(`${join("src", "app", "admin")}`)) return [];
+    if (statSync(path).isDirectory()) return customerFiles(path);
+    return path.endsWith(".tsx") || path.endsWith(".ts") ? [path] : [];
+  });
+}
 
 describe("photo import oauth", () => {
   it("builds the three authorize links with the high-res scopes", () => {

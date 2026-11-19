@@ -34,7 +34,7 @@ export function siteUrl(): string {
 }
 
 export function supportNumber(): string {
-  return process.env.EXPO_PUBLIC_WHATSAPP_SUPPORT_NUMBER || "51999999999";
+  return (process.env.EXPO_PUBLIC_WHATSAPP_SUPPORT_NUMBER || "").replace(/\D/g, "");
 }
 
 export function demoAdmin(): { email: string; password: string } | null {

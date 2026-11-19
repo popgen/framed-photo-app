@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { Link, router } from "expo-router";
 import type { ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
 import Svg, { Path, Rect } from "react-native-svg";
@@ -7,7 +7,7 @@ import { useEffect } from "react";
 import { FrameView } from "../components/FrameView";
 import { Countdown, GuaranteeNote, Ornaments, useNow, useReducedMotion } from "../components/fx";
 import { useRepo } from "../components/provider";
-import { Button, Card, H1, P, Screen, TabBar, WhatsAppButton } from "../components/ui";
+import { Button, Card, H1, P, Screen, TabBar } from "../components/ui";
 import { colors, font } from "../components/theme";
 import { cardsPromoVisible, countdownVisible, motionEnabled, ornamentKind } from "../lib/campaign";
 import { countdownTarget, guaranteeFor } from "../lib/cutoff";
@@ -35,6 +35,9 @@ export default function Home() {
           <Text numberOfLines={1} style={wordmarkText}>
             Mi Fotito
           </Text>
+          <Link href="/privacidad" style={{ fontFamily: font.medium, fontSize: 14, lineHeight: 20, color: colors.muted, textAlign: "center", textDecorationLine: "underline" }}>
+            Política de privacidad
+          </Link>
         </View>
         <H1>{active.heroTitle}</H1>
         <P style={centered}>{active.heroSubtitle}</P>
@@ -44,7 +47,7 @@ export default function Home() {
           <Button label={active.cta} onPress={() => router.push("/crear")} />
         </View>
         <Animated.View entering={reduced ? undefined : FadeInDown.springify().damping(14)} style={{ alignItems: "center", paddingTop: 8 }}>
-          <FrameView frame={frameById("wood-15")} photoId="asset:sample" crop={crop} width={230} />
+          <FrameView frame={frameById("wood-15")} photoId="asset:sample" crop={crop} width={230} animateSample />
         </Animated.View>
         {cardsPromoVisible(now, active) && active.cardsPromo ? (
           <Pressable accessibilityRole="button" accessibilityLabel={active.cardsPromo.cta} onPress={() => router.push("/tarjeta")}>
@@ -105,7 +108,7 @@ export default function Home() {
         <Pressable onPress={() => router.push("/regalo")}>
           <Card>
             <Text style={section}>Tarjeta de regalo</Text>
-            <P style={centered}>Regala soles para un marco. Llega por WhatsApp.</P>
+            <P style={centered}>Regala soles para un marco. Llega por correo.</P>
           </Card>
         </Pressable>
         <Pressable accessibilityRole="link" accessibilityLabel="Haz clic aquí para rastrear tu pedido" onPress={() => router.push("/rastrear")} style={{ minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }}>
@@ -116,7 +119,6 @@ export default function Home() {
           <Text style={{ fontFamily: font.semibold, color: colors.ink, textAlign: "center" }}>Haz clic aquí para rastrear tu pedido</Text>
         </Pressable>
       </View>
-      <WhatsAppButton />
     </Screen>
   );
 }

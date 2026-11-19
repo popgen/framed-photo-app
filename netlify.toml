@@ -36,6 +36,33 @@
 # and a forced rewrite was returning Netlify's 404 for every API call.
 # Path routing is matched before this non-forced SPA fallback, so /api is not shadowed.
 
+# Legal pages are real files in dist, so a direct visit is 200 and readable
+# without JavaScript. These rewrites keep /privacidad and /terminos at 200
+# even if the host would otherwise add a trailing slash.
+[[redirects]]
+  from = "/privacidad"
+  to = "/privacidad/index.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/privacidad/"
+  to = "/privacidad/index.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/terminos"
+  to = "/terminos/index.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/terminos/"
+  to = "/terminos/index.html"
+  status = 200
+  force = true
+
 # Expo single-page export: client routes fall back to index.html.
 [[redirects]]
   from = "/*"
