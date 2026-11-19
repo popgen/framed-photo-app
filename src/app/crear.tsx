@@ -168,7 +168,7 @@ export default function Crear() {
         <View {...pan.panHandlers}>
           <Animated.View key={`${frame.id}-${orientation}`} entering={reduced ? undefined : FadeInDown.springify().damping(16)}>
             <View style={{ alignItems: "center" }}>
-              <FrameView frame={frame} photoId={photo?.id} crop={photo ? activeCrop : null} orientation={orientation} width={Math.min(260, contentWidth - 20)} overlay={overlay} onOverlayChange={setOverlay} />
+              <FrameView frame={frame} photoId={photo?.id} crop={photo ? activeCrop : null} orientation={orientation} width={Math.min(260, contentWidth - 20)} overlay={overlay} onOverlayChange={setOverlay} animateSample />
             </View>
           </Animated.View>
         </View>

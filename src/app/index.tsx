@@ -47,7 +47,7 @@ export default function Home() {
           <Button label={active.cta} onPress={() => router.push("/crear")} />
         </View>
         <Animated.View entering={reduced ? undefined : FadeInDown.springify().damping(14)} style={{ alignItems: "center", paddingTop: 8 }}>
-          <FrameView frame={frameById("wood-15")} photoId="asset:sample" crop={crop} width={230} />
+          <FrameView frame={frameById("wood-15")} photoId="asset:sample" crop={crop} width={230} animateSample />
         </Animated.View>
         {cardsPromoVisible(now, active) && active.cardsPromo ? (
           <Pressable accessibilityRole="button" accessibilityLabel={active.cardsPromo.cta} onPress={() => router.push("/tarjeta")}>

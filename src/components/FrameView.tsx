@@ -1,6 +1,7 @@
 import { Image } from "expo-image";
 import { useEffect, useRef, useState } from "react";
 import { PanResponder, StyleSheet, Text, View } from "react-native";
+import { SampleScene } from "./SampleScene";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { openingOf, type FrameDef } from "../lib/catalog";
 import { fontById, placeOverlay, type TextOverlay } from "../lib/overlay";
@@ -35,6 +36,7 @@ export function FrameView({
   width,
   overlay,
   onOverlayChange,
+  animateSample = false,
 }: {
   frame: FrameDef;
   photoId?: string | null;
@@ -43,6 +45,7 @@ export function FrameView({
   width: number;
   overlay?: TextOverlay | null;
   onOverlayChange?: (next: TextOverlay) => void;
+  animateSample?: boolean;
 }) {
   const [photo, setPhoto] = useState<{ uri?: string; source?: number } | null>(null);
   useEffect(() => {
@@ -88,7 +91,17 @@ export function FrameView({
           }}
         >
           <View style={[styles.opening, { left: open.x * portraitW, top: open.y * portraitH, width: openingW, height: openingH }]}>
-            {source && crop ? (
+            {animateSample && photoId === "asset:sample" && crop ? (
+              <SampleScene
+                style={{
+                  position: "absolute",
+                  width: (openingW * crop.imageWidth) / crop.width,
+                  height: (openingH * crop.imageHeight) / crop.height,
+                  left: (-crop.x * openingW) / crop.width,
+                  top: (-crop.y * openingH) / crop.height,
+                }}
+              />
+            ) : source && crop ? (
               <Image
                 source={source}
                 contentFit="fill"

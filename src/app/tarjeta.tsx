@@ -1,4 +1,5 @@
 import { Image } from "expo-image";
+import { SampleScene } from "../components/SampleScene";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
@@ -299,7 +300,17 @@ function PanelFace({
     : 0;
   return (
     <View style={{ width, height, backgroundColor: color, overflow: "hidden", borderWidth: 1, borderColor: "rgba(42,27,22,0.28)", borderRadius: 10, boxShadow: "0 10px 24px rgba(42,27,22,0.12)" }}>
-      {source && crop ? (
+      {photo?.id === "asset:sample" && crop ? (
+        <SampleScene
+          style={{
+            position: "absolute",
+            width: (width * crop.imageWidth) / crop.width,
+            height: (height * crop.imageHeight) / crop.height,
+            left: (-crop.x * width) / crop.width,
+            top: (-crop.y * height) / crop.height,
+          }}
+        />
+      ) : source && crop ? (
         <Image
           source={source}
           contentFit="fill"
