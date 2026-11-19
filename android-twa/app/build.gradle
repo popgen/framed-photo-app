@@ -3,7 +3,7 @@ plugins {
 }
 
 // Everything that changes between builds lives here, so a release is one edit.
-def twaHost = "mifotito.com"
+def twaHost = project.findProperty("twaHost") ?: "mifotito.com"
 def twaStartUrl = "https://${twaHost}/"
 
 android {

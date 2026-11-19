@@ -52,6 +52,15 @@
     Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
     X-XSS-Protection = "0"
 
+# Netlify's zip-deploy API silently drops dot-directories, so a drag-and-drop
+# deploy would lose /.well-known/. This rewrite keeps the URL working either way;
+# it is a no-op for normal Git builds, where the real file is served directly.
+[[redirects]]
+  from = "/.well-known/assetlinks.json"
+  to = "/assetlinks.json"
+  status = 200
+  force = false
+
 # Digital Asset Links: Chrome fetches this to verify the Play Store app owns the
 # domain. It must be application/json and must not be cached for long.
 [[headers]]

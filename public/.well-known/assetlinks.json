@@ -1,5 +1,17 @@
 [
   {
+    "_comment": "Test build. Lets the sideloaded debug APK run without Chrome's URL bar. Safe to delete once the app is on Play.",
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "pe.mifotito.app.debug",
+      "sha256_cert_fingerprints": [
+        "71:1F:30:8E:F4:5B:AF:A8:53:47:1B:57:11:18:53:A5:C4:9C:88:B7:C0:8C:A9:08:EA:25:33:EB:17:7F:2C:57"
+      ]
+    }
+  },
+  {
+    "_comment": "Production. Replace the fingerprint with the SHA-256 from Play Console > Setup > App signing, then redeploy.",
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
