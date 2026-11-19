@@ -1,20 +1,33 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { GiftNoteCard } from "../../components/GiftNoteCard";
 import { GiftSuccess } from "../../components/fx";
+import { useApp } from "../../components/provider";
 import { Button, Screen } from "../../components/ui";
 import { colors, font } from "../../components/theme";
+import { rememberWaOrder } from "../../lib/boot";
+import { mercadoPagoConfirmationState } from "../../lib/mercadopago";
 import { formatSoles } from "../../lib/money";
 import { getRepo } from "../../lib/repo";
-import { readReceipt } from "../../lib/store";
+import { readReceipt, rememberReceipt, useCart } from "../../lib/store";
 import type { Order } from "../../lib/types";
 
 export default function Confirmacion() {
   const { token } = useLocalSearchParams<{ token: string }>();
+  const clear = useCart((state) => state.clear);
+  const { refresh } = useApp();
   const [order, setOrder] = useState<Order | null>(readReceipt<Order>(String(token)));
+  const [remoteStatus, setRemoteStatus] = useState<string | null>(null);
   const [campaignTitle, setCampaignTitle] = useState("Tu recuerdo ya va en camino");
   const [campaignBody, setCampaignBody] = useState("Te escribimos por correo cuando avance.");
+  const sawPending = useRef(false);
+  const finished = useRef(false);
+  const mpState = mercadoPagoConfirmationState({
+    paymentMethod: order?.paymentMethod,
+    paymentStatus: order?.paymentStatus,
+    remoteStatus,
+  });
 
   useEffect(() => {
     void getRepo().getCampaign().then((campaign) => {
@@ -28,12 +41,71 @@ export default function Confirmacion() {
     });
   }, [token]);
 
+  useEffect(() => {
+    if (order?.paymentMethod === "mercadopago" && order.paymentStatus !== "approved") sawPending.current = true;
+  }, [order?.paymentMethod, order?.paymentStatus]);
+
+  useEffect(() => {
+    if (!sawPending.current || finished.current) return;
+    if (mpState !== "approved" || order?.paymentMethod !== "mercadopago") return;
+    finished.current = true;
+    clear();
+    rememberWaOrder(null);
+    refresh();
+  }, [clear, mpState, order?.paymentMethod, refresh]);
+
+  useEffect(() => {
+    if (order?.paymentMethod !== "mercadopago" || order.paymentStatus === "approved" || order.paymentStatus === "rejected") return;
+    let stopped = false;
+    const tick = async () => {
+      const response = await fetch(`/api/payments/status?pedido=${encodeURIComponent(String(token || ""))}`);
+      const payload = (await response.json().catch(() => ({}))) as { status?: string };
+      if (stopped || !payload.status) return;
+      setRemoteStatus(payload.status);
+      if (payload.status === "approved" || payload.status === "rejected") {
+        setOrder((current) => {
+          if (!current) return current;
+          const next = { ...current, paymentStatus: payload.status as Order["paymentStatus"] };
+          rememberReceipt(next);
+          return next;
+        });
+      }
+    };
+    void tick();
+    const timer = setInterval(() => void tick(), 2000);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [order?.paymentMethod, order?.paymentStatus, token]);
+
   if (!order) {
     return (
       <Screen>
         <View style={{ padding: 20, gap: 12 }}>
           <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>Busca tu pedido con el celular</Text>
           <Button label="Ver estado" onPress={() => router.push(`/pedido/${token}`)} />
+        </View>
+      </Screen>
+    );
+  }
+
+  if (mpState === "pending" || mpState === "rejected") {
+    return (
+      <Screen>
+        <View style={{ padding: 20, gap: 14 }}>
+          <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink, textAlign: "center" }}>
+            {mpState === "rejected" ? "Pago no aprobado" : "Pago pendiente"}
+          </Text>
+          <Text style={{ fontFamily: font.display, fontSize: 28, color: colors.ink, textAlign: "center" }}>{order.number}</Text>
+          <Text style={{ fontFamily: font.semibold, color: colors.ink, textAlign: "center" }}>{formatSoles(order.totalCents)}</Text>
+          <Text style={{ fontFamily: font.body, color: colors.muted, textAlign: "center", lineHeight: 22 }}>
+            {mpState === "rejected"
+              ? "Mercado Pago no aprobó el pago. No cobramos el pedido. Puedes intentar otra vez."
+              : "Estamos esperando la confirmación de Mercado Pago. Si elegiste PagoEfectivo, paga con el código que te mostraron. El pedido no entra a producción hasta que el pago quede aprobado."}
+          </Text>
+          {mpState === "rejected" ? <Button label="Volver al pago" onPress={() => router.replace("/checkout")} /> : null}
+          <Button label="Seguir el pedido" tone={mpState === "rejected" ? "ghost" : "primary"} onPress={() => router.push(`/pedido/${order.publicToken}`)} />
         </View>
       </Screen>
     );

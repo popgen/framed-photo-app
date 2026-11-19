@@ -23,5 +23,6 @@ export default async function handler(req, res) {
     return;
   }
   const order = await supabase.from("orders").select("payment_status").eq("public_token", token).maybeSingle();
-  res.status(200).json({ status: order.data?.payment_status === "approved" ? "approved" : "pending" });
+  const status = order.data?.payment_status;
+  res.status(200).json({ status: status === "approved" || status === "rejected" ? status : "pending" });
 }

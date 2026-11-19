@@ -123,6 +123,7 @@ describe("admin order breakdown", () => {
     expect(paymentMethodLabel("yape")).toBe("Yape");
     expect(paymentMethodLabel("card")).toBe("Tarjeta");
     expect(paymentMethodLabel("gift_card")).toBe("Tarjeta de regalo");
+    expect(paymentMethodLabel("mercadopago")).toBe("Mercado Pago");
     expect(giftWrapBadge("Envoltorio de Navidad")).toBe("Envolver para regalo · Envoltorio de Navidad");
   });
 });
