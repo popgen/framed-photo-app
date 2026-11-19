@@ -143,7 +143,7 @@ describe("collage print size", () => {
     const soft = assessCells([softCrop, sharp, sharp, sharp], cells, 20, 20, "portrait");
     expect(soft.status).toBe("soft");
     expect(soft.message).toMatch(/foto 1/);
-    const lowCrop = { ...sharp, width: 400, height: 400 };
+    const lowCrop = { ...sharp, width: 250, height: 250 };
     const low = assessCells([sharp, lowCrop, sharp, sharp], cells, 20, 20, "portrait");
     expect(low.status).toBe("low");
     expect(low.message).toMatch(/foto 2/);

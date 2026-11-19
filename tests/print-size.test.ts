@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assessResolution, centeredCrop, cmToPx, printDpi, targetPixels } from "../src/lib/print-size";
+import { assessResolution, centeredCrop, cmToPx, printDpi, resolutionStatus, targetPixels } from "../src/lib/print-size";
 
 describe("print size", () => {
   it("matches the 300 dpi targets", () => {
@@ -48,8 +48,8 @@ describe("print size", () => {
     expect(soft.message).toMatch(/150 dpi/);
 
     const low = assessResolution({
-      cropWidthPx: 1200,
-      cropHeightPx: 1600,
+      cropWidthPx: 800,
+      cropHeightPx: 1067,
       printWcm: 30,
       printHcm: 40,
       orientation: "portrait",
@@ -61,13 +61,19 @@ describe("print size", () => {
     expect(low.status).toBe("low");
     expect(low.suggestion?.label).toBe("15×20 cm");
     expect(low.message).toMatch(/15×20 cm/);
-    expect(printDpi(1200, 1600, 15, 20)).toBeGreaterThanOrEqual(150);
+    expect(printDpi(800, 1067, 15, 20)).toBeGreaterThanOrEqual(72);
   });
 
-  it("does not suggest a size that is still under 150 dpi", () => {
+  it("treats 72 dpi as acceptable and anything under as too low", () => {
+    expect(resolutionStatus(72)).toBe("soft");
+    expect(resolutionStatus(71.4)).toBe("low");
+    expect(resolutionStatus(71.5)).toBe("soft");
+  });
+
+  it("does not suggest a size that is still under 72 dpi", () => {
     const low = assessResolution({
-      cropWidthPx: 700,
-      cropHeightPx: 900,
+      cropWidthPx: 400,
+      cropHeightPx: 500,
       printWcm: 30,
       printHcm: 40,
       orientation: "portrait",
