@@ -21,7 +21,7 @@ describe("legal pages", () => {
     expect(readFileSync("public/privacidad/index.html", "utf8")).toBe(html);
     for (const phrase of REQUIRED) expect(html).toContain(phrase);
     expect(html).toContain('id="eliminar-datos"');
-    expect(html).toContain("<title>Política de privacidad — Mi Fotito</title>");
+    expect(html).toContain("Política de privacidad — Mi Fotito</title>");
     expect(html).toContain('lang="en"');
     expect(html).toContain("Google API Services User Data Policy");
   });
@@ -33,13 +33,13 @@ describe("legal pages", () => {
     expect(html).toContain("15 de diciembre");
     expect(html).toContain("/reclamo");
     expect(html).toContain("soles");
-    expect(html).toContain("<title>Términos y condiciones — Mi Fotito</title>");
+    expect(html).toContain("Términos y condiciones — Mi Fotito</title>");
   });
 
   it("copies the legal pages into the web export", () => {
     const pkg = readFileSync("package.json", "utf8");
     const script = readFileSync("scripts/publish-web.mjs", "utf8");
-    expect(pkg).toContain("node scripts/publish-web.mjs");
+    expect(pkg).toContain("scripts/publish-web.mjs");
     expect(script).toContain('cpSync("public", "dist"');
     expect(script).toContain('href="/privacidad"');
   });

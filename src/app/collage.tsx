@@ -217,7 +217,7 @@ export default function CollagePage() {
       <View style={{ padding: 16, gap: 14 }}>
         <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink, textAlign: "center" }}>Collage de fotos</Text>
         <Text style={{ fontFamily: font.body, color: colors.muted, textAlign: "center" }}>
-          Elige de 2 a 12 fotos en tu dispositivo, acomódalas y te llevamos el marco impreso. Toca dos fotos para intercambiarlas y arrastra una para encuadrarla.
+          Elige de 2 a 12 fotos en tu dispositivo y te llevamos el marco impreso. Arrastra Ordenar hasta otro espacio para cambiar el orden. Toca dos fotos para intercambiarlas. Arrastra la foto para encuadrarla.
         </Text>
         {photos.length < COLLAGE_MIN_PHOTOS ? (
           <Card>

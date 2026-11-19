@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { PhotoImport } from "./PhotoImport";
 import { Button } from "./ui";
@@ -6,17 +6,11 @@ import { colors, font } from "./theme";
 import type { ImportFlags } from "../lib/env";
 import { pickAndSavePhotos, type PhotoSource } from "../lib/photos";
 
-export function PhotoSources({
-  onPhoto,
-  onPhotos,
-  onSample,
-  multiple = false,
-  print,
-  flags,
-  notice,
-  returnTo = "/crear",
-  deviceOnly = false,
-}: {
+export type PhotoSourcesHandle = {
+  pickFromDevice: () => void;
+};
+
+export const PhotoSources = forwardRef<PhotoSourcesHandle, {
   onPhoto: (photo: { id: string; width: number; height: number }) => Promise<void> | void;
   onPhotos?: (photos: { id: string; width: number; height: number }[]) => Promise<void> | void;
   onSample?: () => void;
@@ -26,8 +20,19 @@ export function PhotoSources({
   notice?: string;
   returnTo?: string;
   deviceOnly?: boolean;
-}) {
+}>(function PhotoSources({
+  onPhoto,
+  onPhotos,
+  onSample,
+  multiple = false,
+  print,
+  flags,
+  notice,
+  returnTo = "/crear",
+  deviceOnly = false,
+}, ref) {
   const [error, setError] = useState<string | null>(null);
+  const chooseRef = useRef<(source: PhotoSource) => Promise<void>>(async () => {});
 
   async function deliver(saved: { id: string; width: number; height: number }[]) {
     if (!saved.length) return;
@@ -43,6 +48,13 @@ export function PhotoSources({
       setError(err instanceof Error ? err.message : "No pudimos leer esa foto.");
     }
   }
+
+  chooseRef.current = choose;
+  useImperativeHandle(ref, () => ({
+    pickFromDevice() {
+      void chooseRef.current("gallery");
+    },
+  }), []);
 
   return (
     <View style={{ gap: 12 }}>
@@ -63,4 +75,4 @@ export function PhotoSources({
       {error ? <Text style={{ fontFamily: font.medium, color: colors.bad }}>{error}</Text> : null}
     </View>
   );
-}
+});

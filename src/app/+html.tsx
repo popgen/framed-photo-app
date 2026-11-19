@@ -1,5 +1,14 @@
 import { ScrollViewStyleReset } from "expo-router/html";
 import { type PropsWithChildren } from "react";
+import { KEYWORDS, OG_IMAGE_URL, SITE_NAME, SPA_CSS, THEME_COLOR, pageForPath, type SeoPage } from "../lib/seo";
+
+function homePage(): SeoPage {
+  const page = pageForPath("/");
+  if (!page) throw new Error("Falta la página de inicio en el SEO.");
+  return page;
+}
+
+const home = homePage();
 
 export default function Root({ children }: PropsWithChildren) {
   return (
@@ -8,19 +17,26 @@ export default function Root({ children }: PropsWithChildren) {
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-        <title>Mi Fotito — marcos impresos en Perú</title>
-        <meta name="description" content="Mi Fotito imprime tu foto y te la lleva enmarcada a casa, en Lima y a provincias." />
-        <meta property="og:title" content="Mi Fotito" />
-        <meta property="og:description" content="Una foto, un marco, y llega a la puerta." />
-        <meta name="theme-color" content="#F6EFE6" />
+        <title>{home.title}</title>
+        <meta name="description" content={home.description} />
+        <meta name="keywords" content={KEYWORDS} />
+        <meta name="theme-color" content={THEME_COLOR} />
+        <link rel="canonical" href={home.canonical} />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content={SITE_NAME} />
+        <meta property="og:locale" content="es_PE" />
+        <meta property="og:title" content={home.title} />
+        <meta property="og:description" content={home.description} />
+        <meta property="og:url" content={home.canonical} />
+        <meta property="og:image" content={OG_IMAGE_URL} />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={home.title} />
+        <meta name="twitter:description" content={home.description} />
+        <meta name="twitter:image" content={OG_IMAGE_URL} />
         <ScrollViewStyleReset />
-        <style>{`
-          html, body, #root { height: 100%; background: #E7D3C3; }
-          body { overflow-x: hidden; }
-          /* Netlify injects the public HUD iframe on the free plan. It cannot be
-             turned off in project settings, and its inline position covers the tab bar. */
-          #nl-badge-frame, #nl-hud-frame { display: none !important; }
-        `}</style>
+        <style>{SPA_CSS}</style>
       </head>
       <body>
         {children}

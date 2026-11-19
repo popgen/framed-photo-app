@@ -12,6 +12,19 @@ export type BoardSlot = {
   source?: { uri?: string; source?: number } | null;
 };
 
+type Drag = { from: number; over: number | null };
+
+type PointerLike = {
+  nativeEvent: { clientX: number; clientY: number; pointerId?: number };
+  currentTarget?: { setPointerCapture?: (id: number) => void };
+  preventDefault?: () => void;
+  stopPropagation?: () => void;
+};
+
+function asPointer(event: unknown): PointerLike {
+  return event as PointerLike;
+}
+
 export function CollageBoard({
   width,
   height,
@@ -41,6 +54,22 @@ export function CollageBoard({
 }) {
   const live = useRef({ slots, selected, onSelect, onCrop, onSwap });
   live.current = { slots, selected, onSelect, onCrop, onSwap };
+  const [drag, setDrag] = useState<Drag | null>(null);
+  const dragRef = useRef<Drag | null>(null);
+
+  function moveDrag(from: number, clientX: number, clientY: number) {
+    const over = slotAt(clientX, clientY);
+    const next = { from, over };
+    dragRef.current = next;
+    setDrag(next);
+  }
+
+  function finishDrag() {
+    const current = dragRef.current;
+    dragRef.current = null;
+    setDrag(null);
+    if (current && current.over != null && current.over !== current.from) live.current.onSwap(current.from, current.over);
+  }
 
   return (
     <View style={{ width, height, backgroundColor: backgroundHex(background), overflow: "hidden" }}>
@@ -54,6 +83,7 @@ export function CollageBoard({
           boardH={height}
           rounded={rounded}
           selected={selected === index}
+          drop={drag != null && drag.over === index && drag.from !== index}
           onTap={() => {
             const current = live.current.selected;
             if (current == null) live.current.onSelect(index);
@@ -86,6 +116,76 @@ export function CollageBoard({
           <Text style={{ fontFamily: font.displaySoft, fontSize: Math.max(13, height * 0.038), color: captionColor(background), textAlign: "center" }}>{caption}</Text>
         </View>
       ) : null}
+      {cells.map((cell, index) => (
+        <ReorderHandle
+          key={`ordenar-${slots[index]?.photoId ?? index}`}
+          index={index}
+          cell={cell}
+          boardW={width}
+          boardH={height}
+          onDown={(event) => {
+            event.preventDefault?.();
+            event.stopPropagation?.();
+            const id = event.nativeEvent.pointerId;
+            if (id != null) event.currentTarget?.setPointerCapture?.(id);
+            moveDrag(index, event.nativeEvent.clientX, event.nativeEvent.clientY);
+          }}
+          onMove={(event) => {
+            if (!dragRef.current || dragRef.current.from !== index) return;
+            moveDrag(index, event.nativeEvent.clientX, event.nativeEvent.clientY);
+          }}
+          onUp={finishDrag}
+        />
+      ))}
+    </View>
+  );
+}
+
+function ReorderHandle({
+  index,
+  cell,
+  boardW,
+  boardH,
+  onDown,
+  onMove,
+  onUp,
+}: {
+  index: number;
+  cell: NormRect;
+  boardW: number;
+  boardH: number;
+  onDown: (event: PointerLike) => void;
+  onMove: (event: PointerLike) => void;
+  onUp: () => void;
+}) {
+  const w = cell.w * boardW;
+  const h = cell.h * boardH;
+  return (
+    <View
+      testID={`ordenar-${index}`}
+      accessibilityRole="button"
+      accessibilityLabel="Arrastra para cambiar de lugar"
+          onPointerDown={(event) => onDown(asPointer(event))}
+          onPointerMove={(event) => onMove(asPointer(event))}
+          onPointerUp={onUp}
+          onPointerCancel={onUp}
+          style={{
+            position: "absolute",
+            left: cell.x * boardW + Math.max(4, w - 86),
+            top: cell.y * boardH + 4,
+            zIndex: 6,
+            minWidth: 72,
+            minHeight: 32,
+            paddingHorizontal: 8,
+            borderRadius: 999,
+            backgroundColor: "rgba(36,23,20,0.82)",
+            alignItems: "center",
+            justifyContent: "center",
+            // RN's style type omits this web property. It keeps the page from scrolling while the finger moves a photo.
+            ...({ touchAction: "none" } as object),
+          }}
+    >
+      <Text style={{ color: "white", fontFamily: font.bold, fontSize: 12 }}>Ordenar</Text>
     </View>
   );
 }
@@ -98,6 +198,7 @@ function Cell({
   boardH,
   rounded,
   selected,
+  drop,
   onTap,
   onCrop,
 }: {
@@ -108,6 +209,7 @@ function Cell({
   boardH: number;
   rounded: boolean;
   selected: boolean;
+  drop: boolean;
   onTap: () => void;
   onCrop: (crop: Crop) => void;
 }) {
@@ -160,9 +262,9 @@ function Cell({
         height: h,
         overflow: "hidden",
         borderRadius: rounded ? Math.min(w, h) * 0.14 : 0,
-        borderWidth: selected ? 3 : 0,
-        borderColor: colors.red,
-        backgroundColor: "#E7D9CC",
+        borderWidth: drop || selected ? 3 : 0,
+        borderColor: drop ? "#B9832F" : colors.red,
+        backgroundColor: drop ? "#F6E2A8" : "#E7D9CC",
       }}
     >
       {image && crop ? (
@@ -183,8 +285,27 @@ function Cell({
           <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{index + 1}</Text>
         </View>
       )}
+      <Text testID={`orden-${index}`} style={{ position: "absolute", width: 1, height: 1, opacity: 0 }}>{slot?.photoId ?? ""}</Text>
+      {drop ? (
+        <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, bottom: 8, alignItems: "center" }}>
+          <Text style={{ fontFamily: font.bold, color: colors.ink, backgroundColor: "#F6E2A8", paddingHorizontal: 8, paddingVertical: 2 }}>Suelta aquí</Text>
+        </View>
+      ) : null}
     </Pressable>
   );
+}
+
+function slotAt(x: number, y: number): number | null {
+  if (typeof document === "undefined") return null;
+  const nodes = document.querySelectorAll("[data-testid^='celda-']");
+  let found: number | null = null;
+  nodes.forEach((node) => {
+    const rect = node.getBoundingClientRect();
+    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return;
+    const index = Number((node.getAttribute("data-testid") || "").slice("celda-".length));
+    if (!Number.isNaN(index)) found = index;
+  });
+  return found;
 }
 
 export function CollageStill({ photoId }: { photoId: string }) {

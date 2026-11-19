@@ -34,7 +34,7 @@ export default function Regalo() {
     }} /></View>}>
       <View style={{ padding: 16, gap: 12 }}>
         <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>Tarjeta de regalo</Text>
-        <Text style={{ fontFamily: font.body, color: colors.muted }}>Llega por correo a quien la recibe. Se canjea al pagar un marco.</Text>
+        <Text style={{ fontFamily: font.body, color: colors.muted }}>Llega por correo a quien la recibe y se canjea al pagar un marco. Un regalo personalizado, y si quieres, un regalo sorpresa.</Text>
         <View style={{ flexDirection: "row", gap: 8 }}>
           {PRESETS.map((value) => (
             <Pressable key={value} onPress={() => { setAmount(value); setCustom(""); }} style={{ flex: 1, minHeight: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: !custom && amount === value ? colors.ink : colors.white }}>
