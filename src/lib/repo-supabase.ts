@@ -181,7 +181,20 @@ export function createSupabaseRepo() {
       const items = [];
       for (const item of input.items) {
         const photos = await uploadOrderPhotos(item.photoId);
-        items.push({ ...item, photoOriginalPath: photos.original, photoPrintPath: photos.print });
+        let collage = item.collage ?? null;
+        if (collage) {
+          const sources = [];
+          for (const source of collage.sources) {
+            if (source.storagePath) {
+              sources.push(source);
+              continue;
+            }
+            const uploaded = await uploadOrderPhotos(source.photoId);
+            sources.push({ ...source, storagePath: uploaded.original || uploaded.print });
+          }
+          collage = { ...collage, sources };
+        }
+        items.push({ ...item, collage, photoOriginalPath: photos.original, photoPrintPath: photos.print });
       }
       const { data } = await db().auth.getSession();
       const token = data.session?.access_token;

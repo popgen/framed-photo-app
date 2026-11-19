@@ -8,6 +8,7 @@ import {
   googlePhotos,
   instagramPhotos,
   openImport,
+  safeImportReturn,
   sealImport,
   visibleImportSources,
 } from "../src/lib/photo-import";
@@ -17,6 +18,9 @@ describe("visible import sources", () => {
     expect(visibleImportSources({ instagram: false, facebook: false, googlePhotos: false })).toEqual([]);
     expect(visibleImportSources({ instagram: false, facebook: false, googlePhotos: true })).toEqual(["google"]);
     expect(visibleImportSources({ instagram: true, facebook: true, googlePhotos: true })).toEqual(["instagram", "facebook", "google"]);
+    expect(safeImportReturn("/collage")).toBe("/collage");
+    expect(safeImportReturn("https://evil.example")).toBe("/crear");
+    expect(safeImportReturn("/admin")).toBe("/crear");
   });
 
   it("keeps coming-soon copy out of the customer photo screens", () => {

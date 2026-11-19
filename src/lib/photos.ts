@@ -94,13 +94,18 @@ export async function readPhotoBlob(id: string): Promise<Blob | null> {
 
 async function putBlob(id: string, blob: Blob) {
   if (typeof indexedDB === "undefined") return;
-  const database = await openDb();
-  await new Promise<void>((resolve, reject) => {
-    const tx = database.transaction("photos", "readwrite");
-    tx.objectStore("photos").put(blob, id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+  try {
+    const database = await openDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = database.transaction("photos", "readwrite");
+      tx.objectStore("photos").put(blob, id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  } catch {
+    // Some WebKit builds cannot store blobs. The photo stays in memory for this visit.
+  }
 }
 
 export async function savePhotoPair(
@@ -165,15 +170,7 @@ async function encodeJpeg(bitmap: ImageBitmap, longEdge: number, quality: number
 export async function savePhotoBlob(blob: Blob): Promise<{ id: string; width: number; height: number }> {
   const id = uid("ph_");
   const size = await measure(blob);
-  if (typeof indexedDB !== "undefined") {
-    const database = await openDb();
-    await new Promise<void>((resolve, reject) => {
-      const tx = database.transaction("photos", "readwrite");
-      tx.objectStore("photos").put(blob, id);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-  }
+  await putBlob(id, blob);
   memory.set(id, { url: URL.createObjectURL(blob), ...size });
   return { id, ...size };
 }

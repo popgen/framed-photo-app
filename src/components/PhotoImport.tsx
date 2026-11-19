@@ -25,11 +25,15 @@ export function PhotoImport({
   notice,
   frame,
   onUse,
+  onUseMany,
+  returnTo = "/crear",
 }: {
   flags: ImportFlags;
   notice?: string;
   frame?: { printWcm: number; printHcm: number };
   onUse: (photo: { id: string; width: number; height: number }) => Promise<void>;
+  onUseMany?: (photos: { id: string; width: number; height: number }[]) => Promise<void>;
+  returnTo?: string;
 }) {
   const provider = notice === "instagram" || notice === "facebook" || notice === "google" ? notice : null;
   const [photos, setPhotos] = useState<{ id: string; width: number; height: number }[]>([]);
@@ -60,7 +64,7 @@ export function PhotoImport({
   }, [provider]);
 
   function start(next: "instagram" | "facebook" | "google") {
-    if (typeof window !== "undefined") window.location.href = `/api/imports/start?provider=${next}`;
+    if (typeof window !== "undefined") window.location.href = `/api/imports/start?provider=${next}&next=${encodeURIComponent(returnTo)}`;
   }
 
   async function choose(id: string) {
@@ -82,6 +86,25 @@ export function PhotoImport({
     }
   }
 
+  async function chooseAll() {
+    if (!onUseMany) return;
+    setBusy("all");
+    setMessage(null);
+    try {
+      const saved = [];
+      for (const item of photos) {
+        const response = await fetch(`/api/imports/file?id=${encodeURIComponent(item.id)}`);
+        if (!response.ok) throw new Error("No pudimos traer una de las fotos.");
+        saved.push(await savePhotoPair(await response.blob(), frame));
+      }
+      await onUseMany(saved);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No pudimos usar esas fotos.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const sources = visibleImportSources(flags);
   if (!sources.length && !provider && !photos.length && !pickerUri && !message) return null;
 
@@ -98,6 +121,7 @@ export function PhotoImport({
         />
       ))}
       {pickerUri ? <Button label="Elegir en Google Fotos" tone="ghost" icon={<GoogleMark />} surface="white" onPress={() => { if (typeof window !== "undefined") window.open(pickerUri, "_blank"); }} /> : null}
+      {onUseMany && photos.length > 1 ? <Button label="Agregar estas fotos" onPress={() => void chooseAll()} disabled={busy !== null} /> : null}
       {photos.length ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
           {photos.map((item) => (

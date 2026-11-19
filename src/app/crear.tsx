@@ -268,6 +268,9 @@ export default function Crear() {
         </Card>
         {photo ? <TextStyleEditor collapsible label="Agrega texto a tu foto" value={overlay} onChange={setOverlay} maxChars={48} /> : null}
         <VoiceRecorder value={voice} onChange={setVoice} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Haz un collage" onPress={() => router.push("/collage")}>
+          <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Haz un collage</Text>
+        </Pressable>
         <Pressable onPress={() => router.push("/tarjeta")}>
           <Text style={{ fontFamily: font.semibold, color: colors.ink }}>¿Mejor una tarjeta navideña?</Text>
         </Pressable>

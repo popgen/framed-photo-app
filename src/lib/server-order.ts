@@ -1,4 +1,6 @@
 import { cardMessageError, priceCards } from "./cards";
+import { framedPriceCents } from "./collage";
+import { EXAMPLE_PHOTO_PROMPT, usesExamplePhoto } from "./example-photo";
 import { frameById } from "./catalog";
 import { defaultCampaign } from "./campaign";
 import { guaranteeFor } from "./cutoff";
@@ -14,7 +16,7 @@ export function quoteLines(input: CheckoutInput): QuoteItem[] {
   return input.items.flatMap((item) => {
     const lines: QuoteItem[] = item.card
       ? [{ unitPriceCents: priceCards(item.card.quantity).cents, quantity: 1, kind: "plain" }]
-      : [{ unitPriceCents: frameById(item.frameId).priceCents, quantity: 1, kind: "frame" }];
+      : [{ unitPriceCents: framedPriceCents(frameById(item.frameId).priceCents, Boolean(item.collage)), quantity: 1, kind: "frame" }];
     if (item.voice) lines.push({ unitPriceCents: item.voice.addonCents || VOICE_ADDON_CENTS, quantity: 1, kind: "plain" });
     return lines;
   });
@@ -32,6 +34,7 @@ export function evaluateOrder(input: CheckoutInput, ctx: { promos: Promo[]; stoc
   const phone = normalizePhone(input.phone);
   if (!phone) return { error: "Revisa el celular." };
   if (!input.items.length) return { error: "Tu carrito está vacío." };
+  if (input.items.some((item) => usesExamplePhoto(item))) return { error: EXAMPLE_PHOTO_PROMPT };
   const cardError = cardMessageError(input.items);
   if (cardError) return { error: cardError };
   const promoCode = input.promoCode?.trim() || null;
