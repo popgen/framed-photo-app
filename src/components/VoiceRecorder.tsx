@@ -177,7 +177,7 @@ export function VoiceRecorder({
 
   return (
     <Collapsible
-      title="Agrega un mensaje de voz con QR"
+      title="Agrega un mensaje de voz con QR (opcional)"
       headerId={headerId}
       icon={<MicIcon />}
       extra={VOICE_ADDON_CENTS > 0 ? <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{formatSoles(VOICE_ADDON_CENTS)}</Text> : null}

@@ -117,7 +117,7 @@ export function TextStyleEditor({
   );
   if (!collapsible) return controls;
   return (
-    <Collapsible title="Agrega texto a tu foto" headerId={headerId} open={open} onToggle={toggle}>
+    <Collapsible title={label} headerId={headerId} open={open} onToggle={toggle}>
       {controls}
     </Collapsible>
   );

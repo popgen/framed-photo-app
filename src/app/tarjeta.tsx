@@ -185,7 +185,7 @@ export default function Tarjeta() {
         <TextStyleEditor
           collapsible
           multiline
-          label="Agrega texto a tu foto"
+          label="Agrega texto a tu foto (opcional)"
           placeholder={panel === "Interior" ? "El mensaje de adentro" : "El mensaje de la portada"}
           value={panel === "Interior" ? insideMessage : frontMessage}
           onChange={panel === "Interior" ? setInsideMessage : setFrontMessage}
