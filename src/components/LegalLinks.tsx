@@ -1,6 +1,5 @@
 import { Link } from "expo-router";
 import { Text, View } from "react-native";
-import { InlineLink } from "./InlineLink";
 import { colors, font } from "./theme";
 
 const link = {
@@ -15,7 +14,8 @@ export function LegalLinks() {
   return (
     <View style={{ alignItems: "center", gap: 6, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12 }}>
       <Text style={{ fontFamily: font.body, fontSize: 13, lineHeight: 18, color: colors.muted, textAlign: "center" }}>
-        Escríbenos: <InlineLink href="mailto:pedidos@mifotito.com">pedidos@mifotito.com</InlineLink>
+        <Link href="/contacto" style={link}>Escríbenos</Link>
+        {": pedidos@mifotito.com"}
       </Text>
       <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 14 }}>
         <Link href="/privacidad" style={link}>

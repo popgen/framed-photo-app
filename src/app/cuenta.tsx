@@ -1,10 +1,14 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Linking, Platform, Pressable, Text, TextInput, View } from "react-native";
+import { Pressable, Text, TextInput, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { AccountAuth } from "../components/AccountAuth";
 import { useReducedMotion } from "../components/fx";
+import { Honeypot } from "../components/Honeypot";
+import { CONTACT_SUCCESS, HONEYPOT_FIELD } from "../lib/contact";
 import { currentCustomer, signOutCustomer, type CustomerSession } from "../lib/customer-auth";
+import { isEmail } from "../lib/phone";
+import { useContactSend } from "../lib/use-contact";
 import { Button, Card, Field, Screen, TabBar } from "../components/ui";
 import { colors, font } from "../components/theme";
 import { getRepo } from "../lib/repo";
@@ -24,7 +28,9 @@ export default function Cuenta() {
   const [orders, setOrders] = useState<TrackingCard[]>([]);
   const [note, setNote] = useState<string | null>(null);
   const [support, setSupport] = useState("");
+  const [honey, setHoney] = useState("");
   const [picker, setPicker] = useState<"department" | "province" | "district" | null>(null);
+  const supportSend = useContactSend();
 
   const address = profile.addresses[0] ?? emptyAddress();
   const provinces = provincesFor(address.department);
@@ -72,14 +78,29 @@ export default function Cuenta() {
 
   async function sendSupport() {
     const latest = orders[0];
-    if (!support.trim()) return;
-    if (latest) await getRepo().createClaim({ token: latest.publicToken, phone, note: support.trim() });
-    const subject = latest?.number ? `Consulta sobre mi pedido ${latest.number}` : "Consulta sobre mi pedido";
-    const url = `mailto:pedidos@mifotito.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(support.trim())}`;
-    if (Platform.OS === "web") window.location.href = url;
-    else await Linking.openURL(url);
-    setSupport("");
-    setNote("Guardamos tu mensaje y abrimos el correo.");
+    const noteText = support.trim();
+    if (noteText.length < 2) {
+      supportSend.setError("Escribe tu mensaje.");
+      return;
+    }
+    const email = isEmail(profile.email) ? profile.email.trim() : "";
+    const sent = await supportSend.send(
+      {
+        type: "pedido",
+        name: profile.name.trim(),
+        email,
+        phone: (profile.phone || phone).trim(),
+        message: noteText,
+        orderNumber: latest?.number ?? "",
+        [HONEYPOT_FIELD]: honey,
+      },
+      {
+        after: async () => {
+          if (latest) await getRepo().createClaim({ token: latest.publicToken, phone, note: noteText });
+        },
+      },
+    );
+    if (sent) setSupport("");
   }
 
   return (
@@ -116,9 +137,12 @@ export default function Cuenta() {
             {past.map((order) => <OrderCard key={order.publicToken || order.number} order={order} onOpen={() => order.publicToken && router.push(`/pedido/${order.publicToken}`)} onReorder={() => void reorder(order)} />)}
             <Card>
               <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Hablar con Mi Fotito</Text>
-              <TextInput value={support} onChangeText={setSupport} placeholder="Cuéntanos en qué te ayudamos" placeholderTextColor="#A89488" multiline style={{ minHeight: 80, marginTop: 8, backgroundColor: colors.bg, borderRadius: 12, padding: 12, fontFamily: font.body }} />
+              <TextInput value={support} onChangeText={setSupport} placeholder="Cuéntanos en qué te ayudamos" placeholderTextColor="#A89488" multiline style={{ minHeight: 80, marginTop: 8, backgroundColor: colors.bg, borderRadius: 12, padding: 12, fontFamily: font.body, fontSize: 16 }} />
+              <Honeypot value={honey} onChangeText={setHoney} />
               <View style={{ height: 8 }} />
-              <Button label="Enviar por correo" onPress={() => void sendSupport()} />
+              {supportSend.error ? <Text style={{ fontFamily: font.body, color: colors.bad, marginBottom: 8 }}>{supportSend.error}</Text> : null}
+              {supportSend.sent ? <Text style={{ fontFamily: font.medium, color: colors.pine, marginBottom: 8 }}>{CONTACT_SUCCESS}</Text> : null}
+              <Button label={supportSend.busy ? "Enviando…" : "Enviar por correo"} disabled={supportSend.busy || supportSend.sent} onPress={() => void sendSupport()} />
             </Card>
           </>
         ) : null}

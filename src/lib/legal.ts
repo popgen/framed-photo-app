@@ -171,7 +171,7 @@ export function linkParts(text: string): { text: string; href?: string }[] {
     const index = match.index ?? 0;
     if (index > cursor) parts.push({ text: text.slice(cursor, index) });
     const token = match[0];
-    parts.push({ text: token, href: token.includes("@") ? `mailto:${token}` : token });
+    parts.push({ text: token, href: token.includes("@") ? "/contacto" : token });
     cursor = index + token.length;
   }
   if (cursor < text.length) parts.push({ text: text.slice(cursor) });

@@ -1,30 +1,38 @@
 import { useState } from "react";
-import { Linking, Platform, Pressable, Text, TextInput, View } from "react-native";
+import { Pressable, Text, TextInput, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { Honeypot } from "../components/Honeypot";
 import { useReducedMotion } from "../components/fx";
 import { Button, Card, Screen } from "../components/ui";
 import { colors, font } from "../components/theme";
+import { CONTACT_SUCCESS, HONEYPOT_FIELD } from "../lib/contact";
 import { getRepo } from "../lib/repo";
-import { inquiryFromSize, retabloMailUrl, retabloOffer } from "../lib/retablo";
+import { inquiryFromSize, retabloOffer } from "../lib/retablo";
+import { useContactSend } from "../lib/use-contact";
 
 export default function Retablo() {
   const reduced = useReducedMotion();
   const [size, setSize] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [sent, setSent] = useState(false);
+  const [honey, setHoney] = useState("");
+  const { busy, sent, error, setError, send } = useContactSend();
 
   async function submit() {
+    if (busy || sent) return;
     try {
       inquiryFromSize(size);
-      await getRepo().createRetabloInquiry(size);
-      const url = retabloMailUrl(size);
-      if (Platform.OS === "web") window.location.href = url;
-      else await Linking.openURL(url);
-      setSent(true);
-      setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No pudimos guardar la consulta.");
+      setError(err instanceof Error ? err.message : "Cuéntanos el tamaño en una frase.");
+      return;
     }
+    const trimmed = size.trim();
+    await send(
+      { type: "retablo", size: trimmed, [HONEYPOT_FIELD]: honey },
+      {
+        after: async () => {
+          await getRepo().createRetabloInquiry(trimmed);
+        },
+      },
+    );
   }
 
   return (
@@ -44,10 +52,11 @@ export default function Retablo() {
             </Pressable>
           ))}
         </View>
-        <TextInput value={size} onChangeText={setSize} placeholder="El tamaño que imaginas" placeholderTextColor="#A89488" style={{ minHeight: 48, borderRadius: 12, backgroundColor: colors.white, paddingHorizontal: 12, fontFamily: font.body }} />
+        <TextInput value={size} onChangeText={setSize} placeholder="El tamaño que imaginas" placeholderTextColor="#A89488" style={{ minHeight: 48, borderRadius: 12, backgroundColor: colors.white, paddingHorizontal: 12, fontFamily: font.body, fontSize: 16 }} />
+        <Honeypot value={honey} onChangeText={setHoney} />
         {error ? <Text style={{ fontFamily: font.body, color: colors.bad }}>{error}</Text> : null}
-        {sent ? <Text style={{ fontFamily: font.medium, color: colors.pine }}>Listo. El correo lleva tu tamaño a pedidos@mifotito.com.</Text> : null}
-        <Button label="Enviar por correo" onPress={() => void submit()} />
+        {sent ? <Text style={{ fontFamily: font.medium, color: colors.pine }}>{CONTACT_SUCCESS}</Text> : null}
+        <Button label={busy ? "Enviando…" : "Enviar por correo"} disabled={busy || sent} onPress={() => void submit()} />
       </View>
     </Screen>
   );
