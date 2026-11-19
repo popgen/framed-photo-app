@@ -35,6 +35,10 @@ export function wrapMeasured(text: string, measure: TextMeasure, size: number, m
     let line = "";
     for (const word of words) {
       for (const piece of breakWord(word, measure, size, maxWidth)) {
+        if (line && /^[,.;:!?¡¿)\]»]+$/.test(piece)) {
+          line = `${line}${piece}`;
+          continue;
+        }
         const next = line ? `${line} ${piece}` : piece;
         if (line && measure(next, size) > maxWidth) {
           lines.push(line);
@@ -44,7 +48,24 @@ export function wrapMeasured(text: string, measure: TextMeasure, size: number, m
     }
     lines.push(line);
   }
-  return lines.length ? lines : [""];
+  return gluePunctuation(lines.length ? lines : [""]);
+}
+
+function gluePunctuation(lines: string[]): string[] {
+  const glued: string[] = [];
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    const mark = line.match(/^[,.;:!?¡¿)\]»]+/)?.[0] ?? "";
+    if (glued.length && mark) {
+      glued[glued.length - 1] = `${glued[glued.length - 1]}${mark}`;
+      const rest = line.slice(mark.length).trim();
+      if (rest) glued.push(rest);
+      continue;
+    }
+    glued.push(line);
+  }
+  return glued.length ? glued : [""];
 }
 
 function breakWord(word: string, measure: TextMeasure, size: number, maxWidth: number): string[] {

@@ -18,6 +18,7 @@ import { frameById } from "../lib/catalog";
 import { formatSoles } from "../lib/money";
 import { quote as priceQuote } from "../lib/pricing";
 import { getRepo } from "../lib/repo";
+import { EXAMPLE_PHOTO_PROMPT, usesExamplePhoto } from "../lib/example-photo";
 import { rememberReceipt, useCart } from "../lib/store";
 import { resolveTaxId } from "../lib/tax-id";
 import type { CheckoutInput, Order } from "../lib/types";
@@ -159,6 +160,10 @@ export default function Checkout() {
   }
 
   async function start() {
+    if (items.some((item) => usesExamplePhoto(item))) {
+      setError(EXAMPLE_PHOTO_PROMPT);
+      return;
+    }
     const tax = resolveTaxId({ taxId: form.taxId, skipped: form.taxIdSkipped });
     if (!tax.ok) {
       setTaxTouched(true);

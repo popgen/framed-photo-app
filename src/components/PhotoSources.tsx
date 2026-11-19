@@ -34,7 +34,7 @@ export function PhotoSources({
   }
 
   return (
-    <View style={{ gap: 8 }}>
+    <View style={{ gap: 12 }}>
       <Button label="Desde mi dispositivo / galería" onPress={() => void choose("gallery")} />
       <Button label="Tomar foto" tone="ghost" onPress={() => void choose("camera")} />
       <Button label="Desde tu iPhone / iCloud" tone="ghost" onPress={() => void choose("icloud")} />
