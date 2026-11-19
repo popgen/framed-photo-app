@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { PanResponder, Platform, Pressable, ScrollView, Text, useWindowDimensions, View, type ViewStyle } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { ClearPhotosButton, forgetClearedDraft } from "../components/ClearPhotosButton";
 import { CollagePromo } from "../components/CollagePromo";
 import { Collapsible } from "../components/Collapsible";
 import { Cropper } from "../components/Cropper";
@@ -15,6 +16,7 @@ import { useApp, useRepo } from "../components/provider";
 import { Banner, Button, Card, Progress, Screen, TabBar } from "../components/ui";
 import { colors, font } from "../components/theme";
 import { readBoot } from "../lib/boot";
+import { clearSingleEditor, hasLoadedPhotos, planForget } from "../lib/clear-creator";
 import { INITIAL_EDITOR_SECTION, editorHeaderId, revealEditorHeader, toggleEditorSection, type EditorSection } from "../lib/editor-sections";
 import { aspectParts, frameById, frameChips, framesForChip, type FrameChip, type FrameDef } from "../lib/catalog";
 import { importFlags, stockChecksEnabled } from "../lib/env";
@@ -47,6 +49,7 @@ export default function Crear() {
   const [section, setSection] = useState<EditorSection | null>(INITIAL_EDITOR_SECTION);
   const pendingReveal = useRef<EditorSection | null>(null);
   const add = useCart((state) => state.add);
+  const cartItems = useCart((state) => state.items);
   const frame = offers[index] ?? offers[0];
   const contentWidth = Math.min(width, 480) - 32;
 
@@ -54,6 +57,9 @@ export default function Crear() {
   const offersRef = useRef(offers);
   const chipRef = useRef(chip);
   const sourcesRef = useRef<PhotoSourcesHandle>(null);
+  const requestId = useRef(0);
+  const voiceGen = useRef(0);
+  const [voiceKey, setVoiceKey] = useState(0);
   const exampleRef = useRef(false);
   indexRef.current = index;
   offersRef.current = offers;
@@ -93,6 +99,10 @@ export default function Crear() {
     });
   }
 
+  function pickFromChip() {
+    sourcesRef.current?.pickFromDevice();
+  }
+
   useEffect(() => {
     const target = pendingReveal.current;
     if (!target) return;
@@ -106,13 +116,48 @@ export default function Crear() {
   }, [section, reduced]);
 
   async function choosePhoto(next: { id: string; width: number; height: number }, frameOverride?: FrameDef) {
+    const request = ++requestId.current;
     const current = frameOverride ?? frame ?? frameById("wood-15");
     const [aw, ah] = aspectParts(current, orientation);
     setPhoto(next);
     setCrop(centeredCrop(next.width, next.height, aw, ah));
     setAck(false);
     if (!isExamplePhoto(next.id)) setSampleNote(null);
-    setSource(await resolvePhoto(next.id));
+    const resolved = await resolvePhoto(next.id);
+    if (request !== requestId.current) return;
+    setSource(resolved);
+  }
+
+  function clearLoaded() {
+    const example = samplePhoto();
+    const next = clearSingleEditor(
+      {
+        frameId: frame?.id ?? "",
+        orientation,
+        chip,
+        photoId: photo?.id ?? null,
+        overlayText: overlay?.text ?? null,
+        voiceToken: voice?.token ?? null,
+        ack,
+        sampleNote,
+      },
+      example.id,
+    );
+    const plan = planForget({
+      photoIds: [photo?.id],
+      extraIds: [voice?.audioId, voice?.selfieId],
+      voiceToken: voice?.token,
+      cart: cartItems,
+    });
+    voiceGen.current += 1;
+    setVoiceKey((value) => value + 1);
+    setOverlay(null);
+    setVoice(null);
+    setAck(next.ack);
+    setSampleNote(next.sampleNote);
+    setSource(null);
+    void choosePhoto(example);
+    if (plan) void forgetClearedDraft(plan);
   }
 
   function shift(delta: number) {
@@ -215,7 +260,7 @@ export default function Crear() {
               {showingExample ? (
                 <Pressable
                   accessible={false}
-                  onPress={() => sourcesRef.current?.pickFromDevice()}
+                  onPress={pickFromChip}
                   style={webPointer}
                 >
                   {preview}
@@ -226,7 +271,7 @@ export default function Crear() {
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Sube tu foto desde tu dispositivo"
-                    onPress={() => sourcesRef.current?.pickFromDevice()}
+                    onPress={pickFromChip}
                     style={({ pressed }) => [uploadChip, webPointer, pressed && { transform: [{ scale: 0.97 }] }]}
                   >
                     <Text accessibilityElementsHidden importantForAccessibility="no" style={{ color: "#F6E2A8", fontSize: 16, lineHeight: 18 }}>★</Text>
@@ -237,6 +282,7 @@ export default function Crear() {
             </View>
           </Animated.View>
         </View>
+        {hasLoadedPhotos([photo?.id]) ? <ClearPhotosButton onConfirm={clearLoaded} /> : null}
         <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 12 }}>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={{ fontFamily: font.displaySoft, fontSize: 24, lineHeight: 28, color: colors.ink }}>{frame.name}</Text>
@@ -301,7 +347,7 @@ export default function Crear() {
             <Text style={{ fontFamily: font.medium, color: colors.ink }}>{ack ? "☑" : "☐"} Entiendo que se verá suave y quiero seguir</Text>
           </Pressable>
         ) : null}
-        <Collapsible title="Encuadra la foto" headerId={editorHeaderId("photo")} open={section === "photo"} onToggle={() => toggleSection("photo")}>
+        <Collapsible title="Encuadra la foto" headerId={editorHeaderId("photo")} open={section === "photo"} onToggle={() => toggleSection("photo")} keepMounted>
           <View style={{ gap: 16 }}>
             {photo && source && crop ? (
               <Cropper source={source} crop={crop} aspect={[aw, ah]} width={contentWidth - 32} onChange={setCrop} />
@@ -329,7 +375,17 @@ export default function Crear() {
             headerId={editorHeaderId("text")}
           />
         ) : null}
-        <VoiceRecorder value={voice} onChange={setVoice} open={section === "voice"} onToggle={() => toggleSection("voice")} headerId={editorHeaderId("voice")} />
+        <VoiceRecorder
+          key={voiceKey}
+          value={voice}
+          onChange={(next) => {
+            if (voiceGen.current !== voiceKey) return;
+            setVoice(next);
+          }}
+          open={section === "voice"}
+          onToggle={() => toggleSection("voice")}
+          headerId={editorHeaderId("voice")}
+        />
         <Pressable onPress={() => router.push("/tarjeta")}>
           <Text style={{ fontFamily: font.semibold, color: colors.ink }}>¿Mejor una tarjeta navideña?</Text>
         </Pressable>

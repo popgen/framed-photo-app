@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Image, Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { ClearPhotosButton, forgetClearedDraft } from "../components/ClearPhotosButton";
 import { CollageBoard } from "../components/CollageBoard";
 import { FrameView } from "../components/FrameView";
 import { PhotoSources } from "../components/PhotoSources";
@@ -11,6 +12,7 @@ import { PriceTicker, useReducedMotion } from "../components/fx";
 import { Banner, Button, Card, Field, Screen, TabBar } from "../components/ui";
 import { colors, font } from "../components/theme";
 import { frameById } from "../lib/catalog";
+import { clearCollageEditor, hasLoadedPhotos, nextLayoutSeed, planForget } from "../lib/clear-creator";
 import {
   POLAROID_PREVIEW_SEED,
   TEMPLATES,
@@ -90,6 +92,7 @@ export default function CollagePage() {
   const { data } = useRepo((repo) => repo.listFrames());
   const offers = data ?? [];
   const add = useCart((state) => state.add);
+  const cartItems = useCart((state) => state.items);
   const [frameIndex, setFrameIndex] = useState(0);
   const [orientation, setOrientation] = useState<Orientation>("portrait");
   const [photos, setPhotos] = useState<Slot[]>([]);
@@ -105,6 +108,7 @@ export default function CollagePage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const picked = useRef(false);
+  const requestId = useRef(0);
   const frame = offers[frameIndex] ?? offers[0];
   const contentWidth = Math.min(width, 480) - 32;
   const frameId = frame?.id;
@@ -150,6 +154,7 @@ export default function CollagePage() {
   const checkStock = stockChecksEnabled();
   const soldOut = Boolean(checkStock && frame && !frame.stockUncertain && frame.available <= 0);
   async function addIncoming(incoming: { id: string; width: number; height: number }[]) {
+    const request = requestId.current;
     if (!incoming.length) return;
     if (incoming.some((photo) => isExamplePhoto(photo.id))) {
       setNote(EXAMPLE_PHOTO_PROMPT);
@@ -175,8 +180,44 @@ export default function CollagePage() {
     setPhotos(arrangeSlots([...photos, ...added], resolved.id, spec, orientation, spacing, caption, layoutSeed));
     for (const photo of added) {
       const source = await resolvePhoto(photo.photoId);
+      if (request !== requestId.current) return;
       setSources((current) => ({ ...current, [photo.photoId]: source }));
     }
+  }
+
+  function clearLoaded() {
+    if (!frame) return;
+    const next = clearCollageEditor(
+      {
+        frameId: frame.id,
+        templateId,
+        orientation,
+        caption,
+        layoutSeed,
+        photoIds: photos.map((photo) => photo.photoId),
+        selected,
+        ack,
+        notice,
+        note,
+      },
+      nextLayoutSeed(layoutSeed),
+    );
+    const plan = planForget({
+      photoIds: photos.map((photo) => photo.photoId),
+      cart: cartItems,
+    });
+    requestId.current += 1;
+    setPhotos([]);
+    setSources({});
+    setTemplateId(next.templateId);
+    setOrientation(next.orientation);
+    setCaption(next.caption);
+    setLayoutSeed(next.layoutSeed);
+    setSelected(next.selected);
+    setAck(next.ack);
+    setNotice(next.notice);
+    setNote(next.note);
+    if (plan) void forgetClearedDraft(plan);
   }
 
   function removeAt(index: number) {
@@ -296,6 +337,7 @@ export default function CollagePage() {
             }
           />
         </Animated.View>
+        {hasLoadedPhotos(photos.map((photo) => photo.photoId)) ? <ClearPhotosButton onConfirm={clearLoaded} /> : null}
         {shownTemplate === "polaroids" && photos.length >= 1 ? (
           <View style={{ gap: 6 }}>
             <Button label="Mezclar" tone="ghost" surface="white" onPress={mixPolaroids} />

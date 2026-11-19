@@ -89,6 +89,38 @@ function fromStored(value: unknown): Blob | null {
   return null;
 }
 
+/** Drops editor copies from memory and IndexedDB. Ids still in the cart must not be passed in. */
+export async function forgetPhotoBlobs(ids: readonly string[]): Promise<void> {
+  const unique = [...new Set(ids.filter((id) => id && !id.startsWith("asset:")))];
+  await Promise.resolve();
+  for (const id of unique) {
+    const cached = memory.get(id);
+    if (cached?.url && typeof URL !== "undefined" && typeof URL.revokeObjectURL === "function") {
+      try {
+        URL.revokeObjectURL(cached.url);
+      } catch {
+        // The preview URL was already revoked.
+      }
+    }
+    memory.delete(id);
+  }
+  if (!unique.length || typeof indexedDB === "undefined") return;
+  try {
+    const database = await openDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = database.transaction("photos", "readwrite");
+      const store = tx.objectStore("photos");
+      for (const id of unique) store.delete(id);
+      const fail = () => reject(tx.error ?? new Error("No pudimos borrar las fotos."));
+      tx.oncomplete = () => resolve();
+      tx.onerror = fail;
+      tx.onabort = fail;
+    });
+  } catch {
+    // The editor is already empty. A leftover blob is unused on the next visit.
+  }
+}
+
 export async function readPhotoBlob(id: string): Promise<Blob | null> {
   if (typeof indexedDB === "undefined") return null;
   const database = await openDb();

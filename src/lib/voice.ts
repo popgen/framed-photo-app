@@ -24,18 +24,26 @@ export function newVoiceToken(): string {
   return uid("v_").replace(/[^a-z0-9]/gi, "").slice(0, 20);
 }
 
+export function voiceStorageKey(token: string): string {
+  return `${KEY}${token}`;
+}
+
+export function isVoiceDraftKey(key: string): boolean {
+  return key.startsWith(KEY) && key.length > KEY.length;
+}
+
 export function voicePageUrl(token: string, origin = siteUrl()): string {
   return `${origin.replace(/\/$/, "")}/v/${token}`;
 }
 
 export function publishVoice(note: VoiceNote): void {
   if (typeof localStorage === "undefined") return;
-  localStorage.setItem(`${KEY}${note.token}`, JSON.stringify(note));
+  localStorage.setItem(voiceStorageKey(note.token), JSON.stringify(note));
 }
 
 export function readVoice(token: string): VoiceNote | null {
   if (typeof localStorage === "undefined") return null;
-  const raw = localStorage.getItem(`${KEY}${token}`);
+  const raw = localStorage.getItem(voiceStorageKey(token));
   if (!raw) return null;
   try {
     const note = JSON.parse(raw) as VoiceNote;
