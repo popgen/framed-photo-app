@@ -1,6 +1,19 @@
 import { frames as catalogFrames } from "./catalog";
+import { readStoredGiftNote, readStoredIsGift } from "./gift-note";
 import { framesAvailable } from "./inventory";
 import type { CustomerProfile, FrameOffer, GiftCard, InventoryItem, Order, OrderItem, Promo, SavedAddress } from "./types";
+
+function mappedGiftNote(row: Record<string, any>) {
+  const note = readStoredGiftNote(row);
+  return {
+    isGift: readStoredIsGift(row),
+    giftNote: note?.message ?? null,
+    giftNoteTo: note?.to ?? null,
+    giftNoteMessage: note?.message ?? null,
+    giftNoteFrom: note?.from ?? null,
+    hidePrices: note?.hidePrices ?? false,
+  };
+}
 
 export function mapOrderRow(row: Record<string, any>): Order {
   const items = (row.order_items ?? []).map(mapItemRow);
@@ -18,7 +31,7 @@ export function mapOrderRow(row: Record<string, any>): Order {
     taxIdSkipped: Boolean(row.tax_id_skipped),
     recipientName: row.recipient_name,
     recipientPhone: row.recipient_phone,
-    giftNote: row.gift_note,
+    ...mappedGiftNote(row),
     giftWrap: Boolean(row.gift_wrap),
     addressLine: row.address_line,
     district: row.district,
@@ -38,6 +51,7 @@ export function mapOrderRow(row: Record<string, any>): Order {
     giftCardCode: row.gift_card_code,
     giftCardAppliedCents: row.gift_card_applied_cents ?? 0,
     giftWrapCents: row.gift_wrap_cents ?? 0,
+    giftNoteCents: row.gift_note_cents ?? 0,
     totalCents: row.total_cents,
     paymentMethod: row.payment_method,
     paymentStatus: row.payment_status,

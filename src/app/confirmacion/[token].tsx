@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
+import { GiftNoteCard } from "../../components/GiftNoteCard";
 import { GiftSuccess } from "../../components/fx";
 import { Button, Screen } from "../../components/ui";
 import { colors, font } from "../../components/theme";
@@ -46,6 +47,14 @@ export default function Confirmacion() {
         <Text style={{ fontFamily: font.semibold, color: colors.ink, textAlign: "center" }}>{formatSoles(order.totalCents)}</Text>
         <Text style={{ fontFamily: font.medium, color: colors.muted, textAlign: "center" }}>Guarda este número. Para ver el pedido después, entra con tu celular.</Text>
         <Text style={{ fontFamily: font.body, color: colors.muted, textAlign: "center" }}>{order.etaLabel}. {order.christmasNote}</Text>
+        {order.isGift ? <Text style={{ fontFamily: font.semibold, color: colors.ink, textAlign: "center" }}>Regalo</Text> : null}
+        {order.giftNoteMessage ? (
+          <View style={{ gap: 8 }}>
+            <Text style={{ fontFamily: font.semibold, color: colors.ink, textAlign: "center" }}>Nota impresa en la caja</Text>
+            <GiftNoteCard to={order.giftNoteTo} message={order.giftNoteMessage} from={order.giftNoteFrom} />
+            {order.hidePrices ? <Text style={{ fontFamily: font.body, color: colors.muted, textAlign: "center" }}>La caja va sin precios.</Text> : null}
+          </View>
+        ) : null}
         {order.referralCodeIssued ? (
           <View style={{ backgroundColor: colors.white, borderRadius: 18, padding: 14 }}>
             <Text style={{ fontFamily: font.medium, color: colors.muted }}>Tu código de amigo</Text>

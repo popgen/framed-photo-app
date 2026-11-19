@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import { AccountAuth } from "../../components/AccountAuth";
+import { GiftNoteCard } from "../../components/GiftNoteCard";
 import { Banner, Button, Screen } from "../../components/ui";
 import { colors, font } from "../../components/theme";
 import { currentCustomer, type CustomerSession } from "../../lib/customer-auth";
@@ -41,6 +42,14 @@ export default function Pedido() {
             {order.channel === "whatsapp" ? <Banner tone="good" text="Te escribimos por correo sobre este pedido." /> : null}
             <Text style={{ fontFamily: font.body, color: colors.muted }}>{order.etaLabel}</Text>
             <Text style={{ fontFamily: font.body, color: colors.ink }}>{order.christmasNote}</Text>
+            {order.isGift ? <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Regalo</Text> : null}
+            {order.giftNoteMessage ? (
+              <View style={{ gap: 8 }}>
+                <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Nota impresa</Text>
+                <GiftNoteCard to={order.giftNoteTo} message={order.giftNoteMessage} from={order.giftNoteFrom} />
+                {order.hidePrices ? <Text style={{ fontFamily: font.body, color: colors.muted }}>La caja va sin precios.</Text> : null}
+              </View>
+            ) : null}
             {order.trackingNumber ? <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Guía {order.trackingNumber}</Text> : null}
             <View style={{ gap: 8 }}>
               {STATUS_FLOW.map((status) => {
