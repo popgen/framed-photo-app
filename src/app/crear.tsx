@@ -1,10 +1,10 @@
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { PanResponder, Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native";
+import { PanResponder, Platform, Pressable, ScrollView, Text, useWindowDimensions, View, type ViewStyle } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { Cropper } from "../components/Cropper";
-import { PhotoSources } from "../components/PhotoSources";
+import { PhotoSources, type PhotoSourcesHandle } from "../components/PhotoSources";
 import { FrameView } from "../components/FrameView";
 import { TextStyleEditor } from "../components/TextStyleEditor";
 import { VoiceRecorder } from "../components/VoiceRecorder";
@@ -48,9 +48,12 @@ export default function Crear() {
   const indexRef = useRef(index);
   const offersRef = useRef(offers);
   const chipRef = useRef(chip);
+  const sourcesRef = useRef<PhotoSourcesHandle>(null);
+  const exampleRef = useRef(false);
   indexRef.current = index;
   offersRef.current = offers;
   chipRef.current = chip;
+  exampleRef.current = Boolean(photo && isExamplePhoto(photo.id));
   const visible = framesForChip(offers, chip);
 
   useEffect(() => {
@@ -101,6 +104,7 @@ export default function Crear() {
   const pan = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_event, gesture) => Math.abs(gesture.dx) > 18 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+      onMoveShouldSetPanResponderCapture: (_event, gesture) => exampleRef.current && Math.abs(gesture.dx) > 18 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
       onPanResponderRelease: (_event, gesture) => {
         const list = framesForChip(offersRef.current, chipRef.current);
         if (!list.length) return;
@@ -139,6 +143,10 @@ export default function Crear() {
   const flags = importFlags();
   const checkStock = stockChecksEnabled();
   const soldOut = checkStock && !frame.stockUncertain && frame.available <= 0;
+  const showingExample = Boolean(photo && isExamplePhoto(photo.id));
+  const preview = (
+    <FrameView frame={frame} photoId={photo?.id} crop={photo ? activeCrop : null} orientation={orientation} width={Math.min(260, contentWidth - 20)} overlay={overlay} onOverlayChange={setOverlay} animateSample />
+  );
 
   return (
     <Screen
@@ -178,13 +186,29 @@ export default function Crear() {
         <Progress step={photo && !isExamplePhoto(photo.id) ? 2 : 1} />
         <View {...pan.panHandlers}>
           <Animated.View key={`${frame.id}-${orientation}`} entering={reduced ? undefined : FadeInDown.springify().damping(16)}>
-            <View style={{ alignItems: "center", gap: 8 }}>
-              {photo && isExamplePhoto(photo.id) ? (
-                <View style={{ backgroundColor: colors.ink, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
-                  <Text style={{ fontFamily: font.semibold, color: "white", fontSize: 12 }}>Foto de ejemplo</Text>
+            <View style={{ alignItems: "center", position: "relative" }}>
+              {showingExample ? (
+                <Pressable
+                  accessible={false}
+                  onPress={() => sourcesRef.current?.pickFromDevice()}
+                  style={webPointer}
+                >
+                  {preview}
+                </Pressable>
+              ) : preview}
+              {showingExample ? (
+                <View pointerEvents="box-none" style={uploadSlot}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Sube tu foto desde tu dispositivo"
+                    onPress={() => sourcesRef.current?.pickFromDevice()}
+                    style={({ pressed }) => [uploadChip, webPointer, pressed && { transform: [{ scale: 0.97 }] }]}
+                  >
+                    <Text accessibilityElementsHidden importantForAccessibility="no" style={{ color: "#F6E2A8", fontSize: 16, lineHeight: 18 }}>★</Text>
+                    <Text style={{ fontFamily: font.bold, color: "white", fontSize: 16 }}>Sube tu foto</Text>
+                  </Pressable>
                 </View>
               ) : null}
-              <FrameView frame={frame} photoId={photo?.id} crop={photo ? activeCrop : null} orientation={orientation} width={Math.min(260, contentWidth - 20)} overlay={overlay} onOverlayChange={setOverlay} animateSample />
             </View>
           </Animated.View>
         </View>
@@ -260,7 +284,7 @@ export default function Crear() {
                 <Text style={{ fontFamily: font.body, color: colors.muted }}>JPG, PNG o HEIC. La galería del teléfono es la primera opción. En el iPhone también puedes abrir iCloud, y el HEIC pasa a JPEG.</Text>
               </>
             )}
-            <PhotoSources print={frame} flags={flags} notice={params.import} onPhoto={(next) => choosePhoto(next, frame)} />
+            <PhotoSources ref={sourcesRef} print={frame} flags={flags} notice={params.import} onPhoto={(next) => choosePhoto(next, frame)} />
             <View style={{ borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 16 }}>
               <Button label="Probar aviso de resolución" tone="quiet" onPress={() => void choosePhoto(samplePhoto("sample-small"))} />
             </View>
@@ -281,6 +305,33 @@ export default function Crear() {
     </Screen>
   );
 }
+
+const webPointer = (Platform.OS === "web" ? { cursor: "pointer" } : null) as ViewStyle;
+
+const uploadSlot: ViewStyle = {
+  position: "absolute",
+  left: 0,
+  right: 0,
+  bottom: 26,
+  zIndex: 3,
+  alignItems: "center",
+};
+
+const uploadChip: ViewStyle = {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 8,
+  minHeight: 44,
+  paddingHorizontal: 16,
+  borderRadius: 999,
+  backgroundColor: colors.red,
+  borderWidth: 2,
+  borderColor: "#F0D48A",
+  shadowColor: "#241714",
+  shadowOpacity: 0.28,
+  shadowRadius: 10,
+  shadowOffset: { width: 0, height: 5 },
+};
 
 function Mini({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
   return (
