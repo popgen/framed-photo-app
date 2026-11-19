@@ -94,7 +94,7 @@ export function Button({
 }: {
   label: string;
   onPress: () => void;
-  tone?: "primary" | "ghost" | "pine";
+  tone?: "primary" | "ghost" | "pine" | "quiet";
   disabled?: boolean;
 }) {
   return (
@@ -109,12 +109,13 @@ export function Button({
       style={({ pressed }) => [
         styles.button,
         tone === "ghost" && styles.ghost,
+        tone === "quiet" && styles.quiet,
         tone === "pine" && styles.pine,
         disabled && styles.disabled,
         pressed && !disabled && { transform: [{ scale: 0.98 }] },
       ]}
     >
-      <Text style={[styles.buttonText, tone === "ghost" && { color: colors.ink }]}>{label}</Text>
+      <Text style={[styles.buttonText, tone === "ghost" && { color: colors.ink }, tone === "quiet" && styles.quietText]}>{label}</Text>
     </Pressable>
   );
 }
@@ -229,6 +230,8 @@ const styles = StyleSheet.create({
   p: { fontFamily: font.body, color: colors.muted, fontSize: 16, lineHeight: 23 },
   button: { backgroundColor: colors.red, minHeight: 54, borderRadius: 999, alignItems: "center", justifyContent: "center", paddingHorizontal: 18 },
   ghost: { backgroundColor: "transparent", borderWidth: 1.5, borderColor: colors.line },
+  quiet: { backgroundColor: "transparent", borderWidth: 1, borderColor: "#D9CBBF", minHeight: 40, paddingHorizontal: 14 },
+  quietText: { color: colors.muted, fontFamily: font.medium, fontSize: 13 },
   pine: { backgroundColor: colors.pine },
   disabled: { opacity: 0.45 },
   buttonText: { color: colors.white, fontFamily: font.bold, fontSize: 16 },

@@ -14,6 +14,7 @@ import { cardGreetings, cardSheetCopy, cardSizes, cardTemplates, DEFAULT_ENVELOP
 import { importFlags } from "../lib/env";
 import { formatSoles } from "../lib/money";
 import { uid } from "../lib/ids";
+import { EXAMPLE_PHOTO_PROMPT, isExamplePhoto } from "../lib/example-photo";
 import { resolvePhoto, samplePhoto } from "../lib/photos";
 import { centeredCrop, type Crop } from "../lib/print-size";
 import { useCart } from "../lib/store";
@@ -43,10 +44,15 @@ export default function Tarjeta() {
   const [insideMessage, setInsideMessage] = useState<TextOverlay | null>(null);
   const [frontPhoto, setFrontPhoto] = useState<PanelPhoto | null>(null);
   const [insidePhoto, setInsidePhoto] = useState<PanelPhoto | null>(null);
+  const [sampleNote, setSampleNote] = useState<string | null>(null);
   const size = cardSizes.find((item) => item.id === sizeId) ?? defaultCardSize();
   const template = cardTemplates.find((item) => item.id === templateId) ?? cardTemplates[0];
   const limits = messageLimits(size);
   const priced = priceCards(qty);
+
+  useEffect(() => {
+    void place("Portada", samplePhoto());
+  }, []);
 
   async function place(which: PanelName, photo: { id: string; width: number; height: number }) {
     const crop = centeredCrop(photo.width, photo.height, size.panelWmm, size.panelHmm);
@@ -54,9 +60,14 @@ export default function Tarjeta() {
     const next = { ...photo, crop, source };
     if (which === "Portada") setFrontPhoto(next);
     else setInsidePhoto(next);
+    if (!isExamplePhoto(photo.id)) setSampleNote(null);
   }
 
   function save() {
+    if (!frontPhoto || isExamplePhoto(frontPhoto.id)) {
+      setSampleNote(EXAMPLE_PHOTO_PROMPT);
+      return;
+    }
     const card: CardSnapshot = {
       sizeId: size.id,
       quantity: qty,
@@ -91,6 +102,7 @@ export default function Tarjeta() {
       footer={
         <View>
           <View style={{ padding: 16, gap: 8, backgroundColor: colors.bg }}>
+            {sampleNote ? <Text style={{ fontFamily: font.medium, color: colors.bad, textAlign: "center" }}>{sampleNote}</Text> : null}
             <Button label={`Agregar · ${formatSoles(priced.cents)}`} onPress={save} />
           </View>
           <TabBar />
@@ -124,6 +136,7 @@ export default function Tarjeta() {
           insidePhoto={insidePhoto}
           frontMessage={frontMessage}
           insideMessage={insideMessage}
+          example={isExamplePhoto(frontPhoto?.id)}
           onPress={() => setOpen((value) => !value)}
         />
         <View style={{ flexDirection: "row", gap: 8 }}>
@@ -163,7 +176,6 @@ export default function Tarjeta() {
               flags={importFlags()}
               notice={params.import}
               onPhoto={(photo) => place("Portada", photo)}
-              onSample={() => void place("Portada", samplePhoto())}
             />
           </Card>
         ) : (
@@ -203,6 +215,7 @@ function Diptych({
   insidePhoto: _insidePhoto,
   frontMessage,
   insideMessage,
+  example,
   onPress,
 }: {
   open: boolean;
@@ -213,6 +226,7 @@ function Diptych({
   insidePhoto: PanelPhoto | null;
   frontMessage: TextOverlay | null;
   insideMessage: TextOverlay | null;
+  example: boolean;
   onPress: () => void;
 }) {
   const panelW = 168;
@@ -223,18 +237,22 @@ function Diptych({
   useEffect(() => {
     if (Platform.OS !== "web") return;
     const node = stage.current;
-    node?.scrollIntoView({ block: "start", behavior: reduced ? "auto" : "smooth" });
+    node?.scrollIntoView({ block: "nearest", behavior: reduced ? "auto" : "smooth" });
   }, [open, reduced]);
   return (
-    <View ref={stage as never} style={{ alignItems: "center" }}>
+    <View ref={stage as never} style={{ alignItems: "center", gap: 8 }}>
+      {example ? <ExampleTag /> : null}
       <View
         style={webStyle({
+          width: panelW,
           height: Math.round(panelH * motion.liftPxRatio),
           transitionProperty: "height",
           transitionDuration: `${motion.durationMs}ms`,
           transitionTimingFunction: ease,
         })}
-      />
+      >
+        {reduced && open ? <PaperBack width={panelW} height={panelH} color={inside} /> : null}
+      </View>
       <Pressable onPress={onPress} accessibilityLabel={motion.hint}>
         <View
           style={webStyle({
@@ -277,6 +295,9 @@ function Diptych({
                 backfaceVisibility: "hidden",
                 WebkitBackfaceVisibility: "hidden",
                 transform: "rotateX(180deg)",
+                opacity: !reduced && open ? 1 : 0,
+                transitionProperty: "opacity",
+                transitionDuration: `${motion.durationMs}ms`,
                 backgroundColor: inside,
                 borderRadius: 10,
                 alignItems: "center",
@@ -290,7 +311,23 @@ function Diptych({
           </View>
         </View>
       </Pressable>
-      <Text style={{ fontFamily: font.medium, color: colors.muted, marginTop: 8 }}>{motion.hint}</Text>
+      <Text style={{ fontFamily: font.medium, color: colors.muted }}>{motion.hint}</Text>
+    </View>
+  );
+}
+
+function PaperBack({ width, height, color }: { width: number; height: number; color: string }) {
+  return (
+    <View style={{ width, height, backgroundColor: color, borderRadius: 10, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(42,27,22,0.2)" }}>
+      <Text style={{ fontFamily: font.display, fontSize: 22, color: colors.red }}>Mi Fotito</Text>
+    </View>
+  );
+}
+
+function ExampleTag() {
+  return (
+    <View style={{ backgroundColor: colors.ink, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
+      <Text style={{ fontFamily: font.semibold, color: "white", fontSize: 12 }}>Foto de ejemplo</Text>
     </View>
   );
 }

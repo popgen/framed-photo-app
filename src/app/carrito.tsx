@@ -1,4 +1,5 @@
 import { router } from "expo-router";
+import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { FrameView } from "../components/FrameView";
 import { PriceTicker } from "../components/fx";
@@ -9,11 +10,13 @@ import { frameById } from "../lib/catalog";
 import { formatSoles } from "../lib/money";
 import { quote, type QuoteItem } from "../lib/pricing";
 import { VOICE_ADDON_CENTS } from "../lib/voice";
+import { EXAMPLE_PHOTO_PROMPT, usesExamplePhoto } from "../lib/example-photo";
 import { useCart } from "../lib/store";
 
 export default function Carrito() {
   const items = useCart((state) => state.items);
   const remove = useCart((state) => state.remove);
+  const [sampleNote, setSampleNote] = useState<string | null>(null);
   const priced = quote({
     items: items.flatMap((item): QuoteItem[] => {
       const lines: QuoteItem[] = item.card
@@ -29,7 +32,14 @@ export default function Carrito() {
         <View>
           <View style={{ padding: 16, gap: 8, backgroundColor: colors.bg }}>
             <PriceTicker cents={priced.totalCents} />
-            <Button label="Continuar al pago" disabled={!items.length} onPress={() => router.push("/checkout")} />
+            {sampleNote ? <Text style={{ fontFamily: font.medium, color: colors.bad, textAlign: "center" }}>{sampleNote}</Text> : null}
+            <Button label="Continuar al pago" disabled={!items.length} onPress={() => {
+              if (items.some((item) => usesExamplePhoto(item))) {
+                setSampleNote(EXAMPLE_PHOTO_PROMPT);
+                return;
+              }
+              router.push("/checkout");
+            }} />
           </View>
           <TabBar />
         </View>
