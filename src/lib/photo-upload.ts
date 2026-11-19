@@ -8,6 +8,13 @@ export async function uploadOrderPhotos(photoId: string): Promise<{ original: st
   if (!photoId || photoId.startsWith("asset:") || dataMode() !== "supabase") return { original: null, print: null };
   const originalBlob = (await readPhotoBlob(`${photoId}:original`)) ?? (await readPhotoBlob(photoId));
   const printBlob = await readPhotoBlob(photoId);
+  if (!originalBlob && !printBlob) {
+    // The blob is gone: an IndexedDB write failed earlier (quota), or storage was
+    // cleared between adding to the cart and checking out. Stopping here is the
+    // point — otherwise the order is saved with every photo path null and the
+    // customer pays for a print with no image.
+    throw new Error("No pudimos leer esa foto. Vuelve a elegirla antes de pagar.");
+  }
   const supabase = getSupabase();
   let original: string | null = null;
   let print: string | null = null;

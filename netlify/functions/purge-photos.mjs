@@ -26,7 +26,7 @@ export default async function handler(req) {
   const orders = await page(supabase, "orders", "id, status, updated_at");
   const items = await pageItems(supabase);
   const claims = await page(supabase, "claims", "id, order_id, photo_path");
-  const notes = await page(supabase, "voice_notes", "token, storage_path, selfie_path, created_at");
+  const notes = await page(supabase, "voice_notes", "token, storage_path, selfie_path, created_at", "token");
   const objects = await listObjects(supabase);
   const plan = planPhotoPurge({ orders, items, claims, notes, objects, now });
 
@@ -77,10 +77,17 @@ function chunks(values, size) {
   return batches;
 }
 
-async function page(supabase, table, select) {
+async function page(supabase, table, select, key = "id") {
   const rows = [];
   for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supabase.from(table).select(select).range(from, from + PAGE - 1);
+    // Order explicitly. Without ORDER BY, Postgres may return a different row
+    // order per request, so .range() paging can skip rows entirely — and a row
+    // skipped here looks like an orphan, which this job then deletes.
+    const { data, error } = await supabase
+      .from(table)
+      .select(select)
+      .order(key, { ascending: true })
+      .range(from, from + PAGE - 1);
     if (error) throw new Error(`${table}: ${error.message}`);
     rows.push(...(data ?? []));
     if (!data || data.length < PAGE) break;
