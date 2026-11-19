@@ -52,6 +52,7 @@ export function paymentMethodLabel(method: string | null | undefined): string {
   if (value === "yape") return "Yape";
   if (value === "card" || value === "tarjeta") return "Tarjeta";
   if (value === "plin") return "Plin";
+  if (value === "mercadopago") return "Mercado Pago";
   if (value === "gift_card" || value === "giftcard") return "Tarjeta de regalo";
   if (value === "replacement") return "Reposición";
   if (!value) return "Sin registrar";

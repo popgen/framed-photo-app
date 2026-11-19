@@ -64,11 +64,12 @@ export function importFlags(): ImportFlags {
   };
 }
 
-export type PaymentMethod = "card" | "yape" | "plin";
+export type PaymentMethod = "card" | "yape" | "plin" | "mercadopago";
 export type PaymentProviderName = "mock" | "mercadopago" | "plin";
 
 export function providerFor(method: PaymentMethod, mode: "mock" | "live"): PaymentProviderName {
   if (mode === "mock") return "mock";
   if (method === "plin") return "plin";
+  if (method === "mercadopago") return "mercadopago";
   return "mercadopago";
 }

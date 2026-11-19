@@ -1,4 +1,14 @@
 import { readPaidAnswer, verifyKrHash, izipayReady, readIzipayEnv, createPaymentBody, IZIPAY_CREATE_URL, izipayAuthHeader, izipayMethodRejected } from "./izipay";
+import {
+  buildMercadoPagoPreference,
+  mercadoPagoDataId,
+  mercadoPagoReady,
+  MERCADOPAGO_PAYMENT_URL,
+  MERCADOPAGO_PREFERENCE_URL,
+  readMercadoPagoEnv,
+  readMercadoPagoPayment,
+  verifyMercadoPagoSignature,
+} from "./mercadopago";
 
 export const PAYMENTS_NOT_CONFIGURED = "Pagos no configurados. Escríbenos a pedidos@mifotito.com.";
 export const PAYMENT_DECLINED = "El pago fue rechazado. Puedes intentar otra vez.";
@@ -13,6 +23,11 @@ export type CardProvider = "mock" | "izipay" | "stripe" | "unconfigured";
 export function paymentsServerMode(env: Record<string, string | undefined> = process.env): ServerPaymentMode {
   const raw = (env.PAYMENTS_MODE || env.EXPO_PUBLIC_PAYMENTS_MODE || "mock").trim().toLowerCase();
   return raw === "live" ? "live" : "mock";
+}
+
+/** Live Checkout Pro is offered only when the access token and webhook secret are set. */
+export function mercadoPagoOffered(env: Record<string, string | undefined> = process.env): boolean {
+  return paymentsServerMode(env) === "live" && mercadoPagoReady(readMercadoPagoEnv(env));
 }
 
 /** Izipay is the default live provider. Stripe is used only when PAYMENT_PROVIDER=stripe. */
@@ -54,6 +69,7 @@ export type PaidUpdate = { method: string; provider: string; ref: string };
 export type PaymentStore = {
   getOrder(id: string): Promise<PayableOrder | null>;
   markPaidOnce(id: string, payment: PaidUpdate): Promise<{ already: boolean; order: PayableOrder }>;
+  markRejectedOnce?(id: string, payment: PaidUpdate): Promise<{ already: boolean; order: PayableOrder }>;
   notifyPaid?(order: PayableOrder): Promise<void>;
 };
 
@@ -136,9 +152,80 @@ export async function completeStripeCallback(
   return settleVerified(store, { orderId: paid.orderId, amountCents: paid.amountCents, method: "card", provider: "stripe", ref: paid.ref });
 }
 
+export async function completeMercadoPagoNotification(
+  store: PaymentStore,
+  input: {
+    headers?: Record<string, string | undefined> | null;
+    query?: Record<string, unknown> | null;
+    body?: unknown;
+    secret?: string;
+    accessToken?: string;
+  },
+  fetchImpl: typeof fetch = fetch,
+): Promise<CallbackBody> {
+  const headers = input.headers || {};
+  const dataId = mercadoPagoDataId(input.query, input.body);
+  const valid = await verifyMercadoPagoSignature({
+    xSignature: headerValue(headers, "x-signature"),
+    xRequestId: headerValue(headers, "x-request-id"),
+    dataId,
+    secret: input.secret || "",
+  });
+  if (!input.secret || !valid) {
+    return { http: 400, body: { ok: false, status: "bad_signature", error: PAYMENT_BAD_SIGNATURE } };
+  }
+  const topic = String(input.query?.type || input.query?.topic || (input.body as { type?: string } | null)?.type || "").toLowerCase();
+  if (topic && topic !== "payment") return { http: 200, body: { ok: true, ignored: true } };
+  if (!input.accessToken || !/^[A-Za-z0-9_-]{1,64}$/.test(dataId)) {
+    return { http: 400, body: { ok: false, status: "bad_signature", error: PAYMENT_BAD_SIGNATURE } };
+  }
+  let response: { ok: boolean; status: number; json: () => Promise<unknown> };
+  try {
+    response = await fetchImpl(`${MERCADOPAGO_PAYMENT_URL}/${encodeURIComponent(dataId)}`, {
+      headers: { Authorization: `Bearer ${input.accessToken}` },
+    });
+  } catch {
+    return { http: 502, body: { ok: false, error: "Mercado Pago no confirmó el pago. Inténtalo otra vez." } };
+  }
+  if (!response.ok) return { http: 502, body: { ok: false, error: "Mercado Pago no confirmó el pago. Inténtalo otra vez." } };
+  const paid = readMercadoPagoPayment((await response.json().catch(() => null)) as Parameters<typeof readMercadoPagoPayment>[0]);
+  if (!paid?.ref) return { http: 400, body: { ok: false, error: "No pudimos leer el pago." } };
+  if (paid.currency !== "PEN") return { http: 400, body: { ok: false, error: PAYMENT_AMOUNT } };
+  const order = await store.getOrder(paid.orderId);
+  if (!order) return { http: 400, body: { ok: false, error: "No encontramos el pedido." } };
+  if (Number(order.totalCents) !== paid.amountCents) return { http: 400, body: { ok: false, error: PAYMENT_AMOUNT } };
+  const update = { method: "mercadopago", provider: "mercadopago", ref: paid.ref };
+  if (paid.status === "approved") {
+    if (order.paymentStatus === "approved") {
+      return { http: 200, body: { ok: true, already: true, publicToken: order.publicToken || null, order } };
+    }
+    return settleVerified(store, { orderId: paid.orderId, amountCents: paid.amountCents, ...update });
+  }
+  if (paid.status === "pending" || paid.status === "in_process" || paid.status === "authorized") {
+    if (order.paymentStatus === "approved") return { http: 200, body: { ok: true, already: true, publicToken: order.publicToken || null, order } };
+    return { http: 200, body: { ok: true, pending: true, status: paid.status, publicToken: order.publicToken || null } };
+  }
+  if (paid.status === "rejected" || paid.status === "cancelled") {
+    if (order.paymentStatus === "approved") return { http: 200, body: { ok: true, already: true, publicToken: order.publicToken || null, order } };
+    const saved = await store.markRejectedOnce?.(order.id, update);
+    return {
+      http: 200,
+      body: {
+        ok: false,
+        declined: true,
+        status: "declined",
+        already: saved?.already ?? order.paymentStatus === "rejected",
+        error: PAYMENT_DECLINED,
+        publicToken: saved?.order.publicToken || order.publicToken || null,
+      },
+    };
+  }
+  return { http: 200, body: { ok: true, ignored: true } };
+}
+
 async function settleVerified(
   store: PaymentStore,
-  payment: { orderId: string; amountCents: number; method: "card" | "yape"; provider: string; ref: string },
+  payment: { orderId: string; amountCents: number; method: string; provider: string; ref: string },
 ): Promise<CallbackBody> {
   const order = await store.getOrder(payment.orderId);
   if (!order) return { http: 400, body: { ok: false, error: "No encontramos el pedido." } };
@@ -237,6 +324,33 @@ export async function requestIzipayForm(
   return { error: "Izipay no pudo abrir el pago. Inténtalo otra vez." };
 }
 
+export async function requestMercadoPagoCheckout(
+  env: Record<string, string | undefined>,
+  input: { amountCents: number; orderId: string; email?: string | null; name?: string | null; description: string; publicToken: string },
+  fetchImpl: typeof fetch = fetch,
+): Promise<{ checkoutUrl: string } | { error: string }> {
+  const mp = readMercadoPagoEnv(env);
+  if (!mercadoPagoReady(mp)) return { error: PAYMENTS_NOT_CONFIGURED };
+  const response = await fetchImpl(MERCADOPAGO_PREFERENCE_URL, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${mp.accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify(
+      buildMercadoPagoPreference({
+        amountCents: input.amountCents,
+        orderId: input.orderId,
+        email: input.email,
+        name: input.name,
+        description: input.description,
+        publicToken: input.publicToken,
+      }),
+    ),
+  });
+  const json = (await response.json().catch(() => ({}))) as { init_point?: string; sandbox_init_point?: string };
+  const checkoutUrl = json.init_point || json.sandbox_init_point;
+  if (response.ok && checkoutUrl) return { checkoutUrl };
+  return { error: "Mercado Pago no pudo abrir el pago. Inténtalo otra vez." };
+}
+
 export async function requestStripeCheckout(
   env: Record<string, string | undefined>,
   input: { amountCents: number; orderId: string; email?: string | null; description: string; successUrl: string; cancelUrl: string },
@@ -262,6 +376,14 @@ export async function requestStripeCheckout(
   const json = (await response.json().catch(() => ({}))) as { url?: string };
   if (response.ok && json.url) return { checkoutUrl: json.url };
   return { error: "Stripe no pudo abrir el pago. Inténtalo otra vez." };
+}
+
+function headerValue(headers: Record<string, string | undefined>, name: string): string {
+  const target = name.toLowerCase();
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() === target) return String(value || "");
+  }
+  return "";
 }
 
 async function hmacHex(secret: string, message: string): Promise<string> {

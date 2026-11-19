@@ -68,6 +68,7 @@ export default function Checkout() {
     ackLowRes: false,
   });
   const [method, setMethod] = useState<PaymentMethod>(params.pago === "plin" || params.pago === "card" ? params.pago : "yape");
+  const [mercadoPago, setMercadoPago] = useState(false);
   const [quote, setQuote] = useState<Awaited<ReturnType<ReturnType<typeof getRepo>["quoteCheckout"]>> | null>(null);
   const [credit, setCredit] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -76,6 +77,21 @@ export default function Checkout() {
   const [busy, setBusy] = useState(false);
   const [picker, setPicker] = useState<"department" | "province" | "district" | null>(null);
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    let stopped = false;
+    void fetch("/api/payments/methods")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { mercadopago?: boolean } | null) => {
+        if (stopped || !data?.mercadopago) return;
+        setMercadoPago(true);
+        if (params.pago === "mercadopago") setMethod("mercadopago");
+      })
+      .catch(() => undefined);
+    return () => {
+      stopped = true;
+    };
+  }, [params.pago]);
 
   useEffect(() => {
     void getRepo().getCampaign().then(setCampaign);
@@ -232,6 +248,21 @@ export default function Checkout() {
           return;
         }
         await pay(true, order);
+        return;
+      }
+      if (method === "mercadopago") {
+        const response = await fetch("/api/payments/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId: order.id, method }),
+        });
+        const payload = (await response.json()) as { checkoutUrl?: string; error?: string };
+        if (payload.checkoutUrl && typeof window !== "undefined") {
+          rememberReceipt(order);
+          window.location.href = payload.checkoutUrl;
+          return;
+        }
+        setError(payload.error || "No pudimos abrir Mercado Pago.");
         return;
       }
       if (dataMode() === "supabase" && method !== "plin") {
@@ -411,12 +442,22 @@ export default function Checkout() {
         ) : null}
         <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Pago</Text>
         <View style={{ gap: 8 }}>
-          {(["yape", "plin", "card"] as const).map((item) => (
-            <Pressable key={item} onPress={() => setMethod(item)} style={{ minHeight: 52, borderRadius: 16, padding: 12, justifyContent: "center", backgroundColor: method === item ? colors.ink : colors.white }}>
-              <Text style={{ fontFamily: font.semibold, color: method === item ? "white" : colors.ink }}>{item === "card" ? "Tarjeta" : item === "yape" ? "Yape" : "Plin"}</Text>
+          {([
+            { id: "yape" as const, label: "Yape" },
+            { id: "plin" as const, label: "Plin" },
+            { id: "card" as const, label: "Tarjeta" },
+            ...(mercadoPago ? [{ id: "mercadopago" as const, label: "Mercado Pago (cuotas, saldo o PagoEfectivo)" }] : []),
+          ]).map((item) => (
+            <Pressable key={item.id} onPress={() => setMethod(item.id)} style={{ minHeight: item.id === "mercadopago" ? 64 : 52, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 12, justifyContent: "center", backgroundColor: method === item.id ? colors.ink : colors.white }}>
+              <Text style={{ fontFamily: font.semibold, color: method === item.id ? "white" : colors.ink, fontSize: item.id === "mercadopago" ? 15 : 16, lineHeight: 22 }}>{item.label}</Text>
             </Pressable>
           ))}
         </View>
+        {method === "mercadopago" ? (
+          <Text style={{ fontFamily: font.body, color: colors.muted, lineHeight: 20 }}>
+            Te llevamos a Mercado Pago. Puedes pagar con tarjeta en cuotas, con tu saldo o con PagoEfectivo. El pedido sigue pendiente hasta que Mercado Pago confirme el pago.
+          </Text>
+        ) : null}
         {quote?.promoError ? <Banner tone="bad" text={quote.promoError} /> : null}
         {quote?.referralError ? <Banner tone="bad" text={quote.referralError} /> : null}
         {quote?.giftCardError ? <Banner tone="bad" text={quote.giftCardError} /> : null}
@@ -426,7 +467,7 @@ export default function Checkout() {
         {quote?.referralDiscountCents ? <Text style={{ fontFamily: font.medium, color: colors.pine }}>Código de amigo: -{formatSoles(quote.referralDiscountCents)}</Text> : null}
         {quote?.giftCardAppliedCents ? <Text style={{ fontFamily: font.medium, color: colors.pine }}>Tarjeta de regalo: -{formatSoles(quote.giftCardAppliedCents)}</Text> : null}
         {error ? <Banner tone="bad" text={error} /> : null}
-        {pending && pending.totalCents > 0 ? <PaySheet method={method} total={formatSoles(pending.totalCents)} onApprove={() => void pay(true)} onReject={() => void pay(false)} /> : null}
+        {pending && pending.totalCents > 0 && method !== "mercadopago" ? <PaySheet method={method} total={formatSoles(pending.totalCents)} onApprove={() => void pay(true)} onReject={() => void pay(false)} /> : null}
         <Modal visible={picker !== null} animationType="slide" transparent onRequestClose={() => setPicker(null)}>
           <View style={{ flex: 1, backgroundColor: "rgba(36,23,20,0.45)", justifyContent: "flex-end" }}>
             <View style={{ maxHeight: "82%", backgroundColor: colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, gap: 10 }}>

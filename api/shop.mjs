@@ -797,7 +797,39 @@ export function paymentStore(supabase = serviceSupabase()) {
       const result = await applyPaidOrder(supabase, { orderId: id, ...payment });
       return { already: result.already, order: result.order };
     },
+    async markRejectedOnce(id, payment) {
+      const result = await rejectPayableOrder(supabase, { orderId: id, ...payment });
+      return { already: result.already, order: result.order };
+    },
   };
+}
+
+export async function rejectPayableOrder(supabase, payment) {
+  if (!supabase) throw httpError(503, "Supabase no está configurado.");
+  const { data: row } = await supabase.from("orders").select("*, order_items(*)").eq("id", payment?.orderId).maybeSingle();
+  if (!row) throw httpError(404, "No encontramos el pedido.");
+  if (row.payment_status === "approved" || row.payment_status === "rejected") {
+    return { already: true, order: mapOrderRow(row) };
+  }
+  const claimed = await supabase
+    .from("orders")
+    .update({
+      payment_status: "rejected",
+      payment_method: payment?.method || row.payment_method,
+      payment_provider: payment?.provider || "mercadopago",
+      payment_ref: payment?.ref || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", row.id)
+    .neq("payment_status", "approved")
+    .neq("payment_status", "rejected")
+    .select("id");
+  if (!claimed.data?.length) {
+    const current = await supabase.from("orders").select("*, order_items(*)").eq("id", row.id).single();
+    return { already: true, order: mapOrderRow(current.data || row) };
+  }
+  const { data } = await supabase.from("orders").select("*, order_items(*)").eq("id", row.id).single();
+  return { already: false, order: mapOrderRow(data || row) };
 }
 
 async function signPhoto(req, res) {

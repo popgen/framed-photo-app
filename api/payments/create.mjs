@@ -1,26 +1,16 @@
 import { loadPayableOrder } from "../shop.mjs";
 import {
   configuredSite,
+  mercadoPagoOffered,
   PAYMENT_YAPE_NEEDS_IZIPAY,
   PAYMENTS_NOT_CONFIGURED,
   paymentMockSecret,
   requestIzipayForm,
+  requestMercadoPagoCheckout,
   requestStripeCheckout,
   selectCardProvider,
   signMockToken,
 } from "../../src/lib/payments.ts";
-
-async function legacyMercadoPagoPreference(token, input, fetchImpl) {
-  return fetchImpl("https://api.mercadopago.com/checkout/preferences", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      items: [{ title: input.description || "Marco Mi Fotito", quantity: 1, currency_id: "PEN", unit_price: input.amountCents / 100 }],
-      payer: { name: input.name, email: input.email },
-      external_reference: input.orderId,
-    }),
-  });
-}
 
 export async function createPayment(req, res, deps = {}) {
   if (req.method !== "POST") {
@@ -39,6 +29,10 @@ export async function createPayment(req, res, deps = {}) {
       mock: provider === "mock",
       instructions: provider === "mock" ? null : `Plin al ${env.PLIN_PHONE || ""} y escribe el pedido ${orderId}.`,
     });
+    return;
+  }
+  if (method === "mercadopago") {
+    await createMercadoPagoPayment(res, { env, fetchImpl, loadOrder, orderId });
     return;
   }
   if (provider === "mock" && !deps.loadOrder && !(env.SUPABASE_URL || env.EXPO_PUBLIC_SUPABASE_URL)) {
@@ -125,8 +119,48 @@ export async function createPayment(req, res, deps = {}) {
   });
 }
 
+async function createMercadoPagoPayment(res, { env, fetchImpl, loadOrder, orderId }) {
+  if (!mercadoPagoOffered(env)) {
+    res.status(501).json({ error: PAYMENTS_NOT_CONFIGURED });
+    return;
+  }
+  const order = await loadOrder(String(orderId || ""));
+  if (!order) {
+    res.status(404).json({ error: "No encontramos el pedido." });
+    return;
+  }
+  const amountCents = Number(order.totalCents);
+  if (!Number.isFinite(amountCents) || amountCents <= 0) {
+    res.status(400).json({ error: "El pedido no tiene un monto por cobrar." });
+    return;
+  }
+  if (!order.email) {
+    res.status(400).json({ error: "El pago necesita un correo." });
+    return;
+  }
+  if (!order.publicToken) {
+    res.status(400).json({ error: "El pedido no tiene un enlace de confirmación." });
+    return;
+  }
+  const opened = await requestMercadoPagoCheckout(
+    env,
+    {
+      amountCents,
+      orderId: order.id,
+      email: order.email,
+      name: order.customerName || "Cliente",
+      description: `Pedido ${order.number || "Mi Fotito"}`,
+      publicToken: order.publicToken || "",
+    },
+    fetchImpl,
+  );
+  if (opened.error) {
+    res.status(502).json({ error: opened.error });
+    return;
+  }
+  res.status(200).json({ provider: "mercadopago", status: "pending", checkoutUrl: opened.checkoutUrl, mock: false });
+}
+
 export default function handler(req, res) {
   return createPayment(req, res);
 }
-
-export { legacyMercadoPagoPreference };

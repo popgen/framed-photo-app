@@ -76,7 +76,9 @@ Copia `.env.example` a `.env`. No subas `.env`.
 | `NOTIFY_SECRET` | servidor | autoriza `POST /api/notify` |
 | `STRIPE_SECRET_KEY` | servidor | solo con `PAYMENT_PROVIDER=stripe` |
 | `STRIPE_WEBHOOK_SECRET` | servidor | firma del webhook de Stripe |
-| `MERCADOPAGO_ACCESS_TOKEN` | servidor | sin uso en el cobro actual |
+| `MERCADOPAGO_ACCESS_TOKEN` | servidor | Access Token de producción. Checkout Pro |
+| `MERCADOPAGO_PUBLIC_KEY` | servidor | sin uso. Checkout Pro no la manda al navegador |
+| `MERCADOPAGO_WEBHOOK_SECRET` | servidor | clave secreta del webhook, para `x-signature` |
 | `YAPE_PHONE` | servidor | referencia del comercio |
 | `PLIN_PHONE` | servidor | número que se muestra al cliente |
 | `WHATSAPP_TOKEN` | servidor | pendiente. Déjalo vacío; sin él no se llama a la Cloud API |
@@ -89,7 +91,7 @@ Copia `.env.example` a `.env`. No subas `.env`.
 | `GOOGLE_PHOTOS_CLIENT_ID` / `GOOGLE_PHOTOS_CLIENT_SECRET` | servidor | OAuth de Google Photos |
 | `SITE_URL` | servidor | igual que el sitio público |
 
-Izipay cobra tarjeta y Yape cuando `IZIPAY_COMMERCE_ID`, `IZIPAY_API_KEY`, `IZIPAY_PUBLIC_KEY` y `IZIPAY_HMAC_KEY` están puestos y `PAYMENTS_MODE=live`. Si faltan, la tienda responde «Pagos no configurados». Plin no pasa por Izipay.
+Izipay cobra tarjeta y Yape cuando `IZIPAY_COMMERCE_ID`, `IZIPAY_API_KEY`, `IZIPAY_PUBLIC_KEY` y `IZIPAY_HMAC_KEY` están puestos y `PAYMENTS_MODE=live`. Si faltan, la tienda responde «Pagos no configurados». Plin no pasa por Izipay. Mercado Pago es una opción aparte: solo aparece si `PAYMENTS_MODE=live` y están puestos `MERCADOPAGO_ACCESS_TOKEN` y `MERCADOPAGO_WEBHOOK_SECRET`.
 
 Cuando el admin guarda una guía, el servidor manda un correo «Tu pedido va en camino» al `email` del pedido por SMTP (Zoho: `smtp.zoho.com`, puerto `465`, remitente `Mi Fotito <pedidos@mifotito.com>`). Si faltan `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` o `SMTP_FROM`, o el envío falla, la guía igual se guarda y el admin ve el aviso. No se usa WhatsApp para ese mensaje. El envío queda en `notification_log` con canal `email`.
 
@@ -104,7 +106,7 @@ Cuando el admin guarda una guía, el servidor manda un correo «Tu pedido va en 
 
 El modo `local` no necesita esto. Con `supabase`, el admin entra con Auth y la tienda sigue usando el motor de precios del cliente después de comprobar que el proyecto responde. El webhook de WhatsApp, si tiene `SUPABASE_SERVICE_ROLE_KEY`, guarda cada sesión en `wa_events`.
 
-`PAYMENTS_MODE` nace en `mock`. Pásalo a `live` (y `EXPO_PUBLIC_PAYMENTS_MODE=live`) antes de cobrar de verdad. Un cliente no puede marcar un pedido como pagado: esa ruta solo la usa un admin, o el callback ya verificado de Izipay o Stripe.
+`PAYMENTS_MODE` nace en `mock`. Pásalo a `live` (y `EXPO_PUBLIC_PAYMENTS_MODE=live`) antes de cobrar de verdad. Un cliente no puede marcar un pedido como pagado: esa ruta solo la usa un admin, o el callback ya verificado de Izipay, Stripe o Mercado Pago.
 
 ## Stock
 
@@ -121,7 +123,20 @@ Por defecto `PAYMENTS_MODE` es `mock` (sandbox). En la demo del navegador, Yape,
 
 En `live`, el monto sale del pedido guardado en el servidor. El cliente no fija el precio. Tarjeta y Yape abren el formulario embebido de Izipay (`/pago`): la tarjeta no pasa por nuestros servidores. El pedido pasa a pagado, y se muestra la confirmación, solo cuando el regreso o el IPN traen un `kr-hash` válido y el monto coincide. Un aviso repetido no vuelve a descontar stock ni a mandar el correo. El IPN es `https://mifotito.com/api/payments/izipay-ipn`.
 
-Si faltan las claves y `PAYMENTS_MODE=live`, la respuesta es «Pagos no configurados». Mercado Pago ya no abre el cobro: no tenía un webhook que verificara el pago. El código de la preferencia sigue en `api/payments/create.mjs` por si más adelante se le agrega esa verificación.
+Si faltan las claves y `PAYMENTS_MODE=live`, la respuesta es «Pagos no configurados».
+
+Mercado Pago es el segundo cobro, con Checkout Pro. No reemplaza a Izipay ni a Plin. En el checkout, con `PAYMENTS_MODE=live`, `MERCADOPAGO_ACCESS_TOKEN` y `MERCADOPAGO_WEBHOOK_SECRET`, aparece «Mercado Pago (cuotas, saldo o PagoEfectivo)». Si falta el token o el secreto, el botón no se muestra. La preferencia va en soles (PEN), con hasta 12 cuotas, sin excluir medios de pago: tarjeta, saldo de Mercado Pago (`account_money`) y PagoEfectivo. En Perú, PagoEfectivo figura como tipo `atm` (método `pagoefectivo`); el tipo `ticket` no se ofrece en esa cuenta, y no lo bloqueamos. `statement_descriptor` es `MIFOTITO`, `external_reference` es el id del pedido, `auto_return` es `approved` y las tres `back_urls` vuelven a `https://mifotito.com/confirmacion/<token>`. Volver al sitio no marca el pedido pagado. El aviso es `https://mifotito.com/api/payments/mercadopago-webhook`. Ahí se comprueba `x-signature` con `MERCADOPAGO_WEBHOOK_SECRET`, se consulta el pago en la API de Mercado Pago y solo entonces, si el estado es `approved` y el monto y la moneda coinciden con el pedido, se usa el mismo marcado de pedido pagado que Izipay. Un aviso repetido no vuelve a descontar stock ni a mandar el correo. PagoEfectivo queda pendiente hasta que Mercado Pago lo apruebe. Un pago rechazado deja el pedido en rechazado, sin cobrarlo. `MERCADOPAGO_PUBLIC_KEY` no se usa: Checkout Pro no corre en el navegador.
+
+La comisión de Mercado Pago no se suma al cliente. El monto de la preferencia es el total del pedido. El plan elegido en la cuenta es retiro inmediato: 3.49% + S/ 1 + IGV. Eso se configura en Mercado Pago, no en este código.
+
+Para dejarlo listo, Lucas:
+
+1. Entra a [Tus integraciones](https://www.mercadopago.com.pe/developers/panel/app) con la cuenta de Perú.
+2. Crea una aplicación de pagos online (Checkout Pro).
+3. Abre las credenciales de producción y copia el Access Token a `MERCADOPAGO_ACCESS_TOKEN` en Netlify. No lo pongas en una variable `EXPO_PUBLIC_`. La Public Key puede quedar vacía.
+4. En Webhooks, la URL de producción es `https://mifotito.com/api/payments/mercadopago-webhook` y el evento es pagos (`payment`). Copia la clave secreta a `MERCADOPAGO_WEBHOOK_SECRET`.
+5. En la cuenta de Mercado Pago, elige retiro inmediato (3.49% + S/ 1 + IGV). No hace falta tocar el código.
+6. Pon `PAYMENTS_MODE=live` y `EXPO_PUBLIC_PAYMENTS_MODE=live`, y redespliega. Izipay sigue cobrando tarjeta y Yape. Plin sigue mostrando `PLIN_PHONE`.
 
 Stripe es opcional y no es el proveedor por defecto. Una cuenta de Stripe de Estados Unidos puede cobrar en soles (PEN). Hace falta `PAYMENT_PROVIDER=stripe`, `STRIPE_SECRET_KEY` y `STRIPE_WEBHOOK_SECRET`. El webhook es `https://mifotito.com/api/payments/stripe-webhook` (evento `checkout.session.completed`). Yape no pasa por Stripe: Yape queda en Izipay. Plin sigue a mano; solo un admin marca ese pedido pagado.
 
@@ -197,7 +212,7 @@ El sitio funciona en modo demo sin ningún secreto: pagos sandbox, WhatsApp solo
 - Functions directory: `netlify/functions` (ya está en `netlify.toml`)
 - Dominios: `mifotito.com` (primary) y `www.mifotito.com`
 
-`netlify.toml` redirige `www` y `http` a `https://mifotito.com`. Cada función declara su ruta con `config.path` (`/api/shop`, `/api/track-orders`, `/api/payments/izipay-ipn`, `/api/imports/callback`, y las demás). No hay rewrites de `/api/*` hacia `/.netlify/functions/*`. El fallback a `/index.html` no lleva `force`, así que no tapa esas rutas. Los archivos con hash en `/_expo/static/` y `/assets/` se cachean un año. `index.html` no.
+`netlify.toml` redirige `www` y `http` a `https://mifotito.com`. Cada función declara su ruta con `config.path` (`/api/shop`, `/api/track-orders`, `/api/payments/izipay-ipn`, `/api/payments/mercadopago-webhook`, `/api/imports/callback`, y las demás). No hay rewrites de `/api/*` hacia `/.netlify/functions/*`. El fallback a `/index.html` no lleva `force`, así que no tapa esas rutas. Los archivos con hash en `/_expo/static/` y `/assets/` se cachean un año. `index.html` no.
 
 ### Variables en Netlify
 
@@ -225,6 +240,9 @@ No hace falta ninguna para el demo. Para cobrar y escribir de verdad, en Site co
 | `IZIPAY_HMAC_KEY` | firma `kr-hash` del regreso y del IPN |
 | `STRIPE_SECRET_KEY` | solo si `PAYMENT_PROVIDER=stripe` |
 | `STRIPE_WEBHOOK_SECRET` | firma de `checkout.session.completed` |
+| `MERCADOPAGO_ACCESS_TOKEN` | Access Token de producción. Solo en el servidor |
+| `MERCADOPAGO_PUBLIC_KEY` | opcional y sin uso con Checkout Pro |
+| `MERCADOPAGO_WEBHOOK_SECRET` | clave secreta del webhook de pagos |
 | `PAYMENT_MOCK_SECRET` | opcional. Firma los pagos de prueba en el servidor |
 | `NOTIFY_SECRET` | autoriza `/api/notify` |
 | `RESEND_API_KEY` | correo del pedido pagado. Vacío = no se manda |

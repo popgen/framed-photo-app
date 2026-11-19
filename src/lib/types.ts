@@ -239,7 +239,7 @@ export type CheckoutInput = {
   referralCode?: string;
   useCredit: boolean;
   giftCardCode?: string;
-  paymentMethod: "card" | "yape" | "plin" | "gift_card";
+  paymentMethod: "card" | "yape" | "plin" | "mercadopago" | "gift_card";
   ackLowRes: boolean;
   channel?: "web" | "whatsapp";
   orderId?: string;
