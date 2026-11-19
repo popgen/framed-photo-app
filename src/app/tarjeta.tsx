@@ -159,7 +159,7 @@ export default function Tarjeta() {
             <Text style={{ fontFamily: font.semibold, color: colors.ink, marginBottom: 8 }}>Portada</Text>
             {frontPhoto ? (
               <>
-                <Text style={{ fontFamily: font.semibold, color: colors.ink, marginBottom: 8 }}>Encadra la foto</Text>
+                <Text style={{ fontFamily: font.semibold, color: colors.ink, marginBottom: 8 }}>Encuadra la foto</Text>
                 <Cropper
                   source={frontPhoto.source ?? {}}
                   crop={frontPhoto.crop}
