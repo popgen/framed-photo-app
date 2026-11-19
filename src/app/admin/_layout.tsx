@@ -28,7 +28,7 @@ export default function AdminLayout() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bgDeep, alignItems: "center" }}>
       <View style={{ flex: 1, width: "100%", maxWidth: 480, backgroundColor: colors.bg }}>
-        {path.endsWith("/login") ? null : (
+        {path.endsWith("/login") || path.includes("/nota") ? null : (
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, padding: 10 }}>
             {links.map(([href, label]) => (
               <Pressable key={href} onPress={() => router.push(href)} style={{ minHeight: 44, paddingHorizontal: 10, justifyContent: "center" }}>

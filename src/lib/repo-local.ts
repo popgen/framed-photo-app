@@ -19,6 +19,7 @@ import { isEmail, normalizePhone } from "./phone";
 import { resolveTaxId } from "./tax-id";
 import { REFERRAL_FRIEND_CENTS, REFERRAL_REWARD_CENTS, quote, type QuoteItem } from "./pricing";
 import { assessResolution, centeredCrop } from "./print-size";
+import { giftNoteFromCheckout } from "./gift-note";
 import { districtsFor, shippingZone } from "./zone";
 import {
   blurryMessage,
@@ -287,9 +288,11 @@ function priceInput(state: DB, input: CheckoutInput, phone: string | null) {
     if (!card || card.status !== "active" || card.balanceCents <= 0) giftCardError = "Esa tarjeta de regalo no tiene saldo.";
     else giftCardBalance = card.balanceCents;
   }
+  const parsedNote = giftNoteFromCheckout(input);
   const priced = quote({
     items,
     giftWrap: input.giftWrap && input.items.some((item) => !item.card),
+    giftNote: parsedNote.ok && Boolean(parsedNote.note),
     promo,
     promoCode,
     referralDiscountCents: referralDiscount,
@@ -324,6 +327,8 @@ function assertCheckout(input: CheckoutInput, phone: string | null) {
   if (!known.some((item) => item.toLowerCase() === input.district.trim().toLowerCase())) {
     throw new AppError("Ese distrito no corresponde a la provincia elegida.");
   }
+  const note = giftNoteFromCheckout(input);
+  if (!note.ok) throw new AppError(note.error);
 }
 
 function buildOrder(state: DB, input: CheckoutInput, phone: string, status: OrderStatus): Order {
@@ -334,6 +339,8 @@ function buildOrder(state: DB, input: CheckoutInput, phone: string, status: Orde
   if (priced.giftCardError) throw new AppError(priced.giftCardError);
   const tax = resolveTaxId({ taxId: input.taxId, skipped: input.taxIdSkipped });
   if (!tax.ok) throw new AppError(tax.error);
+  const note = giftNoteFromCheckout(input);
+  if (!note.ok) throw new AppError(note.error);
   const zone = shippingZone(input.department, input.province, input.district);
   const now = new Date();
   const fest = festive(zone, now, state.campaign);
@@ -370,7 +377,12 @@ function buildOrder(state: DB, input: CheckoutInput, phone: string, status: Orde
     province: input.province.trim(),
     recipientName: input.recipientName?.trim() || null,
     recipientPhone: input.recipientPhone ? normalizePhone(input.recipientPhone) : null,
-    giftNote: input.giftNote?.trim() || null,
+    isGift: note.isGift,
+    giftNote: note.note?.message ?? null,
+    giftNoteTo: note.note?.to ?? null,
+    giftNoteMessage: note.note?.message ?? null,
+    giftNoteFrom: note.note?.from ?? null,
+    hidePrices: note.note?.hidePrices ?? false,
     giftWrap: input.giftWrap,
     addressLine: input.addressLine.trim(),
     district: input.district.trim(),
@@ -389,6 +401,7 @@ function buildOrder(state: DB, input: CheckoutInput, phone: string, status: Orde
     giftCardCode: priced.giftCardAppliedCents > 0 ? input.giftCardCode?.trim().toUpperCase() : null,
     giftCardAppliedCents: priced.giftCardAppliedCents,
     giftWrapCents: priced.giftWrapCents,
+    giftNoteCents: priced.giftNoteCents,
     totalCents: priced.totalCents,
     paymentMethod: input.paymentMethod,
     paymentStatus: status === "pending_payment" ? "pending" : "approved",

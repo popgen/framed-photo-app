@@ -1,6 +1,7 @@
 import { router } from "expo-router";
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
+import { GiftNoteEditor } from "../components/GiftNoteCard";
 import { FrameView } from "../components/FrameView";
 import { PriceTicker } from "../components/fx";
 import { Button, Card, Progress, Screen, TabBar } from "../components/ui";
@@ -15,6 +16,8 @@ import { useCart } from "../lib/store";
 
 export default function Carrito() {
   const items = useCart((state) => state.items);
+  const gift = useCart((state) => state.gift);
+  const setGift = useCart((state) => state.setGift);
   const remove = useCart((state) => state.remove);
   const [sampleNote, setSampleNote] = useState<string | null>(null);
   const priced = quote({
@@ -84,6 +87,15 @@ export default function Carrito() {
             </Card>
           );
         })}
+        <GiftNoteEditor
+          printed={gift.isGift}
+          to={gift.to}
+          message={gift.message}
+          fromName={gift.from}
+          buyerName=""
+          hidePrices={gift.hidePrices}
+          onChange={(next) => setGift({ isGift: next.printed, to: next.to, message: next.message, from: next.fromName, hidePrices: next.hidePrices })}
+        />
         {priced.frameDiscountLabel ? (
           <Text style={{ fontFamily: font.medium, color: colors.pine }}>
             {priced.frameDiscountLabel}: -{formatSoles(priced.frameDiscountCents)}
