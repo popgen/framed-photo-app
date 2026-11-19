@@ -21,6 +21,7 @@ import { chargedGiftWrap, hidePricesForOrder } from "./gift-wrap";
 import { trackingEmail, trackingWarning } from "./tracking-mail";
 import { isEmail, normalizePhone } from "./phone";
 import { resolveTaxId } from "./tax-id";
+import { resolveDiscountInput } from "./discount-code";
 import { REFERRAL_FRIEND_CENTS, REFERRAL_REWARD_CENTS, quote, type QuoteItem } from "./pricing";
 import { assessResolution, centeredCrop } from "./print-size";
 import { giftNoteFromCheckout } from "./gift-note";
@@ -262,25 +263,11 @@ function priceInput(state: DB, input: CheckoutInput, phone: string | null) {
     if (item.voice) lines.push({ unitPriceCents: item.voice.addonCents || VOICE_ADDON_CENTS, quantity: 1, kind: "plain" });
     return lines;
   });
-  const promoCode = input.promoCode?.trim() || null;
-  const promo = promoCode ? (state.promos.find((item) => item.code.toUpperCase() === promoCode.toUpperCase()) ?? null) : null;
-  let referralDiscount: number | null = null;
-  let referralError: string | null = null;
-  const referralCode = input.referralCode?.trim() || "";
-  if (referralCode) {
-    const referral = state.referrals.find((item) => item.code.toUpperCase() === referralCode.toUpperCase());
-    if (!referral) referralError = "Ese código de amigo no existe.";
-    else if (phone && referral.ownerPhone === phone) referralError = "No puedes usar tu propio código.";
-    else referralDiscount = referral.friendDiscountCents || REFERRAL_FRIEND_CENTS;
-  }
-  let giftCardError: string | null = null;
-  let giftCardBalance: number | null = null;
-  const giftCodeValue = input.giftCardCode?.trim() || "";
-  if (giftCodeValue) {
-    const card = state.giftCards.find((item) => item.code.toUpperCase() === giftCodeValue.toUpperCase());
-    if (!card || card.status !== "active" || card.balanceCents <= 0) giftCardError = "Esa tarjeta de regalo no tiene saldo.";
-    else giftCardBalance = card.balanceCents;
-  }
+  const resolved = resolveDiscountInput(
+    { promoCode: input.promoCode, referralCode: input.referralCode, giftCardCode: input.giftCardCode, phone },
+    { promos: state.promos, referrals: state.referrals, giftCards: state.giftCards },
+  );
+  const { promo, promoCode, referralDiscountCents: referralDiscount, referralError, giftCardBalanceCents: giftCardBalance, giftCardError } = resolved;
   const parsedNote = giftNoteFromCheckout(input);
   const priced = quote({
     items,
@@ -446,6 +433,14 @@ export function createLocalRepo() {
       const zone = input.department && input.province ? shippingZone(input.department, input.province, input.district || "") : ("lima" as Zone);
       const { priced, stockError } = priceInput(state, input, phone);
       return { ...priced, zone, stockError };
+    },
+    async discountCatalog() {
+      const state = required();
+      return {
+        promos: state.promos.map((item) => ({ ...item })),
+        referrals: state.referrals.map((item) => ({ ...item })),
+        giftCards: state.giftCards.map((item) => ({ ...item })),
+      };
     },
     async placeOrder(input: CheckoutInput) {
       const linked = await provisionCheckoutAccount(input.email || "", input.password || "", readLocalCustomer()?.id);

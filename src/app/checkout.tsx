@@ -6,6 +6,7 @@ import { Modal, Pressable, ScrollView, Text, TextInput, View } from "react-nativ
 import { Countdown, GuaranteeNote, PaySheet, useNow } from "../components/fx";
 import { useApp } from "../components/provider";
 import { GiftNoteEditor } from "../components/GiftNoteCard";
+import { DiscountCodeField } from "../components/DiscountCodeField";
 import { Banner, Button, Field, Progress, Screen } from "../components/ui";
 import { colors, font } from "../components/theme";
 import { readWaOrder, rememberWaOrder } from "../lib/boot";
@@ -390,9 +391,14 @@ export default function Checkout() {
           <Text style={{ fontFamily: font.body, color: colors.muted }}>{campaign?.giftWrapBody ?? "La caja va sin precios."}</Text>
           {form.giftWrap ? <Text style={{ fontFamily: font.medium, color: colors.ink }}>☑ No incluir precios en la caja</Text> : null}
         </Pressable>
-        <Field label="Código promo" autoCapitalize="characters" value={form.promoCode} onChangeText={(promoCode) => setForm({ ...form, promoCode })} />
-        <Field label="Código de amigo" autoCapitalize="characters" value={form.referralCode} onChangeText={(referralCode) => setForm({ ...form, referralCode })} />
-        <Field label="Tarjeta de regalo" autoCapitalize="characters" value={form.giftCardCode} onChangeText={(giftCardCode) => setForm({ ...form, giftCardCode })} />
+        <DiscountCodeField
+          promoCode={form.promoCode}
+          referralCode={form.referralCode}
+          giftCardCode={form.giftCardCode}
+          phone={form.phone}
+          giftAppliedCents={quote?.giftCardAppliedCents}
+          onChange={(codes) => setForm((current) => ({ ...current, ...codes }))}
+        />
         {credit > 0 ? (
           <Pressable onPress={() => setForm({ ...form, useCredit: !form.useCredit })} style={{ minHeight: 44, justifyContent: "center" }}>
             <Text style={{ fontFamily: font.medium, color: colors.ink }}>{form.useCredit ? "☑" : "☐"} Usar mi saldo {formatSoles(credit)}</Text>
@@ -416,6 +422,9 @@ export default function Checkout() {
         {quote?.giftCardError ? <Banner tone="bad" text={quote.giftCardError} /> : null}
         {quote?.stockError ? <Banner tone="bad" text={quote.stockError} /> : null}
         {quote?.frameDiscountCents ? <Text style={{ fontFamily: font.medium, color: colors.pine }}>{quote.frameDiscountLabel}: -{formatSoles(quote.frameDiscountCents)}</Text> : null}
+        {quote?.promoDiscountCents ? <Text style={{ fontFamily: font.medium, color: colors.pine }}>Código promocional: -{formatSoles(quote.promoDiscountCents)}</Text> : null}
+        {quote?.referralDiscountCents ? <Text style={{ fontFamily: font.medium, color: colors.pine }}>Código de amigo: -{formatSoles(quote.referralDiscountCents)}</Text> : null}
+        {quote?.giftCardAppliedCents ? <Text style={{ fontFamily: font.medium, color: colors.pine }}>Tarjeta de regalo: -{formatSoles(quote.giftCardAppliedCents)}</Text> : null}
         {error ? <Banner tone="bad" text={error} /> : null}
         {pending && pending.totalCents > 0 ? <PaySheet method={method} total={formatSoles(pending.totalCents)} onApprove={() => void pay(true)} onReject={() => void pay(false)} /> : null}
         <Modal visible={picker !== null} animationType="slide" transparent onRequestClose={() => setPicker(null)}>

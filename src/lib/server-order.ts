@@ -6,8 +6,9 @@ import { defaultCampaign } from "./campaign";
 import { guaranteeFor } from "./cutoff";
 import { estimateDelivery } from "./delivery";
 import { expandNeeds } from "./inventory";
+import { resolveDiscountInput } from "./discount-code";
 import { normalizePhone } from "./phone";
-import { REFERRAL_FRIEND_CENTS, quote, type QuoteItem } from "./pricing";
+import { quote, type QuoteItem } from "./pricing";
 import { shippingZone } from "./zone";
 import { chargedGiftWrap, hidePricesForOrder } from "./gift-wrap";
 import { giftNoteFromCheckout } from "./gift-note";
@@ -39,25 +40,11 @@ export function evaluateOrder(input: CheckoutInput, ctx: { promos: Promo[]; stoc
   if (input.items.some((item) => usesExamplePhoto(item))) return { error: EXAMPLE_PHOTO_PROMPT };
   const cardError = cardMessageError(input.items);
   if (cardError) return { error: cardError };
-  const promoCode = input.promoCode?.trim() || null;
-  const promo = promoCode ? (ctx.promos.find((item) => item.code.toUpperCase() === promoCode.toUpperCase()) ?? null) : null;
-  const referralCode = input.referralCode?.trim() || "";
-  const referral = referralCode ? (ctx.referrals ?? []).find((item) => item.code.toUpperCase() === referralCode.toUpperCase()) : null;
-  let referralError: string | null = null;
-  let referralDiscount: number | null = null;
-  if (referralCode) {
-    if (!referral) referralError = "Ese código de amigo no existe.";
-    else if (referral.ownerPhone === phone) referralError = "No puedes usar tu propio código.";
-    else referralDiscount = referral.friendDiscountCents || REFERRAL_FRIEND_CENTS;
-  }
-  const giftCode = input.giftCardCode?.trim() || "";
-  const gift = giftCode ? (ctx.giftCards ?? []).find((item) => item.code.toUpperCase() === giftCode.toUpperCase()) : null;
-  let giftCardError: string | null = null;
-  let giftCardBalance: number | null = null;
-  if (giftCode) {
-    if (!gift || gift.status !== "active" || gift.balanceCents <= 0) giftCardError = "Esa tarjeta de regalo no tiene saldo.";
-    else giftCardBalance = gift.balanceCents;
-  }
+  const resolved = resolveDiscountInput(
+    { promoCode: input.promoCode, referralCode: input.referralCode, giftCardCode: input.giftCardCode, phone },
+    { promos: ctx.promos, referrals: ctx.referrals ?? [], giftCards: ctx.giftCards ?? [] },
+  );
+  const { promo, promoCode, referral, referralDiscountCents: referralDiscount, referralError, giftCardBalanceCents: giftCardBalance, giftCardError } = resolved;
   const parsedNote = giftNoteFromCheckout(input);
   if (!parsedNote.ok) return { error: parsedNote.error };
   const giftWrap = chargedGiftWrap(input);
