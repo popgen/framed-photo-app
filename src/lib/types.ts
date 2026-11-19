@@ -65,6 +65,10 @@ export type Order = {
   recipientName?: string | null;
   recipientPhone?: string | null;
   giftNote?: string | null;
+  giftNoteTo?: string | null;
+  giftNoteMessage?: string | null;
+  giftNoteFrom?: string | null;
+  hidePrices?: boolean;
   giftWrap: boolean;
   addressLine: string;
   district: string;
@@ -84,6 +88,7 @@ export type Order = {
   giftCardCode?: string | null;
   giftCardAppliedCents: number;
   giftWrapCents: number;
+  giftNoteCents?: number;
   totalCents: number;
   paymentMethod?: string | null;
   paymentStatus: "pending" | "approved" | "rejected";
@@ -210,6 +215,11 @@ export type CheckoutInput = {
   recipientName?: string;
   recipientPhone?: string;
   giftNote?: string;
+  giftPrinted?: boolean;
+  giftNoteTo?: string;
+  giftNoteMessage?: string;
+  giftNoteFrom?: string;
+  hidePrices?: boolean;
   giftWrap: boolean;
   addressLine: string;
   district: string;

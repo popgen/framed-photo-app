@@ -7,6 +7,7 @@ import { expandNeeds } from "./inventory";
 import { normalizePhone } from "./phone";
 import { REFERRAL_FRIEND_CENTS, quote, type QuoteItem } from "./pricing";
 import { shippingZone } from "./zone";
+import { giftNoteFromCheckout } from "./gift-note";
 import { VOICE_ADDON_CENTS } from "./voice";
 import type { CheckoutInput, GiftCard, Promo, Referral } from "./types";
 
@@ -53,9 +54,12 @@ export function evaluateOrder(input: CheckoutInput, ctx: { promos: Promo[]; stoc
     if (!gift || gift.status !== "active" || gift.balanceCents <= 0) giftCardError = "Esa tarjeta de regalo no tiene saldo.";
     else giftCardBalance = gift.balanceCents;
   }
+  const parsedNote = giftNoteFromCheckout(input);
+  if (!parsedNote.ok) return { error: parsedNote.error };
   const priced = quote({
     items: quoteLines(input),
     giftWrap: input.giftWrap && input.items.some((item) => !item.card),
+    giftNote: Boolean(parsedNote.note),
     promo,
     promoCode,
     referralDiscountCents: referralDiscount,
@@ -89,5 +93,6 @@ export function evaluateOrder(input: CheckoutInput, ctx: { promos: Promo[]; stoc
     etaMin: eta.min,
     etaMax: eta.max,
     etaLabel: eta.label,
+    giftNote: parsedNote.note,
   };
 }

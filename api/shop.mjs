@@ -9,6 +9,7 @@ import { frameById } from "../src/lib/catalog.ts";
 import { frameLowStock } from "../src/lib/inventory.ts";
 import { giftCode } from "../src/lib/ids.ts";
 import { normalizePhone } from "../src/lib/phone.ts";
+import { giftNoteJson } from "../src/lib/gift-note.ts";
 import { resolveTaxId } from "../src/lib/tax-id.ts";
 import { serverStockChecksEnabled } from "../src/lib/env.ts";
 
@@ -457,9 +458,8 @@ async function createOrder(req, res) {
     .select("id")
     .single();
   const now = new Date().toISOString();
-  const { data: inserted, error } = await supabase
-    .from("orders")
-    .insert({
+  const note = evaluated.giftNote;
+  const orderRow = {
       public_token: crypto.randomUUID().replace(/-/g, "").slice(0, 12),
       number,
       status: "pending_payment",
@@ -468,7 +468,12 @@ async function createOrder(req, res) {
       email: req.body.email || null,
       recipient_name: req.body.recipientName || null,
       recipient_phone: normalizePhone(req.body.recipientPhone || "") || null,
-      gift_note: req.body.giftNote || null,
+      gift_note: note?.message || null,
+      gift_note_to: note?.to || null,
+      gift_note_message: note?.message || null,
+      gift_note_from: note?.from || null,
+      hide_prices: Boolean(note?.hidePrices),
+      gift_note_cents: evaluated.priced.giftNoteCents,
       gift_wrap: Boolean(req.body.giftWrap),
       address_line: req.body.addressLine,
       district: req.body.district,
@@ -504,9 +509,17 @@ async function createOrder(req, res) {
       user_id: authUser.id,
       created_at: now,
       updated_at: now,
-    })
-    .select("id, public_token")
-    .single();
+  };
+  let { data: inserted, error } = await supabase.from("orders").insert(orderRow).select("id, public_token").single();
+  if (error && /gift_note_to|gift_note_message|gift_note_from|hide_prices|gift_note_cents/i.test(error.message || "")) {
+    const legacy = { ...orderRow, gift_note: note ? giftNoteJson(note) : null };
+    delete legacy.gift_note_to;
+    delete legacy.gift_note_message;
+    delete legacy.gift_note_from;
+    delete legacy.hide_prices;
+    delete legacy.gift_note_cents;
+    ({ data: inserted, error } = await supabase.from("orders").insert(legacy).select("id, public_token").single());
+  }
   if (error || !inserted) {
     res.status(500).json({ error: error?.message || "No pudimos guardar el pedido." });
     return;

@@ -1,3 +1,5 @@
+import { GIFT_NOTE_CENTS } from "./gift-note";
+
 export const GIFT_WRAP_CENTS = 1000;
 export const SECOND_FRAME_PERCENT = 20;
 export const SET_PERCENT = 15;
@@ -22,6 +24,7 @@ export type QuoteItem = { unitPriceCents: number; quantity?: number; kind?: "fra
 export type QuoteInput = {
   items: QuoteItem[];
   giftWrap?: boolean;
+  giftNote?: boolean;
   promo?: PromoRule | null;
   promoCode?: string | null;
   referralDiscountCents?: number | null;
@@ -46,6 +49,7 @@ export type Quote = {
   giftCardAppliedCents: number;
   giftCardError: string | null;
   giftWrapCents: number;
+  giftNoteCents: number;
   totalCents: number;
 };
 
@@ -104,7 +108,8 @@ export function quote(input: QuoteInput): Quote {
   merchandise -= referralDiscount;
 
   const giftWrapCents = input.giftWrap ? GIFT_WRAP_CENTS : 0;
-  let total = merchandise + giftWrapCents;
+  const giftNoteCents = input.giftNote ? GIFT_NOTE_CENTS : 0;
+  let total = merchandise + giftWrapCents + giftNoteCents;
   let creditApplied = 0;
   if (input.useCredit && (input.creditAvailableCents ?? 0) > 0) {
     creditApplied = Math.min(total, input.creditAvailableCents ?? 0);
@@ -131,6 +136,7 @@ export function quote(input: QuoteInput): Quote {
     giftCardAppliedCents: giftCardApplied,
     giftCardError,
     giftWrapCents,
+    giftNoteCents,
     totalCents: Math.max(0, total),
   };
 }

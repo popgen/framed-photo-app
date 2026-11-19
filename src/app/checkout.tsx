@@ -6,6 +6,7 @@ import { currentCustomer, type CustomerSession } from "../lib/customer-auth";
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { Countdown, GuaranteeNote, PaySheet, useNow } from "../components/fx";
 import { useApp } from "../components/provider";
+import { GiftNoteEditor } from "../components/GiftNoteCard";
 import { Banner, Button, Field, Progress, Screen } from "../components/ui";
 import { colors, font } from "../components/theme";
 import { readWaOrder, rememberWaOrder } from "../lib/boot";
@@ -16,6 +17,7 @@ import { paymentsMode, providerFor, type PaymentMethod } from "../lib/env";
 import { cardOrderLine } from "../lib/cards";
 import { frameById } from "../lib/catalog";
 import { formatSoles } from "../lib/money";
+import { GIFT_NOTE_MESSAGE_MAX } from "../lib/gift-note";
 import { quote as priceQuote } from "../lib/pricing";
 import { getRepo } from "../lib/repo";
 import { rememberReceipt, useCart } from "../lib/store";
@@ -40,7 +42,11 @@ export default function Checkout() {
     taxLegalName: "",
     recipientName: "",
     recipientPhone: "",
-    giftNote: "",
+    giftPrinted: false,
+    giftNoteTo: "",
+    giftNoteMessage: "",
+    giftNoteFrom: "",
+    hidePrices: false,
     giftWrap: false,
     otherRecipient: false,
     addressLine: "",
@@ -90,6 +96,7 @@ export default function Checkout() {
         voice: item.voice,
       })),
       ...form,
+      giftNote: form.giftNoteMessage,
       city: form.district,
       province: form.province,
       paymentMethod: method,
@@ -110,6 +117,7 @@ export default function Checkout() {
   const instant = priceQuote({
     items: items.map((item) => ({ unitPriceCents: frameById(item.frameId).priceCents })),
     giftWrap: form.giftWrap,
+    giftNote: form.giftPrinted && form.giftNoteMessage.trim().length > 0 && form.giftNoteMessage.trim().length <= GIFT_NOTE_MESSAGE_MAX,
   });
   const shownTotal = quote?.totalCents ?? instant.totalCents;
   const taxCheck = resolveTaxId({ taxId: form.taxId, skipped: form.taxIdSkipped });
@@ -315,7 +323,15 @@ export default function Checkout() {
             <Field label="Celular de quien lo recibe" value={form.recipientPhone} onChangeText={(recipientPhone) => setForm({ ...form, recipientPhone })} />
           </>
         ) : null}
-        <Field label="Nota de regalo" value={form.giftNote} onChangeText={(giftNote) => setForm({ ...form, giftNote })} />
+        <GiftNoteEditor
+          printed={form.giftPrinted}
+          to={form.giftNoteTo}
+          message={form.giftNoteMessage}
+          fromName={form.giftNoteFrom}
+          buyerName={form.customerName}
+          hidePrices={form.hidePrices}
+          onChange={(next) => setForm({ ...form, giftPrinted: next.printed, giftNoteTo: next.to, giftNoteMessage: next.message, giftNoteFrom: next.fromName, hidePrices: next.hidePrices })}
+        />
         <Pressable onPress={() => setForm({ ...form, giftWrap: !form.giftWrap })} style={{ minHeight: 52, justifyContent: "center", backgroundColor: form.giftWrap ? "#E7F6EE" : colors.white, borderRadius: 16, padding: 12 }}>
           <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{form.giftWrap ? "☑" : "☐"} {campaign?.giftWrapTitle ?? "Envoltorio de regalo"} · S/ 10</Text>
           <Text style={{ fontFamily: font.body, color: colors.muted }}>{campaign?.giftWrapBody ?? "La caja va sin precios."}</Text>

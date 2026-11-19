@@ -1,10 +1,12 @@
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useApp, useRepo } from "../../../components/provider";
 import { BackButton, Banner } from "../../../components/ui";
 import { colors, font } from "../../../components/theme";
+import { GiftNoteCard } from "../../../components/GiftNoteCard";
 import { cardOrderLine, envelopeLabel } from "../../../lib/cards";
+import { openGiftNotePrint } from "../../../lib/gift-note";
 import { frameById } from "../../../lib/catalog";
 import { downloadCardPdf, downloadPrint } from "../../../lib/print-export";
 import { getRepo } from "../../../lib/repo";
@@ -48,7 +50,19 @@ export default function AdminOrder() {
       <Text style={{ fontFamily: font.body, color: colors.ink }}>{order.taxIdSkipped || !order.taxId ? "Sin DNI/RUC" : `${order.taxIdType} ${order.taxId}`}</Text>
       <Text style={{ fontFamily: font.body, color: colors.muted }}>{order.phone} · {order.email}</Text>
       <Text style={{ fontFamily: font.body, color: colors.muted }}>{order.christmasNote}</Text>
-      {order.giftNote ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Nota: {order.giftNote}</Text> : null}
+      {order.giftNoteMessage ? (
+        <View style={{ gap: 8 }}>
+          <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Nota impresa</Text>
+          <GiftNoteCard to={order.giftNoteTo} message={order.giftNoteMessage} from={order.giftNoteFrom} />
+          {order.hidePrices ? <Text style={{ fontFamily: font.body, color: colors.ink }}>No incluir precios en la caja.</Text> : null}
+          <Pressable onPress={() => router.push(`/admin/nota/${order.id}`)} style={chip(false)}>
+            <Text style={chipText(false)}>Ver nota</Text>
+          </Pressable>
+          <Pressable onPress={() => openGiftNotePrint({ to: order.giftNoteTo, message: order.giftNoteMessage || "", from: order.giftNoteFrom })} style={chip(true)}>
+            <Text style={chipText(true)}>Imprimir nota</Text>
+          </Pressable>
+        </View>
+      ) : null}
       {error ? <Banner tone="bad" text={error} /> : null}
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
         {STATUS_FLOW.map((status) => (
