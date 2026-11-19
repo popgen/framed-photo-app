@@ -97,8 +97,8 @@ export default function Muro() {
       }
     >
       <View style={{ padding: 16, gap: 12 }}>
-        <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>Muro</Text>
-        <Text style={{ fontFamily: font.body, color: colors.muted }}>Elige el conjunto, suelta una foto en cada lugar y míralo en la pared.</Text>
+        <Text accessibilityRole="header" style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>Cuadros con fotos</Text>
+        <Text style={{ fontFamily: font.body, color: colors.muted }}>Elige el conjunto, suelta una foto en cada lugar y míralo en la pared. Es decoración del hogar: arte de pared con tus fotos, varios cuadros en vez de un collage impreso.</Text>
         <View style={{ gap: 8 }}>
           {walls.map((item) => (
             <Pressable key={item.id} onPress={() => selectLayout(item)} style={{ minHeight: 52, justifyContent: "center", padding: 12, borderRadius: 16, backgroundColor: layout.id === item.id ? colors.ink : colors.white }}>

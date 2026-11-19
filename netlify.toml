@@ -47,9 +47,8 @@
 
 [[redirects]]
   from = "/privacidad/"
-  to = "/privacidad/index.html"
-  status = 200
-  force = true
+  to = "/privacidad"
+  status = 301
 
 [[redirects]]
   from = "/terminos"
@@ -59,7 +58,88 @@
 
 [[redirects]]
   from = "/terminos/"
-  to = "/terminos/index.html"
+  to = "/terminos"
+  status = 301
+
+# Each public route is a real HTML file, so a crawler sees that page's title
+# without JavaScript. force stops Netlify from adding a trailing slash.
+# The slash form redirects to the canonical URL. The catch-all below is not
+# forced, so /robots.txt and /sitemap.xml are served as files.
+
+[[redirects]]
+  from = "/crear/"
+  to = "/crear"
+  status = 301
+
+[[redirects]]
+  from = "/crear"
+  to = "/crear/index.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/tarjeta/"
+  to = "/tarjeta"
+  status = 301
+
+[[redirects]]
+  from = "/tarjeta"
+  to = "/tarjeta/index.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/muro/"
+  to = "/muro"
+  status = 301
+
+[[redirects]]
+  from = "/muro"
+  to = "/muro/index.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/regalo/"
+  to = "/regalo"
+  status = 301
+
+[[redirects]]
+  from = "/regalo"
+  to = "/regalo/index.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/retablo/"
+  to = "/retablo"
+  status = 301
+
+[[redirects]]
+  from = "/retablo"
+  to = "/retablo/index.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/rastrear/"
+  to = "/rastrear"
+  status = 301
+
+[[redirects]]
+  from = "/rastrear"
+  to = "/rastrear/index.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/reclamo/"
+  to = "/reclamo"
+  status = 301
+
+[[redirects]]
+  from = "/reclamo"
+  to = "/reclamo/index.html"
   status = 200
   force = true
 
@@ -80,7 +160,22 @@
     X-XSS-Protection = "0"
 
 [[headers]]
+  for = "/robots.txt"
+  [headers.values]
+    Content-Type = "text/plain; charset=utf-8"
+
+[[headers]]
+  for = "/sitemap.xml"
+  [headers.values]
+    Content-Type = "application/xml; charset=utf-8"
+
+[[headers]]
   for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/*/index.html"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
 

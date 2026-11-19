@@ -63,11 +63,24 @@ export default function Home() {
             </View>
           </Pressable>
         ) : null}
+        <Card>
+          <Text accessibilityRole="header" style={section}>Ideas de regalos de Navidad</Text>
+          <P style={centered}>
+            Mi Fotito es una tienda de fotos en Lima, Perú. Puedes imprimir fotos en línea y recibirlas enmarcadas: fotos personalizadas, un recuerdo personalizado para mamá, papá, los abuelos o tu pareja. Son regalos fáciles y regalos originales para Navidad, un cumpleaños, un aniversario o San Valentín.
+          </P>
+          <P style={centered}>
+            Si buscas regalos baratos para Navidad, el marco básico cuesta S/ 59 y el envío ya va incluido en el precio. Son regalos en Lima y también a provincias: un regalo económico, más cálido que un póster y más a la mano que un álbum de fotos. Son fotos en marco, no en un lienzo.
+          </P>
+          <P style={centered}>
+            También hay regalos personalizados: una tarjeta con foto, cuadros personalizados para la pared y, por correo, un retablo de madera hecho a mano. En el marco puedes dejar una foto con mensaje de voz.
+          </P>
+        </Card>
         <Text style={section}>Super simple</Text>
-        <Step n="1" title="Elige tu foto" body="Desde el teléfono, iCloud o una foto de ejemplo." icon={<PhotoIcon />} />
-        <Step n="2" title="Elige tu marco" body="Desliza los marcos, o arma una tarjeta navideña." icon={<FrameIcon />} />
-        <Step n="3" title="Llega a tu casa en días" body="Impresa, con acrílico, hasta la puerta." icon={<HomeIcon />} />
+        <Step n="1" title="Elige tu foto" body="Desde el teléfono, iCloud o una foto de ejemplo. Así empieza la impresión de fotos." icon={<PhotoIcon />} />
+        <Step n="2" title="Elige tu marco" body="Desliza para enmarcar fotos, o arma una tarjeta navideña." icon={<FrameIcon />} />
+        <Step n="3" title="Llega a tu casa en días" body="Fotos impresas, con acrílico, hasta la puerta en Lima." icon={<HomeIcon />} />
         <Text style={section}>Marcos de Navidad</Text>
+        <P style={centered}>Regalos navideños: tu foto impresa en un marco de la temporada.</P>
         <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
           {frames.filter((item) => item.category === "navidad").slice(0, 3).map((item) => (
             <Pressable key={item.id} onPress={() => router.push("/crear")} style={{ alignItems: "center", width: "32%" }}>
@@ -76,13 +89,13 @@ export default function Home() {
             </Pressable>
           ))}
         </View>
-        <Text style={section}>Los marcos</Text>
+        <Text style={section}>Marcos de fotos</Text>
         <Tier title="Básico" price="S/ 59" body="15×20 y el cuadrado 20×20. Patita de mesa, acrílico y envío incluido." />
         <Tier title="Muro" price="S/ 109" body="30×40 para colgar. Negro, blanco o madera." />
         <Tier title="Premium" price="S/ 129" body="Foto 15×20 dentro de un 30×40 con paspartú blanco." />
         <Card>
           <Text style={section}>Un muro, no un marco</Text>
-          <P style={centered}>Arma un trío, una cuadrícula o un mixto. El segundo marco va con 20% y desde el tercero el set baja 15%.</P>
+          <P style={centered}>Arma un trío, una cuadrícula o un mixto con cuadros con fotos. Es decoración con fotos para la casa. El segundo marco va con 20% y desde el tercero el set baja 15%.</P>
           <Button label="Armar mi muro" tone="ghost" onPress={() => router.push("/muro")} />
         </Card>
         {active.giftWrapFeatured ? (
@@ -108,7 +121,7 @@ export default function Home() {
         <Pressable onPress={() => router.push("/regalo")}>
           <Card>
             <Text style={section}>Tarjeta de regalo</Text>
-            <P style={centered}>Regala soles para un marco. Llega por correo.</P>
+            <P style={centered}>Regala soles para un marco. Llega por correo: un regalo sorpresa personalizado.</P>
           </Card>
         </Pressable>
         <Pressable accessibilityRole="link" accessibilityLabel="Haz clic aquí para rastrear tu pedido" onPress={() => router.push("/rastrear")} style={{ minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }}>

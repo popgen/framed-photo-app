@@ -1,4 +1,5 @@
 import { linkParts, type LegalDoc } from "./legal";
+import { headTags, pageForPath } from "./seo";
 
 function escapeHtml(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -21,13 +22,14 @@ export function legalHtml(doc: LegalDoc): string {
   const english = doc.englishTitle
     ? `<section lang="en"><h2>${escapeHtml(doc.englishTitle)}</h2>${(doc.englishParagraphs ?? []).map(paragraph).join("")}</section>`
     : "";
+  const page = pageForPath(doc.path);
+  if (!page) throw new Error(`Falta SEO para ${doc.path}`);
   return `<!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${escapeHtml(doc.titleTag)}</title>
-  <meta name="description" content="${escapeHtml(doc.title)} de Mi Fotito, Lima, Perú." />
+  ${headTags(page, { spa: false })}
   <style>
     body { margin: 0; background: #F6EFE6; color: #241714; font: 17px/1.5 Georgia, "Times New Roman", serif; }
     main { max-width: 40rem; margin: 0 auto; padding: 28px 20px 64px; }
