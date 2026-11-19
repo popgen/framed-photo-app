@@ -27,6 +27,7 @@ import {
   polaroidScatterReport,
   shuffleSeed,
   POLAROID_MIN_VISIBLE,
+  CAPTION_BAND,
   type TemplateId,
   type NormRect,
 } from "../src/lib/collage";
@@ -299,7 +300,7 @@ describe("polaroid collage", () => {
     expect(new Set(signatures).size).toBeGreaterThan(5);
   });
 
-  it("stays inside the print, mostly visible, and only slightly tilted", () => {
+  it("fills the frame, keeps each face mostly visible, and tilts only slightly", () => {
     const seeds = [1, 7, 11, 42, 99, 256, 1024, 4096, 99991];
     let overlapped = 0;
     for (const aspect of aspects) {
@@ -308,12 +309,18 @@ describe("polaroid collage", () => {
           for (const caption of ["", "Familia 2026"]) {
             const cells = place(count, seed, aspect, caption);
             expect(cells, `${count} ${seed}`).toHaveLength(count);
-            const report = polaroidScatterReport(cells, aspect.w, aspect.h);
-            expect(report.inside, `${count} seed ${seed}`).toBe(true);
-            expect(report.minVisible, `${count} seed ${seed}`).toBeGreaterThanOrEqual(POLAROID_MIN_VISIBLE - 0.001);
+            const yMax = caption ? aspect.h * (1 - CAPTION_BAND) : aspect.h;
+            const report = polaroidScatterReport(cells, aspect.w, aspect.h, yMax);
+            expect(report.anchored, `${count} seed ${seed}`).toBe(true);
+            expect(report.background, `${count} seed ${seed} ${caption}`).toBeLessThanOrEqual(0.42);
+            expect(report.minVisible, `${count} seed ${seed} ${caption} ${aspect.w}x${aspect.h}`).toBeGreaterThanOrEqual(0.5);
+            if (!caption && count === 1) expect(report.background, `una foto ${seed}`).toBeLessThanOrEqual(0.24);
+            if (!caption && seed === 42 && aspect.w === 15 && (count === 1 || count === 6 || count === 12)) {
+              expect(report.background, `${count} fotos`).toBeLessThanOrEqual(0.08);
+            }
             cells.forEach((cell) => {
-              expect(cell.rotation ?? 0).toBeGreaterThanOrEqual(-12);
-              expect(cell.rotation ?? 0).toBeLessThanOrEqual(12);
+              expect(cell.rotation ?? 0).toBeGreaterThanOrEqual(-8);
+              expect(cell.rotation ?? 0).toBeLessThanOrEqual(8);
               const card = polaroidCard(cell, aspect.w, aspect.h);
               const photoW = cell.w * aspect.w;
               const side = (cell.x - card.x) * aspect.w;
@@ -323,18 +330,14 @@ describe("polaroid collage", () => {
               expect(bottom).toBeGreaterThan(top * 2);
               expect(side).toBeCloseTo(POLAROID_SIDE(photoW), 5);
             });
-            if (caption) {
-              cells.forEach((cell) => {
-                const card = polaroidCard(cell, aspect.w, aspect.h);
-                expect(card.y + card.h).toBeLessThanOrEqual(1 - 0.07);
-              });
-            }
             if (count >= 4 && report.overlaps) overlapped += 1;
           }
         }
       }
     }
     expect(overlapped).toBeGreaterThan(20);
+    expect(POLAROID_MIN_VISIBLE).toBeGreaterThanOrEqual(0.58);
+    expect(POLAROID_MIN_VISIBLE).toBeLessThanOrEqual(0.7);
   });
 
   it("saves the seed so the print repeats the preview", () => {

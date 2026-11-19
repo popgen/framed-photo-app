@@ -509,8 +509,10 @@ function clamp(value: number, min: number, max: number): number {
 const POLAROID_SIDE = 0.065;
 const POLAROID_TOP = 0.07;
 const POLAROID_BOTTOM = 0.24;
-const POLAROID_MAX_TURN = 12;
-export const POLAROID_MIN_VISIBLE = 0.7;
+const POLAROID_MAX_TURN = 8;
+export const POLAROID_MIN_VISIBLE = 0.58;
+/** Share of the print that may still show the desk. */
+export const POLAROID_MAX_BACKGROUND = 0.15;
 /** Stable scatter for the empty preview and the layout card. */
 export const POLAROID_PREVIEW_SEED = 0x504f4c41;
 
@@ -540,7 +542,6 @@ export function shuffleSeed(seed: number): number {
 }
 
 type CmCard = { cx: number; cy: number; photoCm: number; rotation: number };
-type CmBounds = { x0: number; y0: number; x1: number; y1: number };
 
 function polaroidOuter(photoCm: number) {
   const side = POLAROID_SIDE * photoCm;
@@ -608,28 +609,6 @@ function cardCorners(card: CmCard): { x: number; y: number }[] {
   }));
 }
 
-function containCard(card: CmCard, bounds: CmBounds): CmCard {
-  const rel = cardCorners({ ...card, cx: 0, cy: 0 });
-  const minX = Math.min(...rel.map((point) => point.x));
-  const maxX = Math.max(...rel.map((point) => point.x));
-  const minY = Math.min(...rel.map((point) => point.y));
-  const maxY = Math.max(...rel.map((point) => point.y));
-  const loX = bounds.x0 - minX;
-  const hiX = bounds.x1 - maxX;
-  const loY = bounds.y0 - minY;
-  const hiY = bounds.y1 - maxY;
-  return {
-    ...card,
-    cx: clamp(card.cx, Math.min(loX, hiX), Math.max(loX, hiX)),
-    cy: clamp(card.cy, Math.min(loY, hiY), Math.max(loY, hiY)),
-  };
-}
-
-function fullyInside(card: CmCard, bounds: CmBounds): boolean {
-  const eps = 1e-3;
-  return cardCorners(card).every((point) => point.x >= bounds.x0 - eps && point.x <= bounds.x1 + eps && point.y >= bounds.y0 - eps && point.y <= bounds.y1 + eps);
-}
-
 function insideRotated(px: number, py: number, card: CmCard): boolean {
   const outer = polaroidOuter(card.photoCm);
   const rad = (-card.rotation * Math.PI) / 180;
@@ -673,10 +652,15 @@ function coverFraction(cards: CmCard[], index: number, other: number): number {
   return covered / samples.length;
 }
 
-function visibleFraction(cards: CmCard[], index: number): number {
+function onPrint(x: number, y: number, aspectW: number, yMax: number): boolean {
+  return x >= -1e-4 && y >= -1e-4 && x <= aspectW + 1e-4 && y <= yMax + 1e-4;
+}
+
+function visibleFraction(cards: CmCard[], index: number, aspectW: number, yMax: number): number {
   const samples = photoSamples(cards[index]);
   let free = 0;
   for (const point of samples) {
+    if (!onPrint(point.x, point.y, aspectW, yMax)) continue;
     let covered = false;
     for (let other = index + 1; other < cards.length; other += 1) {
       if (insideRotated(point.x, point.y, cards[other])) {
@@ -689,71 +673,104 @@ function visibleFraction(cards: CmCard[], index: number): number {
   return free / samples.length;
 }
 
-function maxPhotoInBox(boxW: number, boxH: number, deg: number): number {
-  let lo = 0;
-  let hi = Math.max(boxW, boxH);
-  for (let step = 0; step < 28; step += 1) {
-    const mid = (lo + hi) / 2;
-    const outer = polaroidOuter(mid);
-    const rad = (Math.abs(deg) * Math.PI) / 180;
-    const c = Math.abs(Math.cos(rad));
-    const s = Math.abs(Math.sin(rad));
-    const aabbW = outer.cardW * c + outer.cardH * s;
-    const aabbH = outer.cardW * s + outer.cardH * c;
-    if (aabbW <= boxW && aabbH <= boxH) lo = mid;
-    else hi = mid;
-  }
-  return lo;
-}
-
-function gridFor(count: number, usableW: number, usableH: number) {
-  const target = 0.85;
-  let cols = 1;
-  let best = Infinity;
-  for (let next = 1; next <= count; next += 1) {
-    const rows = Math.ceil(count / next);
-    const ratio = usableW / next / (usableH / rows);
-    const score = Math.abs(Math.log(ratio / target));
-    if (score < best) {
-      best = score;
-      cols = next;
+function deskFraction(cards: CmCard[], aspectW: number, yMax: number): number {
+  const cols = 28;
+  const rows = 36;
+  let open = 0;
+  for (let row = 0; row < rows; row += 1) {
+    for (let col = 0; col < cols; col += 1) {
+      const x = ((col + 0.5) / cols) * aspectW;
+      const y = ((row + 0.5) / rows) * yMax;
+      let hit = false;
+      for (const card of cards) {
+        if (insideRotated(x, y, card)) {
+          hit = true;
+          break;
+        }
+      }
+      if (!hit) open += 1;
     }
   }
-  return { cols, rows: Math.ceil(count / cols) };
+  return open / (cols * rows);
 }
 
-function relaxCards(cards: CmCard[], bounds: CmBounds, maxCover: number): CmCard[] | null {
-  const next = cards.map((card) => ({ ...card }));
-  for (let iter = 0; iter < 40; iter += 1) {
+function clampBleed(card: CmCard, aspectW: number, yMax: number): CmCard {
+  const outer = polaroidOuter(card.photoCm);
+  const insetX = Math.min(aspectW * 0.2, outer.cardW * 0.32);
+  const insetY = Math.min(yMax * 0.2, outer.cardH * 0.32);
+  return {
+    ...card,
+    cx: clamp(card.cx, insetX, Math.max(insetX, aspectW - insetX)),
+    cy: clamp(card.cy, insetY, Math.max(insetY, yMax - insetY)),
+  };
+}
+
+function clearCaption(card: CmCard, yMax: number): CmCard {
+  const lowest = Math.max(...cardCorners(card).map((point) => point.y));
+  if (lowest <= yMax) return card;
+  return { ...card, cy: card.cy - (lowest - yMax) };
+}
+
+function relaxCards(cards: CmCard[], aspectW: number, yMax: number): CmCard[] {
+  const next = cards.map((card) => clearCaption(clampBleed(card, aspectW, yMax), yMax));
+  for (let iter = 0; iter < 24; iter += 1) {
     let moved = false;
     for (let index = 0; index < next.length; index += 1) {
-      const covered = 1 - visibleFraction(next, index);
-      if (covered <= maxCover + 1e-6) continue;
+      if (visibleFraction(next, index, aspectW, yMax) >= POLAROID_MIN_VISIBLE) continue;
       for (let other = index + 1; other < next.length; other += 1) {
         const pair = coverFraction(next, index, other);
-        if (pair <= 0.02) continue;
-        const step = Math.min(next[index].photoCm, next[other].photoCm) * (0.035 + pair * 0.1);
+        if (pair < 0.12) continue;
+        const step = Math.min(next[index].photoCm, next[other].photoCm) * 0.045;
         let vx = next[other].cx - next[index].cx;
         let vy = next[other].cy - next[index].cy;
         const dist = Math.hypot(vx, vy);
         if (dist < 0.05) {
           vx = index % 2 === 0 ? 1 : -1;
-          vy = 0.45;
+          vy = 0.35;
         } else {
           vx /= dist;
           vy /= dist;
         }
-        next[other] = containCard({ ...next[other], cx: next[other].cx + vx * step, cy: next[other].cy + vy * step }, bounds);
+        next[other] = clearCaption(
+          clampBleed({ ...next[other], cx: next[other].cx + vx * step, cy: next[other].cy + vy * step }, aspectW, yMax),
+          yMax,
+        );
         moved = true;
       }
     }
     if (!moved) break;
   }
-  if (next.some((card) => !fullyInside(card, bounds))) return null;
-  for (let index = 0; index < next.length; index += 1) {
-    if (visibleFraction(next, index) < POLAROID_MIN_VISIBLE - 1e-6) return null;
-  }
   return next;
+}
+
+function rowCountsFor(count: number, cols: number): number[] {
+  const rows = Math.ceil(count / cols);
+  const counts: number[] = [];
+  let remaining = count;
+  for (let row = 0; row < rows; row += 1) {
+    const take = Math.min(cols, remaining);
+    counts.push(take);
+    remaining -= take;
+  }
+  return counts;
+}
+
+function bestColumnCount(count: number, aspectW: number, yMax: number): number {
+  const cardAspect = (1 + POLAROID_SIDE * 2) / (1 + POLAROID_TOP + POLAROID_BOTTOM);
+  let cols = 1;
+  let best = Infinity;
+  for (let next = 1; next <= count; next += 1) {
+    const rows = Math.ceil(count / next);
+    const ratio = aspectW / next / (yMax / rows);
+    const last = count - (rows - 1) * next;
+    const uneven = last === next ? 0 : 0.35;
+    const score = Math.abs(Math.log(ratio / cardAspect)) + uneven;
+    if (score < best) {
+      best = score;
+      cols = next;
+    }
+  }
+  return cols;
 }
 
 function polaroidCells(input: {
@@ -766,84 +783,60 @@ function polaroidCells(input: {
 }): NormRect[] {
   const rng = mulberry32(input.seed ?? POLAROID_PREVIEW_SEED);
   const gap = SPACING_OPTIONS.find((item) => item.id === input.spacing)?.amount ?? 0;
-  const short = Math.min(input.aspectW, input.aspectH);
-  const margin = short * (0.045 + gap);
   const caption = input.caption.trim().length > 0;
-  const bounds: CmBounds = {
-    x0: margin,
-    y0: margin,
-    x1: input.aspectW - margin,
-    y1: caption ? input.aspectH * (1 - CAPTION_BAND) - short * 0.012 : input.aspectH - margin,
-  };
-  const usableW = Math.max(0.2, bounds.x1 - bounds.x0);
-  const usableH = Math.max(0.2, bounds.y1 - bounds.y0);
-  const { cols, rows } = gridFor(input.count, usableW, usableH);
-  const cellW = usableW / cols;
-  const cellH = usableH / rows;
+  const yMax = caption ? input.aspectH * (1 - CAPTION_BAND) : input.aspectH;
+  const cols = bestColumnCount(input.count, input.aspectW, yMax);
+  const rowCounts = rowCountsFor(input.count, cols);
+  const rows = rowCounts.length;
+  const cellW = input.aspectW / cols;
+  const cellH = yMax / rows;
+  const cardAspect = (1 + POLAROID_SIDE * 2) / (1 + POLAROID_TOP + POLAROID_BOTTOM);
+  const overlap = input.count <= 2 ? 1.05 : input.count === 3 ? 1.36 : input.count <= 8 ? 1.2 : 1.22;
+  const photoCm = (input.count === 1
+    ? Math.min(input.aspectW, yMax) * 1.05
+    : overlap * Math.sqrt((cellW * cellH) / cardAspect) / (1 + POLAROID_TOP + POLAROID_BOTTOM)) * (1 - gap * 0.15);
   const anchors: { x: number; y: number }[] = [];
-  for (let index = 0; index < input.count; index += 1) {
-    const row = Math.floor(index / cols);
-    const col = index % cols;
-    const colsThis = Math.min(cols, input.count - row * cols);
-    const rowOffset = ((cols - colsThis) * cellW) / 2;
-    anchors.push({
-      x: bounds.x0 + rowOffset + (col + 0.5) * cellW,
-      y: bounds.y0 + (row + 0.5) * cellH,
-    });
-  }
-  const order = shuffled(anchors.map((_, index) => index), rng);
-  const seats = order.map((index) => anchors[index]);
-  const maxCover = 0.06 + rng() * 0.24;
-  const jitter = 0.55 + rng() * 0.85;
-  const spins = seats.map(() => (rng() * 2 - 1) * POLAROID_MAX_TURN);
-  const nudgeX = seats.map(() => rng() * 2 - 1);
-  const nudgeY = seats.map(() => rng() * 2 - 1);
-  const fitted = maxPhotoInBox(cellW * 0.98, cellH * 0.98, POLAROID_MAX_TURN);
-  const alone = input.count === 1;
-  let desired = fitted * (alone ? 0.9 + rng() * 0.08 : 1.02 + rng() * 0.48);
-  const scatter = alone ? 0.06 : 0.32 * jitter;
-
-  const finish = (cards: CmCard[]) => cards.map((card) => cellFromCard(card, input.aspectW, input.aspectH));
-  for (let attempt = 0; attempt < 18; attempt += 1) {
-    const photoCm = Math.max(short * 0.11, desired);
-    const cards = seats.map((seat, index) =>
-      containCard(
-        {
-          cx: seat.x + nudgeX[index] * cellW * scatter,
-          cy: seat.y + nudgeY[index] * cellH * scatter,
-          photoCm,
-          rotation: spins[index],
-        },
-        bounds,
-      ),
-    );
-    const settled = relaxCards(cards, bounds, maxCover);
-    if (settled) return finish(settled);
-    desired *= 0.9;
-  }
-
-  const safe = maxPhotoInBox(cellW * 0.92, cellH * 0.92, POLAROID_MAX_TURN) * 0.98;
-  return finish(
-    seats.map((seat, index) =>
-      containCard(
-        {
-          cx: seat.x + nudgeX[index] * cellW * 0.05,
-          cy: seat.y + nudgeY[index] * cellH * 0.05,
-          photoCm: safe,
-          rotation: spins[index],
-        },
-        bounds,
-      ),
-    ),
+  rowCounts.forEach((countInRow, row) => {
+    const span = input.aspectW / countInRow;
+    for (let col = 0; col < countInRow; col += 1) {
+      anchors.push({ x: (col + 0.5) * span, y: input.count === 1 ? yMax * 0.58 : (row + 0.5) * cellH });
+    }
+  });
+  const seats = shuffled(anchors.map((_, index) => index), rng).map((index) => anchors[index]);
+  const jitter = input.count === 1 ? 0.012 : 0.035 + rng() * 0.03;
+  let cards = relaxCards(
+    seats.map((seat, index) => ({
+      cx: seat.x + (rng() * 2 - 1) * cellW * jitter,
+      cy: seat.y + (rng() * 2 - 1) * cellH * jitter,
+      photoCm,
+      rotation: (rng() * 2 - 1) * POLAROID_MAX_TURN,
+    })),
+    input.aspectW,
+    yMax,
   );
+  if (input.count === 1 && cards[0]) {
+    let card = { ...cards[0], cx: input.aspectW / 2, cy: yMax / 2 };
+    for (let step = 0; step < 8; step += 1) {
+      if (deskFraction([card], input.aspectW, yMax) <= 0.05) break;
+      const bigger = { ...card, photoCm: card.photoCm * 1.05 };
+      if (visibleFraction([bigger], 0, input.aspectW, yMax) < 0.62) break;
+      card = bigger;
+    }
+    cards = [clearCaption(card, yMax)];
+  }
+  for (let round = 0; round < 8; round += 1) {
+    const visible = cards.reduce((min, _, index) => Math.min(min, visibleFraction(cards, index, input.aspectW, yMax)), 1);
+    if (visible >= POLAROID_MIN_VISIBLE) break;
+    cards = relaxCards(cards.map((card) => ({ ...card, photoCm: card.photoCm * 0.9 })), input.aspectW, yMax);
+  }
+  return cards.map((card) => cellFromCard(card, input.aspectW, input.aspectH));
 }
 
-export function polaroidScatterReport(cells: NormRect[], aspectW: number, aspectH: number) {
+export function polaroidScatterReport(cells: NormRect[], aspectW: number, aspectH: number, yMax = aspectH) {
   const cards = cells.map((cell) => cardFromCell(cell, aspectW, aspectH));
-  const sheet: CmBounds = { x0: 0, y0: 0, x1: aspectW, y1: aspectH };
   let minVisible = cards.length ? 1 : 0;
   cards.forEach((_, index) => {
-    minVisible = Math.min(minVisible, visibleFraction(cards, index));
+    minVisible = Math.min(minVisible, visibleFraction(cards, index, aspectW, yMax));
   });
   let overlaps = false;
   for (let index = 0; index < cards.length; index += 1) {
@@ -851,9 +844,11 @@ export function polaroidScatterReport(cells: NormRect[], aspectW: number, aspect
       if (coverFraction(cards, index, other) > 0.03) overlaps = true;
     }
   }
+  const pad = Math.min(aspectW, yMax) * 0.12;
   return {
     minVisible,
-    inside: cards.every((card) => fullyInside(card, sheet)),
+    background: deskFraction(cards, aspectW, yMax),
     overlaps,
+    anchored: cards.every((card) => card.cx >= -pad && card.cx <= aspectW + pad && card.cy >= -pad && card.cy <= yMax + pad),
   };
 }
