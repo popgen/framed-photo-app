@@ -377,6 +377,7 @@ function buildOrder(state: DB, input: CheckoutInput, phone: string, status: Orde
     province: input.province.trim(),
     recipientName: input.recipientName?.trim() || null,
     recipientPhone: input.recipientPhone ? normalizePhone(input.recipientPhone) : null,
+    isGift: note.isGift,
     giftNote: note.note?.message ?? null,
     giftNoteTo: note.note?.to ?? null,
     giftNoteMessage: note.note?.message ?? null,

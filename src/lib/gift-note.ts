@@ -14,16 +14,14 @@ export type GiftNote = {
   hidePrices: boolean;
 };
 
-export function giftNoteEnabled(input: Pick<CheckoutInput, "giftPrinted" | "giftNote" | "giftNoteMessage">): boolean {
-  if (input.giftPrinted === true) return true;
-  if (input.giftPrinted === false) return false;
-  return Boolean(String(input.giftNoteMessage || input.giftNote || "").trim());
-}
-
-export function giftNoteFromCheckout(input: Pick<CheckoutInput, "giftPrinted" | "giftNote" | "giftNoteTo" | "giftNoteMessage" | "giftNoteFrom" | "hidePrices" | "customerName">): { ok: true; note: GiftNote | null } | { ok: false; error: string } {
-  if (!giftNoteEnabled(input)) return { ok: true, note: null };
+export function giftNoteFromCheckout(input: Pick<CheckoutInput, "isGift" | "giftPrinted" | "giftNote" | "giftNoteTo" | "giftNoteMessage" | "giftNoteFrom" | "hidePrices" | "customerName">): { ok: true; isGift: boolean; note: GiftNote | null } | { ok: false; error: string } {
+  const flagged = input.isGift === true || input.giftPrinted === true;
+  const explicitOff = input.isGift === false || input.giftPrinted === false;
+  const legacy = !flagged && !explicitOff && Boolean(String(input.giftNoteMessage || input.giftNote || "").trim());
+  const isGift = flagged || legacy;
+  if (!isGift) return { ok: true, isGift: false, note: null };
   const message = normalizeMessage(input.giftNoteMessage ?? input.giftNote);
-  if (!message) return { ok: false, error: "Escribe el mensaje de la nota impresa." };
+  if (!message) return { ok: true, isGift: true, note: null };
   if (message.length > GIFT_NOTE_MESSAGE_MAX) return { ok: false, error: "La nota impresa admite hasta 250 caracteres." };
   const to = normalizeName(input.giftNoteTo);
   const fromRaw = normalizeName(input.giftNoteFrom);
@@ -33,6 +31,7 @@ export function giftNoteFromCheckout(input: Pick<CheckoutInput, "giftPrinted" | 
   const buyer = normalizeName(input.customerName).slice(0, GIFT_NOTE_NAME_MAX);
   return {
     ok: true,
+    isGift: true,
     note: {
       to: to || null,
       message,
@@ -84,11 +83,25 @@ export function readStoredGiftNote(row: {
   return { to: null, message: plain.slice(0, GIFT_NOTE_MESSAGE_MAX), from: null, hidePrices: false };
 }
 
-export function giftNoteJson(note: GiftNote): string {
-  return JSON.stringify({ to: note.to, message: note.message, from: note.from, hidePrices: note.hidePrices });
+export function giftNoteJson(note: GiftNote | null, isGift = false): string {
+  return JSON.stringify({ isGift, to: note?.to ?? null, message: note?.message ?? null, from: note?.from ?? null, hidePrices: Boolean(note?.hidePrices) });
 }
 
-export function giftNoteDocument(note: { to?: string | null; message: string; from?: string | null }): string {
+export function readStoredIsGift(row: { is_gift?: unknown; gift_note?: unknown; gift_note_message?: unknown }): boolean {
+  if (typeof row.is_gift === "boolean") return row.is_gift;
+  const raw = typeof row.gift_note === "string" ? row.gift_note.trim() : "";
+  if (raw.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(raw) as { isGift?: unknown };
+      if (typeof parsed.isGift === "boolean") return parsed.isGift;
+    } catch {
+      // A plain note can start with a brace.
+    }
+  }
+  return false;
+}
+
+export function giftNoteDocument(note: { to?: string | null; message: string; from?: string | null; isGift?: boolean }): string {
   const to = note.to ? `<p class="to">Para ${escapeHtml(note.to)}</p>` : "";
   const from = note.from ? `<p class="from">De ${escapeHtml(note.from)}</p>` : "";
   const message = escapeHtml(note.message).replace(/\n/g, "<br>");
@@ -107,6 +120,7 @@ export function giftNoteDocument(note: { to?: string | null; message: string; fr
     display: flex; flex-direction: column; font-family: Georgia, "Iowan Old Style", Palatino, serif;
   }
   .brand { font-family: "Gill Sans", "Trebuchet MS", sans-serif; letter-spacing: 0.22em; font-size: 11px; color: #8c2429; }
+  .gift { margin: 8mm 0 0; font-size: 14px; letter-spacing: 0.14em; text-transform: uppercase; }
   .to { margin: 14mm 0 0; font-size: 16px; }
   .message { margin: 8mm 0; font-size: 22px; line-height: 1.35; flex: 1; }
   .from { margin: 0; text-align: right; font-size: 16px; }
@@ -121,6 +135,7 @@ export function giftNoteDocument(note: { to?: string | null; message: string; fr
   <p class="hint">Tarjeta A6 (10,5 × 14,8 cm). Corta por la línea punteada.</p>
   <article class="sheet">
     <div class="brand">MI FOTITO</div>
+    ${note.isGift ? "<p class=\"gift\">Regalo</p>" : ""}
     ${to}
     <p class="message">${message}</p>
     ${from}
@@ -130,7 +145,7 @@ export function giftNoteDocument(note: { to?: string | null; message: string; fr
 </html>`;
 }
 
-export function openGiftNotePrint(note: { to?: string | null; message: string; from?: string | null }): void {
+export function openGiftNotePrint(note: { to?: string | null; message: string; from?: string | null; isGift?: boolean }): void {
   if (typeof window === "undefined") return;
   const blob = new Blob([giftNoteDocument(note)], { type: "text/html;charset=utf-8" });
   const url = URL.createObjectURL(blob);

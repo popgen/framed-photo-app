@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { giftNoteDocument, giftNoteFromCheckout, readStoredGiftNote } from "../src/lib/gift-note";
+import { mapOrderRow } from "../src/lib/db-map";
+import { giftNoteDocument, giftNoteFromCheckout, readStoredGiftNote, readStoredIsGift } from "../src/lib/gift-note";
 import { quote } from "../src/lib/pricing";
 import { signUpCustomer } from "../src/lib/customer-auth";
 import { createLocalRepo } from "../src/lib/repo-local";
@@ -55,11 +56,9 @@ describe("printed gift note", () => {
     expect(priced.totalCents).toBe(6900);
   });
 
-  it("rejects a message over 250 characters and a blank note", () => {
+  it("rejects a message over 250 characters and keeps a gift without a note", () => {
     expect(giftNoteFromCheckout(draft({ giftNoteMessage: "a".repeat(251) })).ok).toBe(false);
-    const blank = giftNoteFromCheckout(draft({ giftNoteMessage: "   " }));
-    expect(blank.ok).toBe(false);
-    if (!blank.ok) expect(blank.error).toMatch(/mensaje/);
+    expect(giftNoteFromCheckout(draft({ giftNoteMessage: "   " }))).toEqual({ ok: true, isGift: true, note: null });
   });
 
   it("defaults De to the buyer and ignores the note when it is off", () => {
@@ -71,7 +70,8 @@ describe("printed gift note", () => {
       expect(on.note.hidePrices).toBe(true);
     }
     const off = giftNoteFromCheckout(draft({ giftPrinted: false, giftNoteMessage: "a".repeat(400) }));
-    expect(off).toEqual({ ok: true, note: null });
+    expect(off).toEqual({ ok: true, isGift: false, note: null });
+    if (on.ok) expect(on.isGift).toBe(true);
   });
 
   it("reads columns and the JSON fallback stored before the migration", () => {
@@ -83,6 +83,12 @@ describe("printed gift note", () => {
     });
     expect(readStoredGiftNote({ gift_note: JSON.stringify({ to: "Teo", message: "Feliz día", from: "Ana", hidePrices: true }) })?.hidePrices).toBe(true);
     expect(readStoredGiftNote({ gift_note: "Un recado" })?.message).toBe("Un recado");
+    expect(readStoredIsGift({ is_gift: true })).toBe(true);
+    expect(readStoredIsGift({ gift_note: JSON.stringify({ isGift: true, message: null }) })).toBe(true);
+    expect(readStoredIsGift({ is_gift: false, gift_note: JSON.stringify({ isGift: true }) })).toBe(false);
+    const mapped = mapOrderRow({ is_gift: true, gift_note_to: "Lucía", gift_note_message: "Hola", gift_note_from: "Ana", order_items: [] });
+    expect(mapped.isGift).toBe(true);
+    expect(mapped.giftNoteMessage).toBe("Hola");
   });
 
   it("escapes the printable card and keeps it at A6", () => {
@@ -93,6 +99,7 @@ describe("printed gift note", () => {
     expect(html).toContain("Ana &amp; Leo");
     expect(html).not.toContain("<Lucía>");
     expect(html).not.toContain("Hola\n<script>");
+    expect(giftNoteDocument({ message: "Hola", isGift: true })).toContain("Regalo");
   });
 
   it("persists the note on a local order without dropping gift wrap", async () => {
@@ -100,6 +107,7 @@ describe("printed gift note", () => {
     await repo.init();
     await signUpCustomer("ana@ejemplo.com", "clave1234");
     const order = await repo.placeOrder(draft());
+    expect(order.isGift).toBe(true);
     expect(order.giftNoteMessage).toBe("Con mucho cariño");
     expect(order.giftNoteFrom).toBe("Ana Quispe");
     expect(order.hidePrices).toBe(true);
@@ -115,6 +123,7 @@ describe("printed gift note", () => {
     expect(bad.error).toMatch(/250/);
     const good = evaluateOrder(draft(), { promos: [], stock: {}, enforceStock: false });
     expect(good.error).toBeUndefined();
+    expect(good.isGift).toBe(true);
     expect(good.giftNote?.message).toBe("Con mucho cariño");
     expect(good.priced?.giftWrapCents).toBe(1000);
     expect(good.priced?.giftNoteCents).toBe(0);

@@ -50,6 +50,7 @@ export default function AdminOrder() {
       <Text style={{ fontFamily: font.body, color: colors.ink }}>{order.taxIdSkipped || !order.taxId ? "Sin DNI/RUC" : `${order.taxIdType} ${order.taxId}`}</Text>
       <Text style={{ fontFamily: font.body, color: colors.muted }}>{order.phone} · {order.email}</Text>
       <Text style={{ fontFamily: font.body, color: colors.muted }}>{order.christmasNote}</Text>
+      {order.isGift ? <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Regalo</Text> : null}
       {order.giftNoteMessage ? (
         <View style={{ gap: 8 }}>
           <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Nota impresa</Text>
@@ -58,7 +59,7 @@ export default function AdminOrder() {
           <Pressable onPress={() => router.push(`/admin/nota/${order.id}`)} style={chip(false)}>
             <Text style={chipText(false)}>Ver nota</Text>
           </Pressable>
-          <Pressable onPress={() => openGiftNotePrint({ to: order.giftNoteTo, message: order.giftNoteMessage || "", from: order.giftNoteFrom })} style={chip(true)}>
+          <Pressable onPress={() => openGiftNotePrint({ to: order.giftNoteTo, message: order.giftNoteMessage || "", from: order.giftNoteFrom, isGift: order.isGift })} style={chip(true)}>
             <Text style={chipText(true)}>Imprimir nota</Text>
           </Pressable>
         </View>

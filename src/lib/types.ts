@@ -64,6 +64,7 @@ export type Order = {
   taxIdSkipped?: boolean;
   recipientName?: string | null;
   recipientPhone?: string | null;
+  isGift?: boolean;
   giftNote?: string | null;
   giftNoteTo?: string | null;
   giftNoteMessage?: string | null;
@@ -214,6 +215,7 @@ export type CheckoutInput = {
   province: string;
   recipientName?: string;
   recipientPhone?: string;
+  isGift?: boolean;
   giftNote?: string;
   giftPrinted?: boolean;
   giftNoteTo?: string;

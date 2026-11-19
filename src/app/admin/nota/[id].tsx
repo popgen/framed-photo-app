@@ -20,12 +20,12 @@ export default function PrintableGiftNote() {
   return (
     <View style={{ padding: 16, gap: 16, backgroundColor: "#EFE6DC", minHeight: "100%" }}>
       <BackButton fallback={`/admin/pedido/${order.id}`} />
-      <Text style={{ fontFamily: font.display, fontSize: 28, color: colors.ink }}>Nota de {order.number}</Text>
+      <Text style={{ fontFamily: font.display, fontSize: 28, color: colors.ink }}>{order.isGift ? "Regalo · " : ""}Nota de {order.number}</Text>
       <Text style={{ fontFamily: font.body, color: colors.muted }}>Tarjeta A6, 10,5 × 14,8 cm. Corta por la línea punteada.</Text>
       {order.hidePrices ? <Text style={{ fontFamily: font.semibold, color: colors.ink }}>No incluir precios en la caja.</Text> : null}
       <GiftNoteCard to={order.giftNoteTo} message={order.giftNoteMessage} from={order.giftNoteFrom} />
       <Pressable
-        onPress={() => openGiftNotePrint({ to: order.giftNoteTo, message: order.giftNoteMessage || "", from: order.giftNoteFrom })}
+        onPress={() => openGiftNotePrint({ to: order.giftNoteTo, message: order.giftNoteMessage || "", from: order.giftNoteFrom, isGift: order.isGift })}
         style={{ minHeight: 52, borderRadius: 16, backgroundColor: colors.ink, alignItems: "center", justifyContent: "center" }}
       >
         <Text style={{ fontFamily: font.semibold, color: "white" }}>Imprimir nota</Text>

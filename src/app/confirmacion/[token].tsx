@@ -47,6 +47,7 @@ export default function Confirmacion() {
         <Text style={{ fontFamily: font.semibold, color: colors.ink, textAlign: "center" }}>{formatSoles(order.totalCents)}</Text>
         <Text style={{ fontFamily: font.medium, color: colors.muted, textAlign: "center" }}>Guarda este número. Para ver el pedido después, entra con tu celular.</Text>
         <Text style={{ fontFamily: font.body, color: colors.muted, textAlign: "center" }}>{order.etaLabel}. {order.christmasNote}</Text>
+        {order.isGift ? <Text style={{ fontFamily: font.semibold, color: colors.ink, textAlign: "center" }}>Regalo</Text> : null}
         {order.giftNoteMessage ? (
           <View style={{ gap: 8 }}>
             <Text style={{ fontFamily: font.semibold, color: colors.ink, textAlign: "center" }}>Nota impresa en la caja</Text>

@@ -94,5 +94,6 @@ export function evaluateOrder(input: CheckoutInput, ctx: { promos: Promo[]; stoc
     etaMax: eta.max,
     etaLabel: eta.label,
     giftNote: parsedNote.note,
+    isGift: parsedNote.isGift,
   };
 }

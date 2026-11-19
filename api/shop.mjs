@@ -468,6 +468,7 @@ async function createOrder(req, res) {
       email: req.body.email || null,
       recipient_name: req.body.recipientName || null,
       recipient_phone: normalizePhone(req.body.recipientPhone || "") || null,
+      is_gift: Boolean(evaluated.isGift),
       gift_note: note?.message || null,
       gift_note_to: note?.to || null,
       gift_note_message: note?.message || null,
@@ -511,8 +512,9 @@ async function createOrder(req, res) {
       updated_at: now,
   };
   let { data: inserted, error } = await supabase.from("orders").insert(orderRow).select("id, public_token").single();
-  if (error && /gift_note_to|gift_note_message|gift_note_from|hide_prices|gift_note_cents/i.test(error.message || "")) {
-    const legacy = { ...orderRow, gift_note: note ? giftNoteJson(note) : null };
+  if (error && /gift_note_to|gift_note_message|gift_note_from|hide_prices|gift_note_cents|is_gift/i.test(error.message || "")) {
+    const legacy = { ...orderRow, gift_note: evaluated.isGift || note ? giftNoteJson(note, Boolean(evaluated.isGift)) : null };
+    delete legacy.is_gift;
     delete legacy.gift_note_to;
     delete legacy.gift_note_message;
     delete legacy.gift_note_from;

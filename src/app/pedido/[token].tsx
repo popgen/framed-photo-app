@@ -42,6 +42,7 @@ export default function Pedido() {
             {order.channel === "whatsapp" ? <Banner tone="good" text="Te escribimos por correo sobre este pedido." /> : null}
             <Text style={{ fontFamily: font.body, color: colors.muted }}>{order.etaLabel}</Text>
             <Text style={{ fontFamily: font.body, color: colors.ink }}>{order.christmasNote}</Text>
+            {order.isGift ? <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Regalo</Text> : null}
             {order.giftNoteMessage ? (
               <View style={{ gap: 8 }}>
                 <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Nota impresa</Text>

@@ -101,11 +101,12 @@ export function GiftNoteEditor({
         }
         style={{ minHeight: 52, justifyContent: "center", backgroundColor: printed ? "#E7F6EE" : colors.white, borderRadius: 16, padding: 12, gap: 4 }}
       >
-        <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{printed ? "☑" : "☐"} ¿Es un regalo? Agrega una nota impresa</Text>
-        <Text style={{ fontFamily: font.body, color: colors.muted }}>{price}. Va en la caja de marcos, tarjetas y cualquier pedido.</Text>
+        <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{printed ? "☑" : "☐"} Es un regalo 🎁</Text>
+        <Text style={{ fontFamily: font.body, color: colors.muted }}>{price}. Si lo enciendes, puedes agregar una nota impresa para la caja.</Text>
       </Pressable>
       {printed ? (
         <View style={{ gap: 12 }}>
+          <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Nota de regalo impresa</Text>
           <Labeled label="Para (opcional)" value={to} maxLength={GIFT_NOTE_NAME_MAX} testID="gift-note-to" onChangeText={(value) => onChange({ printed, to: value, message, fromName, hidePrices })} />
           <View style={{ gap: 6 }}>
             <Text style={{ fontFamily: font.medium, color: colors.muted, fontSize: 13 }}>Mensaje</Text>

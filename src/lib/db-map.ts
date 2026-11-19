@@ -1,11 +1,12 @@
 import { frames as catalogFrames } from "./catalog";
-import { readStoredGiftNote } from "./gift-note";
+import { readStoredGiftNote, readStoredIsGift } from "./gift-note";
 import { framesAvailable } from "./inventory";
 import type { CustomerProfile, FrameOffer, GiftCard, InventoryItem, Order, OrderItem, Promo, SavedAddress } from "./types";
 
 function mappedGiftNote(row: Record<string, any>) {
   const note = readStoredGiftNote(row);
   return {
+    isGift: readStoredIsGift(row),
     giftNote: note?.message ?? null,
     giftNoteTo: note?.to ?? null,
     giftNoteMessage: note?.message ?? null,
