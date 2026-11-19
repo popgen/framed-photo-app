@@ -13,6 +13,9 @@ export function TextStyleEditor({
   presets = textPresets,
   collapsible = false,
   placeholder,
+  open: openProp,
+  onToggle,
+  headerId,
 }: {
   label: string;
   value: TextOverlay | null;
@@ -22,22 +25,28 @@ export function TextStyleEditor({
   presets?: string[];
   collapsible?: boolean;
   placeholder?: string;
+  open?: boolean;
+  onToggle?: () => void;
+  headerId?: string;
 }) {
   const userToggled = useRef(false);
-  const [open, setOpen] = useState(() => Boolean(collapsible && value?.text));
+  const controlled = onToggle != null;
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(() => Boolean(collapsible && value?.text));
   const [inputHeight, setInputHeight] = useState(96);
   const current = value ?? emptyOverlay();
+  const open = controlled ? Boolean(openProp) : uncontrolledOpen;
   useEffect(() => {
-    if (!collapsible || userToggled.current || !value?.text) return;
-    setOpen(true);
-  }, [collapsible, value?.text]);
+    if (controlled || !collapsible || userToggled.current || !value?.text) return;
+    setUncontrolledOpen(true);
+  }, [collapsible, controlled, value?.text]);
   function update(partial: Partial<TextOverlay>) {
     const next = placeOverlay({ ...current, ...partial }, false, multiline);
     onChange(next.text ? { ...next, text: [...next.text].slice(0, maxChars).join("") } : null);
   }
   function toggle() {
     userToggled.current = true;
-    setOpen((valueOpen) => !valueOpen);
+    if (onToggle) onToggle();
+    else setUncontrolledOpen((valueOpen) => !valueOpen);
   }
   const controls = (
     <View style={{ gap: 8 }}>
@@ -108,7 +117,7 @@ export function TextStyleEditor({
   );
   if (!collapsible) return controls;
   return (
-    <Collapsible title="Agrega texto a tu foto" open={open} onToggle={toggle}>
+    <Collapsible title="Agrega texto a tu foto" headerId={headerId} open={open} onToggle={toggle}>
       {controls}
     </Collapsible>
   );

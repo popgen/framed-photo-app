@@ -5,7 +5,8 @@
 //
 // Outputs, all overwritten in place:
 //   assets/                     Expo app icon, splash, favicon, Android adaptive layers
-//   public/icons/               PWA icons (any + maskable) and the iOS home-screen icon
+//   public/icons/               PWA icons, favicon pngs and the iOS home-screen icon
+//   public/favicon.ico          16, 32 and 48, from the Android launcher composite
 //   android-twa/.../mipmap-*/   Android launcher icons at every density
 //   android-twa/play-assets/    Play Console listing graphics
 //
@@ -13,7 +14,7 @@
 // densities, and each has its own safe zone. Hand-exporting them drifts.
 
 import sharp from "sharp";
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 
 const MASTER = "assets/logo-mark.png";
 
@@ -85,20 +86,66 @@ const mono = await monoArt();
 // ---- Expo / app assets ------------------------------------------------------
 await sharp(await square(art, 1024, 0.82, CREAM_RGB)).toFile("assets/icon.png");
 await sharp(await square(art, 1024, 0.78)).toFile("assets/splash-icon.png");
-await sharp(await square(art, 96, 0.9, CREAM_RGB)).toFile("assets/favicon.png");
 await sharp(await square(art, 512, 0.667)).toFile("assets/android-icon-foreground.png");
 await sharp(await square(mono, 432, 0.667)).toFile("assets/android-icon-monochrome.png");
 await sharp({ create: { width: 512, height: 512, channels: 4, background: CREAM_RGB } })
   .png()
   .toFile("assets/android-icon-background.png");
 
-// ---- PWA icons --------------------------------------------------------------
-await mkdir("public/icons", { recursive: true });
-for (const size of [192, 512]) {
-  await sharp(await square(art, size, 0.84, CREAM_RGB)).toFile(`public/icons/icon-${size}.png`);
-  await sharp(await square(art, size, 0.64, CREAM_RGB)).toFile(`public/icons/maskable-${size}.png`);
+// Web icons match the Android launcher: the adaptive foreground stacked on the
+// adaptive background, which is the square Android shows (the OEM mask only
+// clips cream corners). Sized down from that composite.
+async function androidLauncher(size) {
+  const background = await sharp("assets/android-icon-background.png").resize(size, size).png().toBuffer();
+  const foreground = await sharp("assets/android-icon-foreground.png").resize(size, size, { fit: "fill" }).png().toBuffer();
+  return sharp(background).composite([{ input: foreground, gravity: "centre" }]).png().toBuffer();
 }
-await sharp(await square(art, 180, 0.84, CREAM_RGB)).toFile("public/icons/apple-touch-icon.png");
+
+function icoFromPngs(images) {
+  const count = images.length;
+  const head = Buffer.alloc(6);
+  head.writeUInt16LE(0, 0);
+  head.writeUInt16LE(1, 2);
+  head.writeUInt16LE(count, 4);
+  let offset = 6 + count * 16;
+  const entries = images.map((image) => {
+    const entry = Buffer.alloc(16);
+    entry.writeUInt8(image.size >= 256 ? 0 : image.size, 0);
+    entry.writeUInt8(image.size >= 256 ? 0 : image.size, 1);
+    entry.writeUInt16LE(1, 4);
+    entry.writeUInt16LE(32, 6);
+    entry.writeUInt32LE(image.png.length, 8);
+    entry.writeUInt32LE(offset, 12);
+    offset += image.png.length;
+    return entry;
+  });
+  return Buffer.concat([head, ...entries, ...images.map((image) => image.png)]);
+}
+
+const launcher = await androidLauncher(512);
+await mkdir("public/icons", { recursive: true });
+await sharp(launcher).resize(48, 48).png().toFile("assets/favicon.png");
+const webSizes = [
+  ["public/icons/favicon-16.png", 16],
+  ["public/icons/favicon-32.png", 32],
+  ["public/icons/apple-touch-icon.png", 180],
+  ["public/icons/icon-192.png", 192],
+  ["public/icons/icon-512.png", 512],
+  ["public/icons/maskable-192.png", 192],
+  ["public/icons/maskable-512.png", 512],
+];
+const pngs = {};
+for (const [file, size] of webSizes) {
+  const png = await sharp(launcher).resize(size, size).png().toBuffer();
+  pngs[size] = png;
+  await writeFile(file, png);
+}
+const icoImages = [];
+for (const size of [16, 32, 48]) {
+  const png = size === 48 ? await sharp(launcher).resize(48, 48).png().toBuffer() : pngs[size];
+  icoImages.push({ size, png });
+}
+await writeFile("public/favicon.ico", icoFromPngs(icoImages));
 
 // ---- Android launcher icons -------------------------------------------------
 const RES = "android-twa/app/src/main/res";

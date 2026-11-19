@@ -13,7 +13,19 @@ import { VOICE_ADDON_CENTS, VOICE_MAX_BYTES, VOICE_MAX_SECONDS, newVoiceToken, p
 import { formatSoles } from "../lib/money";
 import { voiceQrDataUrl } from "../lib/voice-qr";
 
-export function VoiceRecorder({ value, onChange }: { value: VoiceNote | null; onChange: (next: VoiceNote | null) => void }) {
+export function VoiceRecorder({
+  value,
+  onChange,
+  open,
+  onToggle,
+  headerId,
+}: {
+  value: VoiceNote | null;
+  onChange: (next: VoiceNote | null) => void;
+  open?: boolean;
+  onToggle?: () => void;
+  headerId?: string;
+}) {
   const [seconds, setSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -147,9 +159,12 @@ export function VoiceRecorder({ value, onChange }: { value: VoiceNote | null; on
   return (
     <Collapsible
       title="Agrega un mensaje de voz con QR"
+      headerId={headerId}
       icon={<MicIcon />}
       extra={VOICE_ADDON_CENTS > 0 ? <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{formatSoles(VOICE_ADDON_CENTS)}</Text> : null}
       badge={value ? "Mensaje grabado" : null}
+      open={onToggle ? open : undefined}
+      onToggle={onToggle}
     >
     <View style={{ gap: 8 }}>
       <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Mensaje de voz con QR · {formatSoles(VOICE_ADDON_CENTS)}</Text>

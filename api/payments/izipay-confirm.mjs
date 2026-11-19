@@ -1,17 +1,11 @@
-import shop from "../shop.mjs";
-import { readIzipayEnv, readPaidAnswer, verifyKrHash } from "../../src/lib/izipay.ts";
+import { siteOrigin } from "../imports/shared.mjs";
+import { activateGiftCardPayment, paymentStore } from "../shop.mjs";
+import { readPaidAnswer, verifyKrHash, readIzipayEnv } from "../../src/lib/izipay.ts";
+import { completeIzipayCallback, PAYMENT_BAD_SIGNATURE, PAYMENT_DECLINED } from "../../src/lib/payments.ts";
 import { serviceSupabase } from "../../src/lib/service-supabase.ts";
 
 export function returnOrigin(req) {
-  const raw = req.headers?.origin || req.headers?.referer || "";
-  if (raw) {
-    try {
-      return new URL(raw).origin;
-    } catch {
-      /* fall through */
-    }
-  }
-  return (process.env.SITE_URL || process.env.EXPO_PUBLIC_SITE_URL || "https://mifotito.com").replace(/\/$/, "");
+  return siteOrigin(req);
 }
 
 export async function confirmIzipay(req) {
@@ -19,38 +13,21 @@ export async function confirmIzipay(req) {
   const answer = String(req.body?.["kr-answer"] || "");
   const hash = String(req.body?.["kr-hash"] || "");
   if (!env.hmacKey || !answer || !(await verifyKrHash(answer, hash, env.hmacKey))) {
-    return { ok: false, error: "La firma de Izipay no coincide." };
+    return { ok: false, status: "bad_signature", error: PAYMENT_BAD_SIGNATURE };
   }
   const paid = readPaidAnswer(answer);
-  if (!paid?.paid) return { ok: false, error: "Izipay no marcó el pago como aprobado." };
-  const supabase = serviceSupabase();
-  if (!supabase) return { ok: false, error: "Supabase no está configurado." };
-  const { data: row } = await supabase.from("orders").select("id, total_cents, public_token").eq("id", paid.orderId).maybeSingle();
-  if (!row) return { ok: false, error: "No encontramos el pedido." };
-  if (Number(row.total_cents) !== paid.amountCents) return { ok: false, error: "El monto de Izipay no coincide con el pedido." };
-  let captured = null;
-  const capture = {
-    status() {
-      return capture;
-    },
-    json(data) {
-      captured = data;
-      return capture;
-    },
-    send() {
-      return capture;
-    },
-  };
-  await shop(
-    {
-      method: "POST",
-      body: { op: "orders-mark-paid", orderId: row.id, method: paid.method, provider: "izipay", ref: paid.ref },
-      query: {},
-      headers: {},
-    },
-    capture,
-  );
-  const token = captured?.publicToken || row.public_token;
-  if (!token) return { ok: false, error: "No pudimos guardar el pago." };
-  return { ok: true, publicToken: token };
+  if (!paid?.paid) return { ok: false, status: "declined", error: PAYMENT_DECLINED };
+  if (paid.orderId.startsWith("gc:")) {
+    try {
+      const activated = await activateGiftCardPayment(serviceSupabase(), paid.orderId.slice(3), paid.amountCents);
+      return { ok: true, redirectPath: `/regalo?listo=1&codigo=${encodeURIComponent(activated.card.code)}` };
+    } catch (error) {
+      return { ok: false, status: "amount", error: error.message || "No pudimos activar la tarjeta." };
+    }
+  }
+  const result = await completeIzipayCallback(paymentStore(), req.body, env.hmacKey);
+  if (result.http !== 200 || !result.body.ok) {
+    return { ok: false, status: result.body.status || "amount", error: result.body.error || "No pudimos guardar el pago." };
+  }
+  return { ok: true, publicToken: result.body.publicToken, redirectPath: `/confirmacion/${result.body.publicToken}` };
 }

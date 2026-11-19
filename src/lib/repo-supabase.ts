@@ -1,4 +1,6 @@
+import { adminSessionFromClient, type AdminAuthClient } from "./admin-access";
 import { defaultCampaign, type Campaign } from "./campaign";
+import { signInCustomer } from "./customer-auth";
 import { createLocalRepo } from "./repo-local";
 import { getSupabase } from "./supabase";
 import { frames as catalogFrames } from "./catalog";
@@ -7,7 +9,7 @@ import { mapFrameRow, mapGiftRow, mapInventoryRow, mapOrderRow, mapProfile, mapP
 import { frameLowStock, framesWhenStockUnknown } from "./inventory";
 import { uploadOrderPhotos } from "./photo-upload";
 import { isOpenShipment, type PublicShipment } from "./tracking";
-import type { CheckoutInput, CustomerProfile, FrameOffer, OrderStatus } from "./types";
+import type { CheckoutInput, CustomerProfile, FrameOffer, GiftCard, OrderStatus } from "./types";
 
 const PATHS: Record<string, string> = {
   "otp-send": "/api/otp-send",
@@ -15,6 +17,7 @@ const PATHS: Record<string, string> = {
   "orders-by-phone": "/api/track-orders",
   "orders-by-token": "/api/track-orders",
   "orders-create": "/api/create-order",
+  "tracking-email": "/api/tracking-email",
   profile: "/api/account",
   "customers-list": "/api/account",
 };
@@ -56,8 +59,7 @@ export function createSupabaseRepo() {
       await db().auth.signOut();
     },
     async adminSession() {
-      const { data } = await db().auth.getSession();
-      return Boolean(data.session);
+      return adminSessionFromClient(db() as unknown as AdminAuthClient);
     },
     async listFrames() {
       const hide = (rows: FrameOffer[]): FrameOffer[] =>
@@ -145,7 +147,40 @@ export function createSupabaseRepo() {
       return (data ?? []).map(mapGiftRow);
     },
     async createGiftCard(input: Parameters<ReturnType<typeof createLocalRepo>["createGiftCard"]>[0]) {
-      return shop("gift-card", input);
+      const started = await this.startGiftCard(input);
+      if (started.token) return this.confirmGiftCard(started.token);
+      if (started.checkoutUrl && typeof window !== "undefined") {
+        window.location.href = started.checkoutUrl;
+        return new Promise(() => undefined) as Promise<never>;
+      }
+      if (started.formToken && started.publicKey && typeof window !== "undefined") {
+        window.sessionStorage.setItem("mifotito-izipay", JSON.stringify({ formToken: started.formToken, publicKey: started.publicKey }));
+        window.location.href = "/pago";
+        return new Promise(() => undefined) as Promise<never>;
+      }
+      throw new Error(started.error || "Pagos no configurados. Escríbenos a pedidos@mifotito.com.");
+    },
+    async startGiftCard(input: Parameters<ReturnType<typeof createLocalRepo>["createGiftCard"]>[0]) {
+      const started = (await shop("gift-card-start", input)) as {
+        card?: GiftCard | null;
+        token?: string | null;
+        formToken?: string | null;
+        publicKey?: string | null;
+        checkoutUrl?: string | null;
+        error?: string;
+      };
+      return {
+        card: started.card ?? null,
+        token: started.token ?? null,
+        formToken: started.formToken ?? null,
+        publicKey: started.publicKey ?? null,
+        checkoutUrl: started.checkoutUrl ?? null,
+        error: started.error,
+      };
+    },
+    async confirmGiftCard(token: string): Promise<GiftCard> {
+      const json = await shop("gift-card-confirm", { token });
+      return json.card as GiftCard;
     },
     async listReferrals() {
       const { data, error } = await db().from("referrals").select("*");
@@ -198,8 +233,12 @@ export function createSupabaseRepo() {
       }
       const { data } = await db().auth.getSession();
       const token = data.session?.access_token;
-      if (!token) throw new Error("Entra con tu correo y contraseña.");
-      return shop("orders-create", { ...input, items }, token);
+      const order = await shop("orders-create", { ...input, items, password: input.password }, token);
+      if (!token && input.email && input.password) {
+        const signed = await signInCustomer(input.email, input.password);
+        if (!signed.ok) return order;
+      }
+      return order;
     },
     async markPaid(orderId: string, payment: { method: string; provider: string; ref: string }) {
       return shop("orders-mark-paid", { orderId, ...payment });
@@ -242,9 +281,30 @@ export function createSupabaseRepo() {
       return (await this.getOrder(id))!;
     },
     async setTracking(id: string, tracking: string) {
-      const { error } = await db().from("orders").update({ tracking_number: tracking, status: "shipped", updated_at: new Date().toISOString() }).eq("id", id);
-      if (error) throw new Error(error.message);
-      return (await this.getOrder(id))!;
+      const clean = tracking.trim();
+      if (!clean) throw new Error("Escribe el número de guía.");
+      const { data } = await db().auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error("Entra otra vez como administrador.");
+      const json = await shop("tracking-email", { orderId: id, tracking: clean }, token);
+      const order = await this.getOrder(id);
+      if (!order) throw new Error("No encontramos el pedido.");
+      return json.warning ? { ...order, emailWarning: String(json.warning) } : order;
+    },
+    async listNotifications(orderId?: string) {
+      let query = db().from("notification_log").select("*").order("created_at", { ascending: false });
+      if (orderId) query = query.eq("order_id", orderId);
+      const { data, error } = await query;
+      if (error) return local.listNotifications(orderId);
+      return (data ?? []).map((row) => ({
+        id: row.id,
+        orderId: row.order_id,
+        channel: row.channel === "email" ? ("email" as const) : ("whatsapp" as const),
+        to: row.to_address,
+        body: row.body,
+        event: row.event ?? "",
+        createdAt: row.created_at,
+      }));
     },
     async flagBlurry(orderId: string, itemId: string, note: string) {
       await db().from("order_items").update({ blurry: true, blurry_note: note }).eq("id", itemId);

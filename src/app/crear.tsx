@@ -3,6 +3,8 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { PanResponder, Platform, Pressable, ScrollView, Text, useWindowDimensions, View, type ViewStyle } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { CollagePromo } from "../components/CollagePromo";
+import { Collapsible } from "../components/Collapsible";
 import { Cropper } from "../components/Cropper";
 import { PhotoSources, type PhotoSourcesHandle } from "../components/PhotoSources";
 import { FrameView } from "../components/FrameView";
@@ -13,6 +15,7 @@ import { useApp, useRepo } from "../components/provider";
 import { Banner, Button, Card, Progress, Screen, TabBar } from "../components/ui";
 import { colors, font } from "../components/theme";
 import { readBoot } from "../lib/boot";
+import { INITIAL_EDITOR_SECTION, editorHeaderId, revealEditorHeader, toggleEditorSection, type EditorSection } from "../lib/editor-sections";
 import { aspectParts, frameById, frameChips, framesForChip, type FrameChip, type FrameDef } from "../lib/catalog";
 import { importFlags, stockChecksEnabled } from "../lib/env";
 import { uid } from "../lib/ids";
@@ -41,6 +44,8 @@ export default function Crear() {
   const [overlay, setOverlay] = useState<TextOverlay | null>(null);
   const [voice, setVoice] = useState<VoiceNote | null>(null);
   const [sampleNote, setSampleNote] = useState<string | null>(null);
+  const [section, setSection] = useState<EditorSection | null>(INITIAL_EDITOR_SECTION);
+  const pendingReveal = useRef<EditorSection | null>(null);
   const add = useCart((state) => state.add);
   const frame = offers[index] ?? offers[0];
   const contentWidth = Math.min(width, 480) - 32;
@@ -79,6 +84,26 @@ export default function Crear() {
     if (Math.abs(ratio - target) < 0.02) return;
     setCrop(refitCrop(crop, nextW, nextH));
   }, [index, orientation]);
+
+  function toggleSection(target: EditorSection) {
+    setSection((current) => {
+      const next = toggleEditorSection(current, target);
+      pendingReveal.current = next;
+      return next;
+    });
+  }
+
+  useEffect(() => {
+    const target = pendingReveal.current;
+    if (!target) return;
+    const delay = reduced ? 32 : 280;
+    const handle = setTimeout(() => {
+      if (pendingReveal.current !== target) return;
+      pendingReveal.current = null;
+      revealEditorHeader(target, reduced);
+    }, delay);
+    return () => clearTimeout(handle);
+  }, [section, reduced]);
 
   async function choosePhoto(next: { id: string; width: number; height: number }, frameOverride?: FrameDef) {
     const current = frameOverride ?? frame ?? frameById("wood-15");
@@ -221,7 +246,7 @@ export default function Crear() {
             <PriceTicker cents={frame.priceCents} />
           </View>
         </View>
-        <Text style={{ fontFamily: font.body, color: colors.muted }}>{frame.blurb} Desliza el marco como un filtro.</Text>
+        <Text style={{ fontFamily: font.body, color: colors.muted }}>Desliza el marco como un filtro.</Text>
         {checkStock && frame.stockUncertain ? (
           <View style={{ gap: 8 }}>
             <Banner tone="warn" text="No pudimos leer el stock. Puedes seguir; lo confirmamos al pagar." />
@@ -234,50 +259,52 @@ export default function Crear() {
         ) : frame.lowStock ? (
           <Banner tone="warn" text="Pocas unidades" />
         ) : null}
-        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-          {frameChips(offers).map((item) => (
-            <Pressable
-              key={item.id}
-              onPress={() => {
-                setChip(item.id);
-                const first = framesForChip(offers, item.id)[0];
-                if (!first) return;
-                const found = offers.findIndex((frameItem) => frameItem.id === first.id);
-                if (found >= 0) shift(found - index);
-              }}
-              style={{ minHeight: 44, paddingHorizontal: 14, borderRadius: 999, justifyContent: "center", backgroundColor: chip === item.id ? colors.ink : colors.white, borderWidth: 1, borderColor: chip === item.id ? colors.ink : colors.line }}
-            >
-              <Text style={{ fontFamily: font.semibold, color: chip === item.id ? "white" : colors.ink }}>{item.label}</Text>
-            </Pressable>
-          ))}
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
-          {visible.map((item) => (
-            <Pressable key={item.id} onPress={() => { const found = offers.findIndex((frameItem) => frameItem.id === item.id); if (found >= 0) shift(found - index); }} style={{ width: 72, alignItems: "center", opacity: item.id === frame.id ? 1 : 0.55 }}>
-              <FrameView frame={item} width={64} />
-              <Text style={{ fontFamily: font.medium, fontSize: 11, color: colors.ink, textAlign: "center" }}>{item.name.split(" ")[0]}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-        {frame.aspect !== "1:1" ? (
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <Mini label="Vertical" on={orientation === "portrait"} onPress={() => turn("portrait", frame, photo, crop, setOrientation, setCrop)} />
-            <Mini label="Horizontal" on={orientation === "landscape"} onPress={() => turn("landscape", frame, photo, crop, setOrientation, setCrop)} />
+        <CollagePromo />
+        <Collapsible title="Elige tu marco" headerId={editorHeaderId("frame")} open={section === "frame"} onToggle={() => toggleSection("frame")}>
+          <View style={{ gap: 14 }}>
+            <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+              {frameChips(offers).map((item) => (
+                <Pressable
+                  key={item.id}
+                  onPress={() => {
+                    setChip(item.id);
+                    const first = framesForChip(offers, item.id)[0];
+                    if (!first) return;
+                    const found = offers.findIndex((frameItem) => frameItem.id === first.id);
+                    if (found >= 0) shift(found - index);
+                  }}
+                  style={{ minHeight: 44, paddingHorizontal: 14, borderRadius: 999, justifyContent: "center", backgroundColor: chip === item.id ? colors.ink : colors.white, borderWidth: 1, borderColor: chip === item.id ? colors.ink : colors.line }}
+                >
+                  <Text style={{ fontFamily: font.semibold, color: chip === item.id ? "white" : colors.ink }}>{item.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
+              {visible.map((item) => (
+                <Pressable key={item.id} onPress={() => { const found = offers.findIndex((frameItem) => frameItem.id === item.id); if (found >= 0) shift(found - index); }} style={{ width: 96, alignItems: "center", opacity: item.id === frame.id ? 1 : 0.55 }}>
+                  <FrameView frame={item} width={64} />
+                  <Text numberOfLines={2} style={{ fontFamily: font.medium, fontSize: 11, color: colors.ink, textAlign: "center" }}>{item.name}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            {frame.aspect !== "1:1" ? (
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <Mini label="Vertical" on={orientation === "portrait"} onPress={() => turn("portrait", frame, photo, crop, setOrientation, setCrop)} />
+                <Mini label="Horizontal" on={orientation === "landscape"} onPress={() => turn("landscape", frame, photo, crop, setOrientation, setCrop)} />
+              </View>
+            ) : null}
           </View>
-        ) : null}
+        </Collapsible>
         {assessed?.message ? <Banner tone={assessed.status === "low" ? "bad" : "warn"} text={assessed.message} /> : null}
         {assessed?.status === "low" ? (
           <Pressable onPress={() => setAck((value) => !value)} style={{ minHeight: 44, justifyContent: "center" }}>
             <Text style={{ fontFamily: font.medium, color: colors.ink }}>{ack ? "☑" : "☐"} Entiendo que se verá suave y quiero seguir</Text>
           </Pressable>
         ) : null}
-        <Card>
+        <Collapsible title="Encuadra la foto" headerId={editorHeaderId("photo")} open={section === "photo"} onToggle={() => toggleSection("photo")}>
           <View style={{ gap: 16 }}>
             {photo && source && crop ? (
-              <>
-                <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Encadra la foto</Text>
-                <Cropper source={source} crop={crop} aspect={[aw, ah]} width={contentWidth - 32} onChange={setCrop} />
-              </>
+              <Cropper source={source} crop={crop} aspect={[aw, ah]} width={contentWidth - 32} onChange={setCrop} />
             ) : (
               <>
                 <Text style={{ fontFamily: font.displaySoft, fontSize: 24, color: colors.ink }}>Tu foto</Text>
@@ -289,12 +316,20 @@ export default function Crear() {
               <Button label="Probar aviso de resolución" tone="quiet" onPress={() => void choosePhoto(samplePhoto("sample-small"))} />
             </View>
           </View>
-        </Card>
-        {photo ? <TextStyleEditor collapsible label="Agrega texto a tu foto" value={overlay} onChange={setOverlay} maxChars={48} /> : null}
-        <VoiceRecorder value={voice} onChange={setVoice} />
-        <Pressable accessibilityRole="button" accessibilityLabel="Haz un collage" onPress={() => router.push("/collage")}>
-          <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Haz un collage</Text>
-        </Pressable>
+        </Collapsible>
+        {photo ? (
+          <TextStyleEditor
+            collapsible
+            label="Agrega texto a tu foto"
+            value={overlay}
+            onChange={setOverlay}
+            maxChars={48}
+            open={section === "text"}
+            onToggle={() => toggleSection("text")}
+            headerId={editorHeaderId("text")}
+          />
+        ) : null}
+        <VoiceRecorder value={voice} onChange={setVoice} open={section === "voice"} onToggle={() => toggleSection("voice")} headerId={editorHeaderId("voice")} />
         <Pressable onPress={() => router.push("/tarjeta")}>
           <Text style={{ fontFamily: font.semibold, color: colors.ink }}>¿Mejor una tarjeta navideña?</Text>
         </Pressable>

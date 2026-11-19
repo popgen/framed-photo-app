@@ -92,6 +92,7 @@ export type Order = {
   giftCardAppliedCents: number;
   giftWrapCents: number;
   giftNoteCents?: number;
+  shippingCents?: number | null;
   totalCents: number;
   paymentMethod?: string | null;
   paymentStatus: "pending" | "approved" | "rejected";
@@ -107,9 +108,11 @@ export type Order = {
   replacementFor?: string | null;
   channel: "web" | "whatsapp";
   needsHuman?: boolean;
+  accountNotice?: string | null;
   items: OrderItem[];
   createdAt: string;
   updatedAt: string;
+  emailWarning?: string | null;
 };
 
 export type Promo = PromoRule & { note?: string | null };
@@ -212,6 +215,7 @@ export type CheckoutInput = {
   customerName: string;
   phone: string;
   email?: string;
+  password?: string;
   taxId?: string;
   taxIdType?: "DNI" | "RUC";
   taxIdSkipped?: boolean;
