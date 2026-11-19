@@ -40,9 +40,25 @@ export function VoiceRecorder({
   const secondsRef = useRef(0);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const pulse = useSharedValue(1);
+  const alive = useRef(true);
   const wave = useAnimatedStyle(() => ({ transform: [{ scale: pulse.value }] }));
 
-  useEffect(() => () => stopTimer(), []);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      stopTimer();
+      const media = recorder.current;
+      recorder.current = null;
+      if (!media || media.state === "inactive") return;
+      media.onstop = () => media.stream.getTracks().forEach((track) => track.stop());
+      try {
+        media.stop();
+      } catch {
+        media.stream.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, []);
   useEffect(() => {
     let live = true;
     if (!value?.selfieId) {
@@ -124,11 +140,13 @@ export function VoiceRecorder({
   }
 
   async function finish(blob: Blob, length: number) {
+    if (!alive.current) return;
     if (blob.size > VOICE_MAX_BYTES) {
       setError("El audio pasa de 8 MB.");
       return;
     }
     const saved = await saveAudioBlob(blob);
+    if (!alive.current) return;
     const selfie = selfieRef.current;
     const note: VoiceNote = {
       token: newVoiceToken(),
@@ -142,6 +160,7 @@ export function VoiceRecorder({
     };
     publishVoice(note);
     void uploadVoice(note.token, blob, { selfiePath: note.selfiePath, senderName: note.senderName }).catch(() => null);
+    if (!alive.current) return;
     setPreview(URL.createObjectURL(blob));
     setQr(await voiceQrDataUrl(note.token));
     setError(null);

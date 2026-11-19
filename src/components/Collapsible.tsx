@@ -14,6 +14,7 @@ export function Collapsible({
   open: openProp,
   onToggle,
   headerId,
+  keepMounted = false,
 }: {
   title: string;
   icon?: ReactNode;
@@ -23,6 +24,8 @@ export function Collapsible({
   open?: boolean;
   onToggle?: () => void;
   headerId?: string;
+  /** Keep children mounted while closed so a parent can open the file picker. */
+  keepMounted?: boolean;
 }) {
   const reduced = useReducedMotion();
   const [uncontrolled, setUncontrolled] = useState(false);
@@ -61,9 +64,11 @@ export function Collapsible({
         </Pressable>
       </View>
       {open ? (
-        <Animated.View entering={reduced ? undefined : FadeIn.duration(220)} exiting={reduced ? undefined : FadeOut.duration(160)} style={{ paddingTop: 10 }}>
+        <Animated.View entering={reduced || keepMounted ? undefined : FadeIn.duration(220)} exiting={reduced || keepMounted ? undefined : FadeOut.duration(160)} style={{ paddingTop: 10 }}>
           {children}
         </Animated.View>
+      ) : keepMounted ? (
+        <View style={{ display: "none" }}>{children}</View>
       ) : null}
     </Animated.View>
   );
