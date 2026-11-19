@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Text, View } from "react-native";
 import { Banner, Button, Field, Screen } from "../components/ui";
 import { colors, font } from "../components/theme";
+import { isEmail } from "../lib/phone";
 import { pickAndSavePhotos } from "../lib/photos";
 import { getRepo } from "../lib/repo";
 
@@ -10,6 +11,7 @@ export default function Reclamo() {
   const params = useLocalSearchParams<{ token?: string }>();
   const [token, setToken] = useState(String(params.token ?? ""));
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [note, setNote] = useState("");
   const [photoId, setPhotoId] = useState<string | undefined>();
   const [done, setDone] = useState(false);
@@ -22,17 +24,22 @@ export default function Reclamo() {
         <Text style={{ fontFamily: font.body, color: colors.muted }}>Cuéntanos qué pasó y sube una foto. Si corresponde, reponemos el marco sin costo.</Text>
         <Field label="Código del enlace" value={token} onChangeText={setToken} />
         <Field label="Celular del pedido" value={phone} onChangeText={setPhone} />
+        <Field label="Correo" autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} />
         <Field label="Qué pasó" value={note} onChangeText={setNote} />
         <Button label={photoId ? "Foto lista" : "Subir foto del daño"} tone="ghost" onPress={() => void pickAndSavePhotos(false).then((saved) => setPhotoId(saved[0]?.id))} />
         {error ? <Banner tone="bad" text={error} /> : null}
-        {done ? <Banner tone="good" text="Recibimos el reclamo. Te escribimos por WhatsApp." /> : null}
+        {done ? <Banner tone="good" text="Recibimos el reclamo. Te escribimos por correo." /> : null}
       </View>
     </Screen>
   );
 
   async function send() {
     try {
-      await getRepo().createClaim({ token: token.trim(), phone, note, photoId });
+      if (!isEmail(email)) {
+        setError("Ingresa el correo donde te escribimos.");
+        return;
+      }
+      await getRepo().createClaim({ token: token.trim(), phone, note: `Correo: ${email.trim()}\n${note.trim()}`, photoId });
       setDone(true);
       setError(null);
     } catch (err) {

@@ -13,7 +13,7 @@ export default function Confirmacion() {
   const { token } = useLocalSearchParams<{ token: string }>();
   const [order, setOrder] = useState<Order | null>(readReceipt<Order>(String(token)));
   const [campaignTitle, setCampaignTitle] = useState("Tu recuerdo ya va en camino");
-  const [campaignBody, setCampaignBody] = useState("Te escribimos por WhatsApp cuando avance.");
+  const [campaignBody, setCampaignBody] = useState("Te escribimos por correo cuando avance.");
 
   useEffect(() => {
     void getRepo().getCampaign().then((campaign) => {

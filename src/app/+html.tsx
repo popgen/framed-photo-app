@@ -22,7 +22,20 @@ export default function Root({ children }: PropsWithChildren) {
           #nl-badge-frame, #nl-hud-frame { display: none !important; }
         `}</style>
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <noscript>
+          <div style={{ maxWidth: 640, margin: "0 auto", padding: 24, fontFamily: "Georgia, serif", color: "#241714" }}>
+            <p style={{ fontSize: 32, marginBottom: 8 }}>Mi Fotito</p>
+            <p>Marcos impresos en Lima, Perú.</p>
+            <p>
+              <a href="/privacidad">Política de privacidad</a>
+              {" · "}
+              <a href="/terminos">Términos y condiciones</a>
+            </p>
+          </div>
+        </noscript>
+      </body>
     </html>
   );
 }

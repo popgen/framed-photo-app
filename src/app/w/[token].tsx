@@ -21,7 +21,7 @@ export default function MagicLink() {
       .getWhatsAppDraft(String(token))
       .then((draft) => {
         if (!draft || !draft.photos.length) {
-          setError("Ese enlace ya no tiene fotos. Mándanos la foto otra vez por WhatsApp.");
+          setError("Ese enlace ya no tiene fotos. Escríbenos a pedidos@mifotito.com.");
           return;
         }
         clear();
@@ -45,7 +45,7 @@ export default function MagicLink() {
             dpi: Math.round(assessed.dpi),
             resolutionStatus: assessed.status,
             bundleId: draft.mode === "wall" ? draft.token : null,
-            bundleLabel: draft.mode === "wall" ? "Muro de WhatsApp" : null,
+            bundleLabel: draft.mode === "wall" ? "Muro" : null,
           };
         });
         addMany(items);

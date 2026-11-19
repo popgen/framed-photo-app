@@ -13,6 +13,7 @@ Tienda web para imprimir una foto y recibirla enmarcada en Perú. El cliente eli
 - Campaña Navidad 2026 (se cambia por San Valentín 2027 en `data/campaign-san-valentin.json`).
 - Pedido por WhatsApp: webhook de Cloud API y un sandbox en el admin cuando no hay credenciales.
 - Admin con estados, revisión de foto borrosa, archivo de imprenta, guía, stock y reclamos.
+- Política de privacidad en `/privacidad` y términos en `/terminos`. Las fotos del bucket privado se borran a los 30 días de entregado o cancelado el pedido.
 
 ## Arranque local
 
@@ -52,7 +53,7 @@ Copia `.env.example` a `.env`. No subas `.env`.
 | `EXPO_PUBLIC_PAYMENTS_MODE` | cliente | `mock` o `live` |
 | `EXPO_PUBLIC_NOTIFY_MODE` | cliente | `mock` o `live` |
 | `EXPO_PUBLIC_SITE_URL` | cliente | origen público, sin barra final. Por defecto `https://mifotito.com` |
-| `EXPO_PUBLIC_WHATSAPP_SUPPORT_NUMBER` | cliente | botón de soporte, formato `51999…` |
+| `EXPO_PUBLIC_WHATSAPP_SUPPORT_NUMBER` | servidor | vacío. No pongas un número de relleno |
 | `EXPO_PUBLIC_SEASONAL_MOTION` | cliente | `true` / `false`. Vacío usa la campaña |
 | `EXPO_PUBLIC_COUNTDOWN` | cliente | `true` fuerza el reloj, `false` lo apaga. Vacío usa `countdownStartsAt` |
 | `EXPO_PUBLIC_ENABLE_INSTAGRAM` | cliente | muestra Instagram solo con `EXPO_PUBLIC_META_APP_ID` |
@@ -115,7 +116,7 @@ Mientras falten:
 - El cliente entra con correo y contraseña de Supabase Auth. Ya no hay código de 6 dígitos en la tienda. Rastrear un envío pendiente pide solo el celular. Mi cuenta muestra los pedidos de quien inició sesión.
 - El webhook `/api/webhooks/whatsapp` y `/api/notify` no llaman a Graph. Escriben una advertencia en el log y responden 200. Un POST real, sin `mock: true`, responde «próximamente».
 - El admin, en WhatsApp, muestra «Pedidos por el bot: próximamente» y un botón al chat. La vista previa local sigue ahí para probar el flujo sin Meta.
-- El botón verde de la tienda ya abre `wa.me`. No usa la Cloud API.
+- La tienda no muestra WhatsApp. El contacto del cliente es pedidos@mifotito.com.
 
 Cuando Meta apruebe la plantilla `mifotito_codigo`, se completan esas cuatro variables y `WHATSAPP_OTP_ENABLED=true`.
 
@@ -190,7 +191,7 @@ No hace falta ninguna para el demo. Para cobrar y escribir de verdad, en Site co
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | clave anon |
 | `EXPO_PUBLIC_PAYMENTS_MODE` | `live` |
 | `EXPO_PUBLIC_NOTIFY_MODE` | `live` |
-| `EXPO_PUBLIC_WHATSAPP_SUPPORT_NUMBER` | celular de soporte, `51999…` |
+| `EXPO_PUBLIC_WHATSAPP_SUPPORT_NUMBER` | déjalo vacío. Sin valor no se arma un enlace a un número falso |
 | `SUPABASE_URL` | igual que la URL pública, solo en el servidor |
 | `SUPABASE_SERVICE_ROLE_KEY` | funciones de Netlify: pedidos, fotos firmadas, códigos. Nunca en el cliente |
 | `OTP_SIGNING_SECRET` | firma la sesión de 30 minutos tras confirmar el celular |
@@ -223,10 +224,12 @@ Sin `EXPO_PUBLIC_DATA_MODE=supabase` todo sigue en el navegador (demo). Con Supa
 | Foto original y foto de imprenta | Bucket privado `photos`, rutas `uploads/<id>/original.jpg` y `print.jpg`. El admin las abre con URL firmada |
 | Perfil: nombre, celular, correo, direcciones | `customers` y `customer_addresses`, ligados a `auth.users` por `auth_user_id`. El pedido web guarda `orders.user_id`. RLS: cada quien lee solo sus pedidos |
 | Stock, promos, gift cards, referidos, créditos | Tablas `inventory`, `promo_codes`, `gift_cards`, `referrals`, `credits` |
-| Reclamos y consultas de retablo | `claims`, `retablo_inquiries` |
+| Reclamos y consultas de retablo | `claims`, `retablo_inquiries`. El pedido de retablo abre un correo a pedidos@mifotito.com, sin WhatsApp |
 | Mensaje de voz | `voice_notes` + archivo en `photos/uploads/voice/<token>` |
 | Código de WhatsApp | Solo el hash en `phone_otps` (10 min, 5 intentos) y los envíos en `otp_sends` |
 | Carrito y recibo de la pestaña | Siguen en el navegador hasta pagar |
+
+La política de privacidad está en https://mifotito.com/privacidad y los términos en https://mifotito.com/terminos. El export de Expo es una sola página, así que `npm run build:web` copia `public/privacidad` y `public/terminos` a `dist` para que esas dos direcciones respondan 200 y se lean sin JavaScript. Las fotos del bucket `photos` se borran dentro de los 30 días después de entregar o cancelar el pedido. Las subidas que no quedaron en un pedido se borran a los 30 días. El audio del QR no se borra, para que el mensaje siga abriendo. Eso lo hace la función programada `purge-photos` (Netlify, todos los días a las 08:00 UTC, solo en el deploy de producción). No hace falta una migración nueva.
 
 En el checkout y en Mi cuenta la persona entra o crea una cuenta con correo y contraseña (mínimo 8 caracteres). «Olvidé mi contraseña» manda el enlace de Supabase. `/rastrear` no pide cuenta: con el celular (+51 y 9 dígitos) muestra solo envíos que no están entregados ni cancelados, y solo el número, el tipo (marco, muro o tarjeta), el estado y la fecha estimada. El nombre se ve como primer nombre e inicial. No salen dirección, foto, DNI/RUC ni pago. Esa consulta se limita por IP y por celular. `OTP_SIGNING_SECRET` ya no abre la sesión del cliente; puede quedar vacío. Sigue sirviendo, si está puesto, para la cookie de importación de fotos.
 
@@ -234,7 +237,7 @@ En el checkout y en Mi cuenta la persona entra o crea una cuenta con correo y co
 
 1. Crea un proyecto en supabase.com.
 2. Authentication → Providers: activa Email. Confirm email puede quedar encendido: el enlace abre `https://mifotito.com/cuenta` y el sitio reconoce la sesión. Si lo apagas, la cuenta queda lista al crearla, sin esperar el correo. No hace falta SMS. Site URL `https://mifotito.com`. Redirect URLs: `https://mifotito.com/**` y `https://mifotito.com/cuenta`. En Auth, si aparece el mínimo de contraseña, ponlo en 8.
-3. SQL editor, en este orden (son las versiones que ya quedaron grabadas en el proyecto en vivo): `20261118182440_init.sql`, `20261118182536_customers_order_numbers_hardening.sql`, `20261118183011_cards_voice_retablo.sql`, `20261118183018_shared_backend.sql`, `20261118183109_reconcile_live_with_app.sql`, `20261118192312_voice_note_selfie.sql` (`selfie_path` y `sender_name` en `voice_notes`), `20261118192314_order_tax_id.sql` (`tax_id`, `tax_id_type` y `tax_id_skipped` en `orders`), luego `supabase/seed.sql`. No corras `supabase/seed.demo.sql` en producción. Falta correr, cuando Lucas lo aplique, `20261118210000_orders_user_id.sql` (`orders.user_id` y `track_lookups`). Todavía no está aplicado.
+3. SQL editor, en este orden (son las versiones que ya quedaron grabadas en el proyecto en vivo): `20261118182440_init.sql`, `20261118182536_customers_order_numbers_hardening.sql`, `20261118183011_cards_voice_retablo.sql`, `20261118183018_shared_backend.sql`, `20261118183109_reconcile_live_with_app.sql`, `20261118192312_voice_note_selfie.sql` (`selfie_path` y `sender_name` en `voice_notes`), `20261118192314_order_tax_id.sql` (`tax_id`, `tax_id_type` y `tax_id_skipped` en `orders`), `20261118210000_orders_user_id.sql` (`orders.user_id` y `track_lookups`) y `20261118223000_frame_categories.sql` (categoría de cada marco), luego `supabase/seed.sql`. No corras `supabase/seed.demo.sql` en producción. Esas dos últimas ya están aplicadas.
 4. Storage: el bucket privado `photos` lo crea la primera migración. No lo hagas público.
 5. Authentication → Users: crea el admin y copia su UUID a `admin_users`.
 6. WhatsApp Business queda pendiente. No hace falta crear la plantilla `mifotito_codigo` todavía. Cuando Meta la apruebe, el código de rastreo podrá salir por WhatsApp.

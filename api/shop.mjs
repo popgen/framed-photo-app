@@ -122,8 +122,7 @@ async function saveRecord(record) {
 }
 
 function supportLink(text) {
-  const phone = String(process.env.EXPO_PUBLIC_WHATSAPP_SUPPORT_NUMBER || "51999999999").replace(/\D/g, "");
-  return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+  return `mailto:pedidos@mifotito.com?subject=${encodeURIComponent("Mi pedido")}&body=${encodeURIComponent(text)}`;
 }
 
 function supportPayload() {
@@ -131,7 +130,7 @@ function supportPayload() {
     ok: true,
     channel: "support",
     supportUrl: supportLink("Hola Mi Fotito, quiero ver el estado de mi pedido."),
-    message: "Todavía no podemos enviarte un código. Escríbenos por WhatsApp y te ayudamos a ver tu pedido.",
+    message: "Todavía no podemos enviarte un código. Escríbenos a pedidos@mifotito.com y te ayudamos a ver tu pedido.",
   };
 }
 
