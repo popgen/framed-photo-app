@@ -4,6 +4,7 @@ import { Pressable, Text, View } from "react-native";
 import Svg, { Path, Rect } from "react-native-svg";
 import Animated, { FadeInDown, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { useEffect } from "react";
+import { CollagePromo } from "../components/CollagePromo";
 import { FrameView } from "../components/FrameView";
 import { Countdown, GuaranteeNote, Ornaments, useNow, useReducedMotion } from "../components/fx";
 import { useRepo } from "../components/provider";
@@ -63,6 +64,7 @@ export default function Home() {
             </View>
           </Pressable>
         ) : null}
+        <CollagePromo />
         <Text style={section}>Super simple</Text>
         <Step n="1" title="Elige tu foto" body="Desde el teléfono, iCloud o una foto de ejemplo. Así empieza la impresión de fotos." icon={<PhotoIcon />} />
         <Step n="2" title="Elige tu marco" body="Desliza para enmarcar fotos, o arma una tarjeta navideña." icon={<FrameIcon />} />
@@ -86,13 +88,6 @@ export default function Home() {
           <P style={centered}>Arma un trío, una cuadrícula o un mixto con cuadros con fotos. Es decoración con fotos para la casa. El segundo marco va con 20% y desde el tercero el set baja 15%.</P>
           <Button label="Armar mi muro" tone="ghost" onPress={() => router.push("/muro")} />
         </Card>
-        <Pressable accessibilityRole="button" accessibilityLabel="Haz un collage" onPress={() => router.push("/collage")}>
-          <Card>
-            <Text style={section}>Collage de fotos</Text>
-            <P style={centered}>Junta de 2 a 12 fotos de tu dispositivo en un solo marco. Lo imprimimos y te lo llevamos.</P>
-            <Text style={{ fontFamily: font.bold, color: colors.red, textAlign: "center" }}>Haz un collage</Text>
-          </Card>
-        </Pressable>
         {active.giftWrapFeatured ? (
           <Card>
             <Text style={section}>{active.giftWrapTitle}</Text>

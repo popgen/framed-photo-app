@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { PanResponder, Platform, Pressable, ScrollView, Text, useWindowDimensions, View, type ViewStyle } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { CollagePromo } from "../components/CollagePromo";
 import { Collapsible } from "../components/Collapsible";
 import { Cropper } from "../components/Cropper";
 import { PhotoSources, type PhotoSourcesHandle } from "../components/PhotoSources";
@@ -258,6 +259,7 @@ export default function Crear() {
         ) : frame.lowStock ? (
           <Banner tone="warn" text="Pocas unidades" />
         ) : null}
+        <CollagePromo />
         <Collapsible title="Elige tu marco" headerId={editorHeaderId("frame")} open={section === "frame"} onToggle={() => toggleSection("frame")}>
           <View style={{ gap: 14 }}>
             <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
@@ -328,9 +330,6 @@ export default function Crear() {
           />
         ) : null}
         <VoiceRecorder value={voice} onChange={setVoice} open={section === "voice"} onToggle={() => toggleSection("voice")} headerId={editorHeaderId("voice")} />
-        <Pressable accessibilityRole="button" accessibilityLabel="Haz un collage" onPress={() => router.push("/collage")}>
-          <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Haz un collage</Text>
-        </Pressable>
         <Pressable onPress={() => router.push("/tarjeta")}>
           <Text style={{ fontFamily: font.semibold, color: colors.ink }}>¿Mejor una tarjeta navideña?</Text>
         </Pressable>
