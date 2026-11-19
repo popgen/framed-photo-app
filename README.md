@@ -229,6 +229,11 @@ No hace falta ninguna para el demo. Para cobrar y escribir de verdad, en Site co
 | `NOTIFY_SECRET` | autoriza `/api/notify` |
 | `RESEND_API_KEY` | correo del pedido pagado. Vacío = no se manda |
 | `EMAIL_FROM` | remitente de ese correo |
+| `SMTP_HOST` | `smtp.zoho.com`. Aviso de guía |
+| `SMTP_PORT` | `465` |
+| `SMTP_USER` | usuario SMTP de Zoho |
+| `SMTP_PASS` | contraseña SMTP. Solo en el servidor |
+| `SMTP_FROM` | `Mi Fotito <pedidos@mifotito.com>` |
 | `PLIN_PHONE` | número Plin del comercio |
 | `YAPE_PHONE` | referencia Yape |
 | `WHATSAPP_TOKEN` | pendiente. Vacío en Netlify por ahora |
