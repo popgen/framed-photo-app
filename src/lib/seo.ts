@@ -20,7 +20,7 @@ export const SPA_CSS = `
 export const BADGE_CSS = "#nl-badge-frame, #nl-hud-frame { display: none !important; }";
 
 /** Phrases we do not sell. They stay in the keywords tag, or in copy that says we are not that. */
-export const NOT_OFFERED = ["envío gratis", "revelado de fotos", "foto en lienzo", "póster de fotos", "collage de fotos", "álbumes de fotos"] as const;
+export const NOT_OFFERED = ["envío gratis", "revelado de fotos", "foto en lienzo", "póster de fotos", "álbumes de fotos"] as const;
 
 export const KEYWORD_TERMS = [
   "Navidad",
@@ -102,6 +102,12 @@ export const pages: SeoEntry[] = [
     title: "Imprimir fotos y enmarcarlas — Mi Fotito",
     description:
       "Imprimir fotos online y enmarcarlas en un cuadro personalizado. Fotos en marco, con acrílico, para la mesa o la pared. Pedido en línea y delivery en Lima.",
+  },
+  {
+    path: "/collage",
+    title: "Collage de fotos en un marco — Mi Fotito",
+    description:
+      "Arma un collage de fotos con 2 a 12 imágenes de tu dispositivo y recíbelo impreso en un marco. El precio es el del marco y el envío ya va incluido.",
   },
   {
     path: "/tarjeta",

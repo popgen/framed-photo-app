@@ -1,4 +1,5 @@
 import type { CardSnapshot } from "./cards";
+import type { CollageSnapshot } from "./collage";
 import type { FrameDef } from "./catalog";
 import type { Zone } from "./cutoff";
 import type { TextOverlay } from "./overlay";
@@ -46,6 +47,7 @@ export type OrderItem = {
   textOverlay?: TextOverlay | null;
   card?: CardSnapshot | null;
   voice?: VoiceNote | null;
+  collage?: CollageSnapshot | null;
   photoOriginalPath?: string | null;
   photoPrintPath?: string | null;
 };
@@ -203,6 +205,7 @@ export type CheckoutInput = {
     textOverlay?: TextOverlay | null;
     card?: CardSnapshot | null;
     voice?: VoiceNote | null;
+    collage?: CollageSnapshot | null;
     photoOriginalPath?: string | null;
     photoPrintPath?: string | null;
   }[];

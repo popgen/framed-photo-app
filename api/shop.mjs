@@ -6,6 +6,7 @@ import { maskPhone, maskStreet } from "../src/lib/order-number.ts";
 import { isOpenShipment, toPublicShipment, toTrackingCard, trackLimitMessage, TRACK_IP_LIMIT, TRACK_PHONE_LIMIT } from "../src/lib/tracking.ts";
 import { cardMessageError, priceCards } from "../src/lib/cards.ts";
 import { frameById } from "../src/lib/catalog.ts";
+import { framedPriceCents } from "../src/lib/collage.ts";
 import { frameLowStock } from "../src/lib/inventory.ts";
 import { giftCode } from "../src/lib/ids.ts";
 import { normalizePhone } from "../src/lib/phone.ts";
@@ -527,26 +528,33 @@ async function createOrder(req, res) {
     return;
   }
   if ((req.body.items ?? []).length) {
-    const { error: itemError } = await supabase.from("order_items").insert(
-      req.body.items.map((item) => ({
-        order_id: inserted.id,
-        frame_id: item.frameId || "card",
-        photo_path: item.photoPrintPath || null,
-        original_path: item.photoOriginalPath || null,
-        print_path: item.photoPrintPath || null,
-        crop: item.crop ?? {},
-        orientation: item.orientation || "portrait",
-        quantity: 1,
-        unit_price_cents: linePrice(item),
-        dpi: item.dpi || null,
-        resolution_status: item.resolutionStatus || null,
-        text_overlay: item.textOverlay || null,
-        card: item.card || null,
-        voice: item.voice || null,
-        bundle_id: item.bundleId || null,
-        bundle_label: item.bundleLabel || null,
-      })),
-    );
+    const rows = req.body.items.map((item) => ({
+      order_id: inserted.id,
+      frame_id: item.frameId || "card",
+      photo_path: item.photoPrintPath || null,
+      original_path: item.photoOriginalPath || null,
+      print_path: item.photoPrintPath || null,
+      crop: item.crop ?? {},
+      orientation: item.orientation || "portrait",
+      quantity: 1,
+      unit_price_cents: linePrice(item),
+      dpi: item.dpi || null,
+      resolution_status: item.resolutionStatus || null,
+      text_overlay: item.textOverlay || null,
+      card: item.card || null,
+      voice: item.voice || null,
+      collage: item.collage || null,
+      bundle_id: item.bundleId || null,
+      bundle_label: item.bundleLabel || null,
+    }));
+    let itemError = (await supabase.from("order_items").insert(rows)).error;
+    if (itemError && /collage/i.test(itemError.message || "")) {
+      if (rows.some((row) => row.collage)) {
+        res.status(500).json({ error: "Falta aplicar la migración del collage antes de guardar este pedido." });
+        return;
+      }
+      itemError = (await supabase.from("order_items").insert(rows.map(({ collage, ...rest }) => rest))).error;
+    }
     if (itemError) {
       res.status(500).json({ error: itemError.message });
       return;
@@ -559,7 +567,7 @@ async function createOrder(req, res) {
 function linePrice(item) {
   if (item.card) return priceCards(item.card.quantity).cents;
   try {
-    return frameById(item.frameId).priceCents + (item.voice ? item.voice.addonCents || 0 : 0);
+    return framedPriceCents(frameById(item.frameId).priceCents, Boolean(item.collage)) + (item.voice ? item.voice.addonCents || 0 : 0);
   } catch {
     return 0;
   }

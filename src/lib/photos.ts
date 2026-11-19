@@ -119,8 +119,12 @@ async function storeBlob(database: IDBDatabase, id: string, blob: Blob): Promise
 
 async function putBlob(id: string, blob: Blob) {
   if (typeof indexedDB === "undefined") return;
-  const database = await openDb();
-  await storeBlob(database, id, blob);
+  try {
+    const database = await openDb();
+    await storeBlob(database, id, blob);
+  } catch {
+    // The photo stays in memory for this visit.
+  }
 }
 
 export async function savePhotoPair(
@@ -186,10 +190,7 @@ export async function savePhotoBlob(blob: Blob): Promise<{ id: string; width: nu
   const id = uid("ph_");
   const stored = plainBlob(blob);
   const size = await measure(stored);
-  if (typeof indexedDB !== "undefined") {
-    const database = await openDb();
-    await storeBlob(database, id, stored);
-  }
+  await putBlob(id, stored);
   memory.set(id, { url: URL.createObjectURL(stored), ...size });
   return { id, ...size };
 }

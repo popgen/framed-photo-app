@@ -16,6 +16,7 @@ import { DEPARTMENTS, districtsFor, provincesFor, shippingZone } from "../lib/zo
 import { paymentsMode, providerFor, type PaymentMethod } from "../lib/env";
 import { cardOrderLine } from "../lib/cards";
 import { frameById } from "../lib/catalog";
+import { framedPriceCents } from "../lib/collage";
 import { formatSoles } from "../lib/money";
 import { GIFT_NOTE_MESSAGE_MAX } from "../lib/gift-note";
 import { quote as priceQuote } from "../lib/pricing";
@@ -97,6 +98,7 @@ export default function Checkout() {
         textOverlay: item.textOverlay,
         card: item.card,
         voice: item.voice,
+        collage: item.collage,
       })),
       ...form,
       isGift: form.giftPrinted,
@@ -119,7 +121,7 @@ export default function Checkout() {
   }, [input, form.phone]);
 
   const instant = priceQuote({
-    items: items.map((item) => ({ unitPriceCents: frameById(item.frameId).priceCents })),
+    items: items.map((item) => ({ unitPriceCents: item.collage ? framedPriceCents(frameById(item.frameId).priceCents, true) : frameById(item.frameId).priceCents })),
     giftWrap: form.giftWrap,
     giftNote: form.giftPrinted && form.giftNoteMessage.trim().length > 0 && form.giftNoteMessage.trim().length <= GIFT_NOTE_MESSAGE_MAX,
   });

@@ -91,6 +91,7 @@ export function mapItemRow(row: Record<string, any>): OrderItem {
     textOverlay: row.text_overlay,
     card: row.card,
     voice: row.voice,
+    collage: row.collage ?? null,
     photoOriginalPath: row.original_path,
     photoPrintPath: row.print_path ?? row.photo_path,
   };

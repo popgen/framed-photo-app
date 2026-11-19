@@ -8,6 +8,8 @@ import { estimateDelivery } from "./delivery";
 import { notifyMode } from "./env";
 import { giftCode, referralCodeFrom, uid } from "./ids";
 import { cardMessageError, priceCards } from "./cards";
+import { framedPriceCents } from "./collage";
+import { EXAMPLE_PHOTO_PROMPT, usesExamplePhoto } from "./example-photo";
 import { stockChecksEnabled } from "./env";
 import { formatOrderNumber } from "./order-number";
 import { isOpenShipment, sortTracking, toPublicShipment, toTrackingCard } from "./tracking";
@@ -265,7 +267,7 @@ function priceInput(state: DB, input: CheckoutInput, phone: string | null) {
   const items: QuoteItem[] = input.items.flatMap((item) => {
     const lines: QuoteItem[] = item.card
       ? [{ unitPriceCents: priceCards(item.card.quantity).cents, quantity: 1, kind: "plain" }]
-      : [{ unitPriceCents: frameById(item.frameId).priceCents, quantity: 1, kind: "frame" }];
+      : [{ unitPriceCents: framedPriceCents(frameById(item.frameId).priceCents, Boolean(item.collage)), quantity: 1, kind: "frame" }];
     if (item.voice) lines.push({ unitPriceCents: item.voice.addonCents || VOICE_ADDON_CENTS, quantity: 1, kind: "plain" });
     return lines;
   });
@@ -310,6 +312,7 @@ function priceInput(state: DB, input: CheckoutInput, phone: string | null) {
 
 function assertCheckout(input: CheckoutInput, phone: string | null) {
   if (!input.items.length) throw new AppError("Tu carrito está vacío.");
+  if (input.items.some((item) => usesExamplePhoto(item))) throw new AppError(EXAMPLE_PHOTO_PROMPT);
   const cardError = cardMessageError(input.items);
   if (cardError) throw new AppError(cardError);
   if (input.items.some((item) => item.resolutionStatus === "low") && !input.ackLowRes) {
@@ -353,7 +356,7 @@ function buildOrder(state: DB, input: CheckoutInput, phone: string, status: Orde
     crop: item.crop,
     orientation: item.orientation,
     quantity: 1,
-    unitPriceCents: item.card ? priceCards(item.card.quantity).cents : frameById(item.frameId).priceCents,
+    unitPriceCents: item.card ? priceCards(item.card.quantity).cents : framedPriceCents(frameById(item.frameId).priceCents, Boolean(item.collage)),
     bundleId: item.bundleId,
     bundleLabel: item.bundleLabel,
     dpi: Math.round(item.dpi),
@@ -362,6 +365,7 @@ function buildOrder(state: DB, input: CheckoutInput, phone: string, status: Orde
     textOverlay: item.textOverlay ?? null,
     card: item.card ?? null,
     voice: item.voice ?? null,
+    collage: item.collage ?? null,
   }));
   return {
     id: uid("ord_"),

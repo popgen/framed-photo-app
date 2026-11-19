@@ -1,4 +1,4 @@
-import { authorizeUrl, importCookie, isImportProvider, openImport, readCookie, sealImport } from "../../src/lib/photo-import.ts";
+import { authorizeUrl, importCookie, isImportProvider, openImport, readCookie, safeImportReturn, sealImport } from "../../src/lib/photo-import.ts";
 
 export function importSecret() {
   return process.env.OTP_SIGNING_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || "mifotito-import";
@@ -39,7 +39,8 @@ export async function beginImport(req) {
   const client = clientFor(provider);
   if (!client.id || !client.secret) return { error: "Falta la configuración de esa red en el servidor.", status: 400 };
   const origin = siteOrigin(req);
-  const state = await sealImport({ provider }, importSecret(), Date.now() + 10 * 60 * 1000);
+  const next = safeImportReturn(req.query?.next);
+  const state = await sealImport({ provider, next }, importSecret(), Date.now() + 10 * 60 * 1000);
   return { url: authorizeUrl(provider, { clientId: client.id, redirectUri: redirectUri(origin), state }) };
 }
 

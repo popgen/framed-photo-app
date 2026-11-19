@@ -1,6 +1,7 @@
 import { router } from "expo-router";
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
+import { CollageStill } from "../components/CollageBoard";
 import { GiftNoteEditor } from "../components/GiftNoteCard";
 import { FrameView } from "../components/FrameView";
 import { PriceTicker } from "../components/fx";
@@ -8,6 +9,7 @@ import { Button, Card, Progress, Screen, TabBar } from "../components/ui";
 import { colors, font } from "../components/theme";
 import { cardOrderLine, priceCards } from "../lib/cards";
 import { frameById } from "../lib/catalog";
+import { framedPriceCents } from "../lib/collage";
 import { formatSoles } from "../lib/money";
 import { quote, type QuoteItem } from "../lib/pricing";
 import { VOICE_ADDON_CENTS } from "../lib/voice";
@@ -24,7 +26,7 @@ export default function Carrito() {
     items: items.flatMap((item): QuoteItem[] => {
       const lines: QuoteItem[] = item.card
         ? [{ unitPriceCents: priceCards(item.card.quantity).cents, quantity: 1, kind: "plain" }]
-        : [{ unitPriceCents: frameById(item.frameId).priceCents, quantity: 1, kind: "frame" }];
+        : [{ unitPriceCents: framedPriceCents(frameById(item.frameId).priceCents, Boolean(item.collage)), quantity: 1, kind: "frame" }];
       if (item.voice) lines.push({ unitPriceCents: item.voice.addonCents || VOICE_ADDON_CENTS, quantity: 1, kind: "plain" });
       return lines;
     }),
@@ -70,15 +72,24 @@ export default function Carrito() {
             );
           }
           const frame = frameById(item.frameId);
+          const price = framedPriceCents(frame.priceCents, Boolean(item.collage));
           return (
             <Card key={item.id}>
               <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
-                <FrameView frame={frame} photoId={item.photoId} crop={item.crop} orientation={item.orientation} width={78} overlay={item.textOverlay} />
+                <FrameView
+                  frame={frame}
+                  photoId={item.collage ? undefined : item.photoId}
+                  crop={item.collage ? undefined : item.crop}
+                  orientation={item.orientation}
+                  width={78}
+                  overlay={item.collage ? undefined : item.textOverlay}
+                  opening={item.collage ? <CollageStill photoId={item.photoId} /> : undefined}
+                />
                 <View style={{ flex: 1, gap: 4 }}>
                   <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{frame.name}</Text>
-                  <Text style={{ fontFamily: font.body, color: colors.muted }}>{frame.sizeLabel}</Text>
+                  <Text style={{ fontFamily: font.body, color: colors.muted }}>{item.collage ? `Collage · ${item.collage.templateName}` : frame.sizeLabel}</Text>
                   {item.bundleLabel ? <Text style={{ fontFamily: font.medium, color: colors.pine }}>{item.bundleLabel}</Text> : null}
-                  <Text style={{ fontFamily: font.bold, color: colors.ink }}>{formatSoles(frame.priceCents)}</Text>
+                  <Text style={{ fontFamily: font.bold, color: colors.ink }}>{formatSoles(price)}</Text>
                 </View>
               </View>
               <Pressable onPress={() => remove(item.id)} style={{ minHeight: 44, justifyContent: "center" }}>
