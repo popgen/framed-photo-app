@@ -13,6 +13,7 @@ export function Collapsible({
   children,
   open: openProp,
   onToggle,
+  headerId,
 }: {
   title: string;
   icon?: ReactNode;
@@ -21,6 +22,7 @@ export function Collapsible({
   children: ReactNode;
   open?: boolean;
   onToggle?: () => void;
+  headerId?: string;
 }) {
   const reduced = useReducedMotion();
   const [uncontrolled, setUncontrolled] = useState(false);
@@ -31,31 +33,33 @@ export function Collapsible({
   }, [open, reduced, rotation]);
   const chevron = useAnimatedStyle(() => ({ transform: [{ rotate: `${rotation.value * 180}deg` }] }));
   return (
-    <Animated.View layout={reduced ? undefined : LinearTransition.duration(240)} style={box}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={title}
-        accessibilityState={{ expanded: open }}
-        onPress={() => {
-          if (onToggle) onToggle();
-          else setUncontrolled((value) => !value);
-        }}
-        style={header}
-      >
-        <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10 }}>
-          {icon}
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text style={{ fontFamily: font.semibold, fontSize: 16, color: colors.ink }}>{title}</Text>
-            {badge ? <Text style={{ fontFamily: font.medium, fontSize: 12, color: colors.pine }}>✓ {badge}</Text> : null}
+    <Animated.View layout={reduced ? undefined : LinearTransition.duration(240)} style={[box, open ? { overflow: "visible" } : null]}>
+      <View nativeID={headerId} collapsable={false}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={title}
+          accessibilityState={{ expanded: open }}
+          onPress={() => {
+            if (onToggle) onToggle();
+            else setUncontrolled((value) => !value);
+          }}
+          style={header}
+        >
+          <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10 }}>
+            {icon}
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={{ fontFamily: font.semibold, fontSize: 16, color: colors.ink }}>{title}</Text>
+              {badge ? <Text style={{ fontFamily: font.medium, fontSize: 12, color: colors.pine }}>✓ {badge}</Text> : null}
+            </View>
           </View>
-        </View>
-        {extra}
-        <Animated.View style={chevron}>
-          <Svg width={18} height={18} viewBox="0 0 24 24">
-            <Path d="M6 9l6 6 6-6" stroke={colors.ink} strokeWidth={2.2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-          </Svg>
-        </Animated.View>
-      </Pressable>
+          {extra}
+          <Animated.View style={chevron}>
+            <Svg width={18} height={18} viewBox="0 0 24 24">
+              <Path d="M6 9l6 6 6-6" stroke={colors.ink} strokeWidth={2.2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
+          </Animated.View>
+        </Pressable>
+      </View>
       {open ? (
         <Animated.View entering={reduced ? undefined : FadeIn.duration(220)} exiting={reduced ? undefined : FadeOut.duration(160)} style={{ paddingTop: 10 }}>
           {children}
