@@ -23,8 +23,15 @@ export function createSound(): GameSound {
 
   function context(): AudioContext | null {
     if (!on || typeof AudioContext === "undefined") return null;
-    if (!ctx) ctx = new AudioContext();
-    if (ctx.state === "suspended") void ctx.resume();
+    if (!ctx) {
+      try {
+        ctx = new AudioContext();
+      } catch {
+        return null;
+      }
+    }
+    // Some browsers (or devices with no audio output) reject resume(); the game stays silent.
+    if (ctx.state === "suspended") ctx.resume().catch(() => undefined);
     return ctx;
   }
 
