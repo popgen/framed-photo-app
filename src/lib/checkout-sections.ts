@@ -206,11 +206,15 @@ export function initialOpenSection(draft: CheckoutSectionDraft): CheckoutSection
   return null;
 }
 
+/**
+ * Required sections that start collapsed with a summary: every valid one except the open one.
+ * A restored Mercado Pago draft with a complete address keeps Dirección collapsed even when
+ * Datos personales still needs the password.
+ */
 export function initialAcknowledged(draft: CheckoutSectionDraft): CheckoutSection[] {
   const open = initialOpenSection(draft);
-  if (open === "personal") return [];
-  if (open === "address") return ["personal"];
-  return ["personal", "address"];
+  const required: CheckoutSection[] = ["personal", "address"];
+  return required.filter((section) => section !== open && !sectionIssue(section, draft));
 }
 
 export function continueCheckoutSection(

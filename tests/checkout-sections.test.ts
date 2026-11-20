@@ -88,6 +88,13 @@ describe("checkout delivery sections", () => {
     expect(initialAcknowledged(partial)).toEqual([]);
   });
 
+  it("collapses a restored valid address while personal data still needs the password", () => {
+    const restored = draft({ ...readyPersonal, ...readyAddress, hasAccount: false, clave: "" });
+    expect(initialOpenSection(restored)).toBe("personal");
+    expect(initialAcknowledged(restored)).toEqual(["address"]);
+    expect(sectionBadge("address", "personal", initialAcknowledged(restored), restored)).toBe("Miraflores · Av. Larco 123");
+  });
+
   it("continues only when the section is valid, then opens the next one", () => {
     const empty = draft();
     const blocked = afterContinue("personal", [], empty);
