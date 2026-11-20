@@ -73,6 +73,9 @@ export function GiftNoteEditor({
   buyerName,
   hidePrices,
   onChange,
+  toId,
+  messageId,
+  fromId,
 }: {
   printed: boolean;
   to: string;
@@ -81,6 +84,9 @@ export function GiftNoteEditor({
   buyerName: string;
   hidePrices: boolean;
   onChange: (next: { printed: boolean; to: string; message: string; fromName: string; hidePrices: boolean }) => void;
+  toId?: string;
+  messageId?: string;
+  fromId?: string;
 }) {
   const price = GIFT_NOTE_CENTS === 0 ? "Gratis" : formatSoles(GIFT_NOTE_CENTS);
   const previewFrom = fromName.trim() || buyerName.trim();
@@ -107,11 +113,12 @@ export function GiftNoteEditor({
       {printed ? (
         <View style={{ gap: 12 }}>
           <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Nota de regalo impresa</Text>
-          <Labeled label="Para (opcional)" value={to} maxLength={GIFT_NOTE_NAME_MAX} testID="gift-note-to" onChangeText={(value) => onChange({ printed, to: value, message, fromName, hidePrices })} />
+          <Labeled label="Para (opcional)" value={to} maxLength={GIFT_NOTE_NAME_MAX} testID="gift-note-to" nativeID={toId} onChangeText={(value) => onChange({ printed, to: value, message, fromName, hidePrices })} />
           <View style={{ gap: 6 }}>
             <Text style={{ fontFamily: font.medium, color: colors.muted, fontSize: 13 }}>Mensaje</Text>
             <TextInput
               testID="gift-note-message"
+              nativeID={messageId}
               multiline
               maxLength={GIFT_NOTE_MESSAGE_MAX}
               placeholder="Unas líneas para quien abre la caja"
@@ -140,6 +147,7 @@ export function GiftNoteEditor({
             placeholder={buyerName || "Tu nombre"}
             maxLength={GIFT_NOTE_NAME_MAX}
             testID="gift-note-from"
+            nativeID={fromId}
             onChangeText={(value) => onChange({ printed, to, message, fromName: value, hidePrices })}
           />
           <Pressable
@@ -165,6 +173,7 @@ function Labeled({
   placeholder,
   maxLength,
   testID,
+  nativeID,
 }: {
   label: string;
   value: string;
@@ -172,12 +181,14 @@ function Labeled({
   placeholder?: string;
   maxLength?: number;
   testID?: string;
+  nativeID?: string;
 }) {
   return (
     <View style={{ gap: 6 }}>
       <Text style={{ fontFamily: font.medium, color: colors.muted, fontSize: 13 }}>{label}</Text>
       <TextInput
         testID={testID}
+        nativeID={nativeID}
         maxLength={maxLength}
         placeholder={placeholder}
         placeholderTextColor="#A89488"

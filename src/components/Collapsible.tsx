@@ -41,8 +41,9 @@ export function Collapsible({
       <View nativeID={headerId} collapsable={false}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={title}
+          accessibilityLabel={badge ? `${title}. ${badge}` : title}
           accessibilityState={{ expanded: open }}
+          aria-expanded={open}
           onPress={() => {
             if (onToggle) onToggle();
             else setUncontrolled((value) => !value);
@@ -56,7 +57,11 @@ export function Collapsible({
                 {lead}
                 {suffix ? <Text style={optionalSuffix}>{suffix}</Text> : null}
               </Text>
-              {badge ? <Text style={{ fontFamily: font.medium, fontSize: 12, color: colors.pine }}>✓ {badge}</Text> : null}
+              {badge ? (
+                <Text numberOfLines={1} style={{ fontFamily: font.medium, fontSize: 12, color: colors.pine }}>
+                  ✓ {badge}
+                </Text>
+              ) : null}
             </View>
           </View>
           {extra}

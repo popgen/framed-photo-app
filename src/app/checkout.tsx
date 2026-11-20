@@ -4,7 +4,8 @@ import { Image } from "expo-image";
 import { InlineLink } from "../components/InlineLink";
 import { currentCustomer, passwordError, type CustomerSession } from "../lib/customer-auth";
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import { Countdown, GuaranteeNote, PaySheet, useNow } from "../components/fx";
+import { Collapsible } from "../components/Collapsible";
+import { Countdown, GuaranteeNote, PaySheet, useNow, useReducedMotion } from "../components/fx";
 import { useApp } from "../components/provider";
 import { GiftNoteEditor } from "../components/GiftNoteCard";
 import { DiscountCodeField } from "../components/DiscountCodeField";
@@ -12,13 +13,30 @@ import { Banner, Button, Field, Progress, Screen } from "../components/ui";
 import { colors, font } from "../components/theme";
 import { readWaOrder, rememberWaOrder } from "../lib/boot";
 import { countdownVisible } from "../lib/campaign";
+import {
+  afterContinue,
+  afterSkip,
+  checkoutFieldId,
+  checkoutHeaderId,
+  focusCheckoutField,
+  focusForCheckoutError,
+  initialAcknowledged,
+  initialOpenSection,
+  mergeCheckoutProfile,
+  payBlockAfterAccount,
+  sectionBadge,
+  toggleCheckoutSection,
+  type CheckoutField,
+  type CheckoutSection,
+} from "../lib/checkout-sections";
 import { countdownTarget, guaranteeFor } from "../lib/cutoff";
 import { DEPARTMENTS, districtsFor, provincesFor, shippingZone } from "../lib/zone";
 import { checkoutPayMethodForSubmit, checkoutPayOptions, resolveCheckoutPayMethod, type CheckoutPayMethod } from "../lib/checkout-payment";
 import { DONATION_CENTS, donationCheckboxLabel, donationSummaryText } from "../lib/donation";
 import { dataMode, paymentsMode, providerFor } from "../lib/env";
 import { isTestOnlyCart, isTestProductItem, TEST_PRODUCT_CENTS } from "../lib/test-product";
-import { cardOrderLine } from "../lib/cards";
+import { cardMessageError, cardOrderLine } from "../lib/cards";
+import { revealHeader } from "../lib/editor-sections";
 import { frameById } from "../lib/catalog";
 import { framedPriceCents } from "../lib/collage";
 import { formatSoles } from "../lib/money";
@@ -117,6 +135,15 @@ export default function Checkout() {
   pedidoRef.current = oneParam(params.pedido);
   const [picker, setPicker] = useState<"department" | "province" | "district" | null>(null);
   const [query, setQuery] = useState("");
+  const reduced = useReducedMotion();
+  const [open, setOpen] = useState<CheckoutSection | null>("personal");
+  const [done, setDone] = useState<CheckoutSection[]>([]);
+  const [accountReady, setAccountReady] = useState(false);
+  const [focusNonce, setFocusNonce] = useState(0);
+  const booted = useRef(false);
+  const userEdited = useRef(false);
+  const pendingReveal = useRef<CheckoutSection | null>(null);
+  const pendingFocus = useRef<CheckoutField | null>(null);
 
   useEffect(() => {
     let stopped = false;
@@ -157,6 +184,9 @@ export default function Checkout() {
     const draft = readCheckoutDraft<{ form?: Partial<typeof form> }>();
     if (draft?.form && !draftRestored.current) {
       draftRestored.current = true;
+      // Re-run the accordion boot so the restored sections collapse with summaries.
+      booted.current = false;
+      userEdited.current = false;
       setForm((current) => ({ ...current, ...draft.form }));
       const gift = draft.form;
       if (typeof gift.giftPrinted === "boolean") {
@@ -201,10 +231,29 @@ export default function Checkout() {
 
   useEffect(() => {
     void getRepo().getCampaign().then(setCampaign);
-    void currentCustomer().then((session) => {
+  }, []);
+
+  useEffect(() => {
+    let stopped = false;
+    void (async () => {
+      const session = await currentCustomer().catch(() => null);
+      if (stopped) return;
+      let profile: Awaited<ReturnType<ReturnType<typeof getRepo>["getProfile"]>> = null;
+      if (session) {
+        try {
+          profile = await getRepo().getProfile();
+        } catch {
+          profile = null;
+        }
+      }
+      if (stopped) return;
       setAccount(session);
-      if (session) setForm((current) => ({ ...current, email: current.email || session.email }));
-    });
+      setForm((current) => mergeCheckoutProfile(current, session, profile));
+      setAccountReady(true);
+    })();
+    return () => {
+      stopped = true;
+    };
   }, []);
 
   const input = useMemo<CheckoutInput>(
@@ -247,6 +296,65 @@ export default function Checkout() {
   }, [input, form.phone]);
 
   const testOnly = isTestOnlyCart(items);
+  const draft = useMemo(
+    () => ({
+      customerName: form.customerName,
+      phone: form.phone,
+      email: form.email,
+      clave: password,
+      hasAccount: Boolean(account),
+      taxId: form.taxId,
+      taxIdSkipped: form.taxIdSkipped,
+      department: form.department,
+      province: form.province,
+      district: form.district,
+      addressLine: form.addressLine,
+      reference: form.reference,
+      giftPrinted: form.giftPrinted,
+      giftNoteTo: form.giftNoteTo,
+      giftNoteMessage: form.giftNoteMessage,
+      giftNoteFrom: form.giftNoteFrom,
+      hidePrices: form.hidePrices,
+      giftWrap: form.giftWrap,
+      promoCode: form.promoCode,
+      referralCode: form.referralCode,
+      giftCardCode: form.giftCardCode,
+      promoError: quote?.promoError,
+      referralError: quote?.referralError,
+      giftCardError: quote?.giftCardError,
+    }),
+    [account, form, password, quote],
+  );
+
+  useEffect(() => {
+    if (!accountReady || booted.current) return;
+    booted.current = true;
+    if (userEdited.current) return;
+    setDone(initialAcknowledged(draft));
+    const first = initialOpenSection(draft);
+    pendingReveal.current = first;
+    setOpen(first);
+    setFocusNonce((value) => value + 1);
+  }, [accountReady, draft]);
+
+  useEffect(() => {
+    const header = pendingReveal.current;
+    const field = pendingFocus.current;
+    if (!header && !field) return;
+    const delay = reduced ? 32 : 280;
+    const handle = setTimeout(() => {
+      if (header && pendingReveal.current === header) {
+        pendingReveal.current = null;
+        revealHeader(checkoutHeaderId(header), reduced);
+      }
+      if (field && pendingFocus.current === field) {
+        pendingFocus.current = null;
+        focusCheckoutField(field);
+      }
+    }, delay);
+    return () => clearTimeout(handle);
+  }, [open, focusNonce, reduced]);
+
   const instant = priceQuote({
     items: items.map((item) => ({
       unitPriceCents: isTestProductItem(item) ? TEST_PRODUCT_CENTS : item.collage ? framedPriceCents(frameById(item.frameId).priceCents, true) : frameById(item.frameId).priceCents,
@@ -334,6 +442,64 @@ export default function Checkout() {
     }
   }
 
+  function focusSection(section: CheckoutSection, field: CheckoutField) {
+    userEdited.current = true;
+    pendingReveal.current = section;
+    pendingFocus.current = field;
+    setFocusNonce((value) => value + 1);
+    setOpen(section);
+  }
+
+  function report(message: string) {
+    setError(message);
+    const target = focusForCheckoutError(message, draft);
+    if (!target) return;
+    if (target.field === "taxId") setTaxTouched(true);
+    focusSection(target.section, target.field);
+  }
+
+  function continuar(section: CheckoutSection) {
+    userEdited.current = true;
+    const step = afterContinue(section, done, draft);
+    if (!step.ok) {
+      if (step.field === "taxId") setTaxTouched(true);
+      setError(step.error);
+      focusSection(section, step.field);
+      return;
+    }
+    setDone(step.done);
+    setError(null);
+    pendingFocus.current = null;
+    pendingReveal.current = step.open;
+    setOpen(step.open);
+  }
+
+  function omitir(section: CheckoutSection) {
+    userEdited.current = true;
+    const step = afterSkip(section, done, draft);
+    if (!step.ok) {
+      if (step.field === "taxId") setTaxTouched(true);
+      setError(step.error);
+      focusSection(section, step.field);
+      return;
+    }
+    setDone(step.done);
+    setError(null);
+    pendingFocus.current = null;
+    pendingReveal.current = step.open;
+    setOpen(step.open);
+  }
+
+  function toggleSection(target: CheckoutSection) {
+    userEdited.current = true;
+    setOpen((current) => {
+      const next = toggleCheckoutSection(current, target);
+      pendingReveal.current = next;
+      pendingFocus.current = null;
+      return next;
+    });
+  }
+
   async function start() {
     if (items.some((item) => usesExamplePhoto(item))) {
       setError(EXAMPLE_PHOTO_PROMPT);
@@ -341,16 +507,27 @@ export default function Checkout() {
     }
     const tax = resolveTaxId({ taxId: form.taxId, skipped: form.taxIdSkipped });
     if (!tax.ok) {
-      setTaxTouched(true);
-      setError(tax.error);
+      report(tax.error);
       return;
     }
     if (!account) {
       const problem = passwordError(password);
       if (problem) {
-        setError(problem);
+        report(problem);
         return;
       }
+    }
+    const block = payBlockAfterAccount(draft, {
+      cardError: cardMessageError(items),
+      lowResBlocked: items.some((item) => item.resolutionStatus === "low") && !form.ackLowRes,
+    });
+    if (block) {
+      if (block.kind === "banner") {
+        setError(block.error);
+        return;
+      }
+      report(block.error);
+      return;
     }
     if (!payReady || method !== "card" && method !== "mercadopago") {
       setError("Elige cómo quieres pagar.");
@@ -428,11 +605,14 @@ export default function Checkout() {
       }
       setPending(order);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Revisa los datos.");
+      report(err instanceof Error ? err.message : "Revisa los datos.");
     } finally {
       setBusy(false);
     }
   }
+
+  const focus = error ? focusForCheckoutError(error, draft) : null;
+  const pointed = focus && error ? { ...focus, error } : null;
 
   return (
     <Screen
@@ -457,118 +637,144 @@ export default function Checkout() {
         ))}
         {campaign && countdownVisible(now, campaign) ? <Countdown target={countdownTarget(now, zone, campaign)} now={now} /> : null}
         {guarantee ? <GuaranteeNote guarantee={guarantee} /> : null}
-        <Field label="Nombre" value={form.customerName} onChangeText={(customerName) => setForm({ ...form, customerName })} />
-        <Field label="Celular" keyboardType="phone-pad" placeholder="987 654 321" value={form.phone} onChangeText={(phone) => setForm({ ...form, phone })} />
-        <Field label="Correo" autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder="lucia@correo.com" value={form.email} onChangeText={(email) => setForm({ ...form, email })} />
-        {account ? null : (
-          <>
-            <Field
-              label="Contraseña"
-              hint="Crea una contraseña para seguir tu pedido. Si ya tienes cuenta, usa la misma."
-              secureTextEntry={!showPassword}
-              autoCapitalize="none"
-              value={password}
-              onChangeText={setPassword}
-            />
-            <Pressable onPress={() => setShowPassword((value) => !value)} style={{ minHeight: 44, justifyContent: "center" }}>
-              <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}</Text>
+        <Collapsible title="Datos personales" headerId={checkoutHeaderId("personal")} open={open === "personal"} onToggle={() => toggleSection("personal")} badge={sectionBadge("personal", open, done, draft)}>
+          <View style={{ gap: 12 }}>
+            <Field label="Nombre" nativeID={checkoutFieldId("customerName")} error={pointed?.field === "customerName" ? pointed.error : undefined} value={form.customerName} onChangeText={(customerName) => setForm({ ...form, customerName })} />
+            <Field label="Celular" nativeID={checkoutFieldId("phone")} error={pointed?.field === "phone" ? pointed.error : undefined} keyboardType="phone-pad" placeholder="987 654 321" value={form.phone} onChangeText={(phone) => setForm({ ...form, phone })} />
+            <Field label="Correo" nativeID={checkoutFieldId("email")} error={pointed?.field === "email" ? pointed.error : undefined} autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder="lucia@correo.com" value={form.email} onChangeText={(email) => setForm({ ...form, email })} />
+            {account ? null : (
+              <>
+                <Field
+                  label="Contraseña"
+                  nativeID={checkoutFieldId("clave")}
+                  error={pointed?.field === "clave" ? pointed.error : undefined}
+                  hint="Crea una contraseña para seguir tu pedido. Si ya tienes cuenta, usa la misma."
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  value={password}
+                  onChangeText={setPassword}
+                />
+                <Pressable accessibilityRole="button" onPress={() => setShowPassword((value) => !value)} style={{ minHeight: 44, justifyContent: "center" }}>
+                  <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}</Text>
+                </Pressable>
+              </>
+            )}
+            <View style={{ opacity: form.taxIdSkipped ? 0.45 : 1 }} pointerEvents={form.taxIdSkipped ? "none" : "auto"}>
+              <Field
+                label="DNI o RUC (para fines tributarios)"
+                nativeID={checkoutFieldId("taxId")}
+                hint="Lo usamos para emitir tu boleta o factura."
+                error={!form.taxIdSkipped && taxTouched && !taxCheck.ok ? taxCheck.error : undefined}
+                editable={!form.taxIdSkipped}
+                keyboardType="number-pad"
+                placeholder="87654321 o 20#########"
+                value={form.taxIdSkipped ? "" : form.taxId}
+                onChangeText={(taxId) => setForm({ ...form, taxId })}
+                onBlur={() => setTaxTouched(true)}
+              />
+            </View>
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: form.taxIdSkipped }}
+              onPress={() => {
+                const next = !form.taxIdSkipped;
+                setForm({ ...form, taxIdSkipped: next, taxId: next ? "" : form.taxId, taxLegalName: next ? "" : form.taxLegalName });
+                if (next) setTaxTouched(false);
+              }}
+              style={{ minHeight: 44, justifyContent: "center" }}
+            >
+              <Text style={{ fontFamily: font.medium, color: colors.ink }}>{form.taxIdSkipped ? "☑" : "☐"} No tengo DNI ni RUC / alguien más está comprando por mí</Text>
             </Pressable>
-          </>
-        )}
-        <View style={{ opacity: form.taxIdSkipped ? 0.45 : 1 }} pointerEvents={form.taxIdSkipped ? "none" : "auto"}>
-          <Field
-            label="DNI o RUC (para fines tributarios)"
-            hint="Lo usamos para emitir tu boleta o factura."
-            error={!form.taxIdSkipped && taxTouched && !taxCheck.ok ? taxCheck.error : undefined}
-            editable={!form.taxIdSkipped}
-            keyboardType="number-pad"
-            placeholder="87654321 o 20#########"
-            value={form.taxIdSkipped ? "" : form.taxId}
-            onChangeText={(taxId) => setForm({ ...form, taxId })}
-            onBlur={() => setTaxTouched(true)}
-          />
-        </View>
-        <Pressable
-          onPress={() => {
-            const next = !form.taxIdSkipped;
-            setForm({ ...form, taxIdSkipped: next, taxId: next ? "" : form.taxId, taxLegalName: next ? "" : form.taxLegalName });
-            if (next) setTaxTouched(false);
-          }}
-          style={{ minHeight: 44, justifyContent: "center" }}
-        >
-          <Text style={{ fontFamily: font.medium, color: colors.ink }}>{form.taxIdSkipped ? "☑" : "☐"} No tengo DNI ni RUC / alguien más está comprando por mí</Text>
-        </Pressable>
-        {!form.taxIdSkipped && taxCheck.ok && taxCheck.taxIdType === "RUC" ? (
-          <Field label="Razón social (opcional)" value={form.taxLegalName} onChangeText={(taxLegalName) => setForm({ ...form, taxLegalName })} />
-        ) : null}
-        <Pressable onPress={() => openPicker("department")} style={choice}>
-          <Text style={choiceLabel}>Departamento</Text>
-          <Text style={choiceValue}>{form.department || "Elegir"}</Text>
-        </Pressable>
-        <Pressable onPress={() => form.department && openPicker("province")} style={[choice, !form.department && { opacity: 0.45 }]}>
-          <Text style={choiceLabel}>Provincia</Text>
-          <Text style={choiceValue}>{form.province || "Elegir"}</Text>
-        </Pressable>
-        <Pressable onPress={() => form.province && openPicker("district")} style={[choice, !form.province && { opacity: 0.45 }]}>
-          <Text style={choiceLabel}>Distrito</Text>
-          <Text style={choiceValue}>{form.district || "Elegir"}</Text>
-        </Pressable>
-        <Field label="Dirección" value={form.addressLine} onChangeText={(addressLine) => setForm({ ...form, addressLine })} />
-        <Field label="Referencia" value={form.reference} onChangeText={(reference) => setForm({ ...form, reference })} />
-        <Text style={{ fontFamily: font.semibold, color: zone === "provinces" ? colors.warn : colors.pine }}>
-          {testOnly
-            ? "Producto de prueba. El envío es S/ 0 y no entra a producción."
-            : zone === "lima"
-              ? "Lima y Callao · 2 a 3 días hábiles"
-              : zone === "provinces"
-                ? "Provincias · 3 a 5 días hábiles"
-                : "Elige departamento, provincia y distrito para ver el plazo."}
-        </Text>
-        {form.giftPrinted ? <Text style={{ fontFamily: font.body, color: colors.muted }}>Si el regalo va a otra dirección, márcalo aquí.</Text> : null}
-        <Pressable onPress={() => setForm({ ...form, otherRecipient: !form.otherRecipient })} style={{ minHeight: 44, justifyContent: "center" }}>
-          <Text style={{ fontFamily: font.medium, color: colors.ink }}>{form.otherRecipient ? "☑" : "☐"} Se lo envío a otra persona</Text>
-        </Pressable>
-        {form.otherRecipient ? (
-          <>
-            <Field label="Nombre de quien lo recibe" value={form.recipientName} onChangeText={(recipientName) => setForm({ ...form, recipientName })} />
-            <Field label="Celular de quien lo recibe" value={form.recipientPhone} onChangeText={(recipientPhone) => setForm({ ...form, recipientPhone })} />
-          </>
-        ) : null}
-        {testOnly ? null : <GiftNoteEditor
-          printed={form.giftPrinted}
-          to={form.giftNoteTo}
-          message={form.giftNoteMessage}
-          fromName={form.giftNoteFrom}
-          buyerName={form.customerName}
-          hidePrices={form.hidePrices || form.giftWrap}
-          onChange={(next) => {
-            setGift({ isGift: next.printed, to: next.to, message: next.message, from: next.fromName, hidePrices: next.hidePrices });
-            setForm({ ...form, giftPrinted: next.printed, giftNoteTo: next.to, giftNoteMessage: next.message, giftNoteFrom: next.fromName, hidePrices: next.hidePrices });
-          }}
-        />}
-        {testOnly ? null : (
-          <>
+            {!form.taxIdSkipped && taxCheck.ok && taxCheck.taxIdType === "RUC" ? (
+              <Field label="Razón social (opcional)" value={form.taxLegalName} onChangeText={(taxLegalName) => setForm({ ...form, taxLegalName })} />
+            ) : null}
+            <Button label="Continuar" onPress={() => continuar("personal")} />
+          </View>
+        </Collapsible>
+        <Collapsible title="Dirección" headerId={checkoutHeaderId("address")} open={open === "address"} onToggle={() => toggleSection("address")} badge={sectionBadge("address", open, done, draft)}>
+          <View style={{ gap: 12 }}>
+            {pointed?.section === "address" && pointed.field !== "addressLine" ? <Banner tone="bad" text={pointed.error} /> : null}
+            <Pressable accessibilityRole="button" accessibilityLabel={form.department ? `Departamento, ${form.department}` : "Departamento"} nativeID={checkoutFieldId("department")} onPress={() => openPicker("department")} style={choice}>
+              <Text style={choiceLabel}>Departamento</Text>
+              <Text style={choiceValue}>{form.department || "Elegir"}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={form.province ? `Provincia, ${form.province}` : "Provincia"} nativeID={checkoutFieldId("province")} onPress={() => form.department && openPicker("province")} style={[choice, !form.department && { opacity: 0.45 }]}>
+              <Text style={choiceLabel}>Provincia</Text>
+              <Text style={choiceValue}>{form.province || "Elegir"}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={form.district ? `Distrito, ${form.district}` : "Distrito"} nativeID={checkoutFieldId("district")} onPress={() => form.province && openPicker("district")} style={[choice, !form.province && { opacity: 0.45 }]}>
+              <Text style={choiceLabel}>Distrito</Text>
+              <Text style={choiceValue}>{form.district || "Elegir"}</Text>
+            </Pressable>
+            <Field label="Dirección" nativeID={checkoutFieldId("addressLine")} error={pointed?.field === "addressLine" ? pointed.error : undefined} value={form.addressLine} onChangeText={(addressLine) => setForm({ ...form, addressLine })} />
+            <Field label="Referencia" value={form.reference} onChangeText={(reference) => setForm({ ...form, reference })} />
+            <Text style={{ fontFamily: font.semibold, color: zone === "provinces" ? colors.warn : colors.pine }}>
+              {testOnly ? "Producto de prueba. El envío es S/ 0 y no entra a producción." : zone === "lima" ? "Lima y Callao · 2 a 3 días hábiles" : zone === "provinces" ? "Provincias · 3 a 5 días hábiles" : "Elige departamento, provincia y distrito para ver el plazo."}
+            </Text>
+            {form.giftPrinted ? <Text style={{ fontFamily: font.body, color: colors.muted }}>Si el regalo va a otra dirección, márcalo aquí.</Text> : null}
+            <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: form.otherRecipient }} onPress={() => setForm({ ...form, otherRecipient: !form.otherRecipient })} style={{ minHeight: 44, justifyContent: "center" }}>
+              <Text style={{ fontFamily: font.medium, color: colors.ink }}>{form.otherRecipient ? "☑" : "☐"} Se lo envío a otra persona</Text>
+            </Pressable>
+            {form.otherRecipient ? (
+              <>
+                <Field label="Nombre de quien lo recibe" value={form.recipientName} onChangeText={(recipientName) => setForm({ ...form, recipientName })} />
+                <Field label="Celular de quien lo recibe" value={form.recipientPhone} onChangeText={(recipientPhone) => setForm({ ...form, recipientPhone })} />
+              </>
+            ) : null}
+            <Button label="Continuar" onPress={() => continuar("address")} />
+          </View>
+        </Collapsible>
+        <Collapsible title="Nota (opcional)" headerId={checkoutHeaderId("note")} open={open === "note"} onToggle={() => toggleSection("note")} badge={sectionBadge("note", open, done, draft)}>
+          <View style={{ gap: 12 }}>
+            {pointed?.section === "note" ? <Banner tone="bad" text={pointed.error} /> : null}
+            {testOnly ? <Text style={{ fontFamily: font.body, color: colors.muted, lineHeight: 20 }}>El producto de prueba no lleva nota ni envoltorio.</Text> : (<>
+            <GiftNoteEditor
+              printed={form.giftPrinted}
+              to={form.giftNoteTo}
+              message={form.giftNoteMessage}
+              fromName={form.giftNoteFrom}
+              buyerName={form.customerName}
+              hidePrices={form.hidePrices || form.giftWrap}
+              toId={checkoutFieldId("giftNoteTo")}
+              messageId={checkoutFieldId("giftNoteMessage")}
+              fromId={checkoutFieldId("giftNoteFrom")}
+              onChange={(next) => {
+                setGift({ isGift: next.printed, to: next.to, message: next.message, from: next.fromName, hidePrices: next.hidePrices });
+                setForm({ ...form, giftPrinted: next.printed, giftNoteTo: next.to, giftNoteMessage: next.message, giftNoteFrom: next.fromName, hidePrices: next.hidePrices });
+              }}
+            />
             {form.giftPrinted && !form.giftWrap ? <Text style={{ fontFamily: font.body, color: colors.muted }}>Si quieres, suma el envoltorio. Va aparte de la nota.</Text> : null}
-            <Pressable onPress={() => setForm({ ...form, giftWrap: !form.giftWrap })} style={{ minHeight: 52, justifyContent: "center", backgroundColor: form.giftWrap ? "#E7F6EE" : colors.white, borderRadius: 16, padding: 12, gap: 4 }}>
+            <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: form.giftWrap }} onPress={() => setForm({ ...form, giftWrap: !form.giftWrap })} style={{ minHeight: 52, justifyContent: "center", backgroundColor: form.giftWrap ? "#E7F6EE" : colors.white, borderRadius: 16, padding: 12, gap: 4 }}>
               <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{form.giftWrap ? "☑" : "☐"} {campaign?.giftWrapTitle ?? "Envoltorio de regalo"} · S/ 10</Text>
               <Text style={{ fontFamily: font.body, color: colors.muted }}>{campaign?.giftWrapBody ?? "La caja va sin precios."}</Text>
               {form.giftWrap ? <Text style={{ fontFamily: font.medium, color: colors.ink }}>☑ No incluir precios en la caja</Text> : null}
             </Pressable>
-            <DiscountCodeField
+            </>)}
+            <Button label="Continuar" onPress={() => continuar("note")} />
+            <Button label="Omitir nota" tone="ghost" onPress={() => omitir("note")} />
+          </View>
+        </Collapsible>
+        <Collapsible title="Código (opcional)" headerId={checkoutHeaderId("code")} open={open === "code"} onToggle={() => toggleSection("code")} badge={sectionBadge("code", open, done, draft)}>
+          <View style={{ gap: 12 }}>
+            {pointed?.section === "code" ? <Banner tone="bad" text={pointed.error} /> : null}
+            {testOnly ? <Text style={{ fontFamily: font.body, color: colors.muted, lineHeight: 20 }}>Los códigos y el saldo no aplican al producto de prueba.</Text> : <DiscountCodeField
               promoCode={form.promoCode}
               referralCode={form.referralCode}
               giftCardCode={form.giftCardCode}
               phone={form.phone}
               giftAppliedCents={quote?.giftCardAppliedCents}
+              inputId={checkoutFieldId("code")}
               onChange={(codes) => setForm((current) => ({ ...current, ...codes }))}
-            />
-            {credit > 0 ? (
-              <Pressable onPress={() => setForm({ ...form, useCredit: !form.useCredit })} style={{ minHeight: 44, justifyContent: "center" }}>
-                <Text style={{ fontFamily: font.medium, color: colors.ink }}>{form.useCredit ? "☑" : "☐"} Usar mi saldo {formatSoles(credit)}</Text>
-              </Pressable>
-            ) : null}
-          </>
-        )}
+            />}
+            <Button label="Continuar" onPress={() => continuar("code")} />
+            <Button label="Omitir código" tone="ghost" onPress={() => omitir("code")} />
+          </View>
+        </Collapsible>
+        {credit > 0 && !testOnly ? (
+          <Pressable onPress={() => setForm({ ...form, useCredit: !form.useCredit })} style={{ minHeight: 44, justifyContent: "center" }}>
+            <Text style={{ fontFamily: font.medium, color: colors.ink }}>{form.useCredit ? "☑" : "☐"} Usar mi saldo {formatSoles(credit)}</Text>
+          </Pressable>
+        ) : null}
         {items.some((item) => item.resolutionStatus === "low") ? (
           <Pressable onPress={() => setForm({ ...form, ackLowRes: !form.ackLowRes })} style={{ minHeight: 44, justifyContent: "center" }}>
             <Text style={{ fontFamily: font.medium, color: colors.ink }}>{form.ackLowRes ? "☑" : "☐"} Acepto imprimir una foto de resolución baja</Text>

@@ -21,7 +21,8 @@ export function DiscountCodeField({
   phone,
   giftAppliedCents,
   onChange,
-}: AppliedDiscountFields & { phone: string; giftAppliedCents?: number; onChange: (next: AppliedDiscountFields) => void }) {
+  inputId,
+}: AppliedDiscountFields & { phone: string; giftAppliedCents?: number; onChange: (next: AppliedDiscountFields) => void; inputId?: string }) {
   const [draft, setDraft] = useState("");
   const [notice, setNotice] = useState<{ tone: "good" | "bad"; text: string } | null>(null);
   const [sources, setSources] = useState<DiscountSources | null>(null);
@@ -77,6 +78,7 @@ export function DiscountCodeField({
     <View style={{ gap: 8 }}>
       <Text style={{ fontFamily: font.medium, color: colors.ink, fontSize: 13 }}>¿Tienes un código?</Text>
       <TextInput
+        nativeID={inputId}
         value={draft}
         onChangeText={setDraft}
         onSubmitEditing={() => void apply()}

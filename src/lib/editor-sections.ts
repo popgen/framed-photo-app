@@ -9,8 +9,12 @@ export function editorHeaderId(section: EditorSection): string {
 }
 
 /** Opening a section closes every other one. Tapping the open header closes it. */
-export function toggleEditorSection(current: EditorSection | null, target: EditorSection): EditorSection | null {
+export function toggleAccordion<T extends string>(current: T | null, target: T): T | null {
   return current === target ? null : target;
+}
+
+export function toggleEditorSection(current: EditorSection | null, target: EditorSection): EditorSection | null {
+  return toggleAccordion(current, target);
 }
 
 export type VerticalBox = { top: number; bottom: number };
@@ -35,10 +39,10 @@ function scrollableAncestor(node: HTMLElement): HTMLElement | null {
   return null;
 }
 
-/** Scrolls the section header into view only when it is outside the editor scrollport. */
-export function revealEditorHeader(section: EditorSection, reducedMotion = false): boolean {
+/** Scrolls a section header into view only when it sits outside the scrollport. */
+export function revealHeader(headerId: string, reducedMotion = false): boolean {
   if (typeof document === "undefined") return false;
-  const header = document.getElementById(editorHeaderId(section));
+  const header = document.getElementById(headerId);
   if (!header) return false;
   const scroller = scrollableAncestor(header);
   const viewport = scroller ? scroller.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
@@ -56,4 +60,8 @@ export function revealEditorHeader(section: EditorSection, reducedMotion = false
     header.scrollIntoView({ block: "nearest", inline: "nearest", behavior });
   }
   return true;
+}
+
+export function revealEditorHeader(section: EditorSection, reducedMotion = false): boolean {
+  return revealHeader(editorHeaderId(section), reducedMotion);
 }
