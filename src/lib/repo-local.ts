@@ -832,6 +832,9 @@ export function createLocalRepo() {
       persist(state);
       return order;
     },
+    async revisePendingOrder(orderId: string, input: CheckoutInput) {
+      return this.updatePendingOrder(orderId, input);
+    },
     async updatePendingOrder(orderId: string, input: CheckoutInput) {
       const state = required();
       const existing = mustOrder(state, orderId);

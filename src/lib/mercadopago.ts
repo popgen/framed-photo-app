@@ -37,9 +37,17 @@ export function solesToCents(amount: number): number | null {
   return Number.isFinite(cents) ? cents : null;
 }
 
-export function orderConfirmationUrl(publicToken: string): string {
-  const token = encodeURIComponent(publicToken);
-  return `${MERCADOPAGO_SITE}/confirmacion/${token}`;
+function siteBase(site?: string): string {
+  return (site || MERCADOPAGO_SITE).replace(/\/$/, "");
+}
+
+export function orderConfirmationUrl(publicToken: string, site?: string): string {
+  return `${siteBase(site)}/confirmacion/${encodeURIComponent(publicToken)}`;
+}
+
+/** Mercado Pago sends a failed or cancelled Checkout Pro attempt here, with the pending order attached. */
+export function mercadoPagoFailureUrl(publicToken: string, site?: string): string {
+  return `${siteBase(site)}/checkout?pago=mercadopago&pedido=${encodeURIComponent(publicToken)}`;
 }
 
 /**
@@ -56,8 +64,10 @@ export function buildMercadoPagoPreference(input: {
   description: string;
   publicToken: string;
   donationCents?: number | null;
+  /** Site origin from configuredSite(). Defaults to the production host. */
+  site?: string;
 }): Record<string, unknown> {
-  const confirmation = orderConfirmationUrl(input.publicToken);
+  const confirmation = orderConfirmationUrl(input.publicToken, input.site);
   const payer: Record<string, string> = {};
   const name = input.name?.trim();
   const email = input.email?.trim();
@@ -103,7 +113,7 @@ export function buildMercadoPagoPreference(input: {
     back_urls: {
       success: confirmation,
       pending: confirmation,
-      failure: confirmation,
+      failure: mercadoPagoFailureUrl(input.publicToken, input.site),
     },
     auto_return: "approved",
     notification_url: MERCADOPAGO_NOTIFICATION_URL,

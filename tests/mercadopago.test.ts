@@ -13,6 +13,7 @@ import {
 } from "../src/lib/mercadopago";
 import {
   completeMercadoPagoNotification,
+  configuredSite,
   mercadoPagoOffered,
   PAYMENT_AMOUNT,
   PAYMENT_BAD_SIGNATURE,
@@ -134,7 +135,20 @@ describe("Mercado Pago preference", () => {
     expect(body.back_urls).toEqual({
       success: "https://mifotito.com/confirmacion/token%20publico",
       pending: "https://mifotito.com/confirmacion/token%20publico",
-      failure: "https://mifotito.com/confirmacion/token%20publico",
+      failure: "https://mifotito.com/checkout?pago=mercadopago&pedido=token%20publico",
+    });
+    const staged = buildMercadoPagoPreference({
+      amountCents: 5900,
+      orderId: "ord_1",
+      description: "Pedido",
+      publicToken: "token publico",
+      site: configuredSite({ SITE_URL: "https://caja.ejemplo/" }),
+    });
+    expect(staged.auto_return).toBe("approved");
+    expect(staged.back_urls).toEqual({
+      success: "https://caja.ejemplo/confirmacion/token%20publico",
+      pending: "https://caja.ejemplo/confirmacion/token%20publico",
+      failure: "https://caja.ejemplo/checkout?pago=mercadopago&pedido=token%20publico",
     });
     expect(body.payment_methods).toEqual({ installments: 12, default_installments: 1 });
     expect(body).not.toHaveProperty("marketplace_fee");
@@ -164,6 +178,7 @@ describe("Mercado Pago preference", () => {
       IZIPAY_API_KEY: "secret",
       IZIPAY_PUBLIC_KEY: "public",
       IZIPAY_HMAC_KEY: "hmac",
+      SITE_URL: "https://caja.ejemplo/",
     };
     const sent = capture();
     await createPayment(
@@ -177,6 +192,12 @@ describe("Mercado Pago preference", () => {
     expect(preference.external_reference).toBe("ord_1");
     expect(preference.items[0]).toMatchObject({ currency_id: "PEN", unit_price: 59 });
     expect(preference.notification_url).toBe(MERCADOPAGO_NOTIFICATION_URL);
+    expect(preference.auto_return).toBe("approved");
+    expect(preference.back_urls).toEqual({
+      success: "https://caja.ejemplo/confirmacion/tokenpublico",
+      pending: "https://caja.ejemplo/confirmacion/tokenpublico",
+      failure: "https://caja.ejemplo/checkout?pago=mercadopago&pedido=tokenpublico",
+    });
     expect(sent.sent).toMatchObject({ status: 200, body: { provider: "mercadopago", status: "pending", mock: false, checkoutUrl: "https://www.mercadopago.com.pe/checkout/v1/redirect?pref_id=abc" } });
 
     const card = capture();

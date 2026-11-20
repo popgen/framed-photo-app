@@ -40,6 +40,7 @@ export default async function handler(req, res) {
     if (op === "orders-by-phone") return await ordersByPhone(req, res);
     if (op === "orders-by-token") return await orderByToken(req, res);
     if (op === "orders-create") return await createOrder(req, res);
+    if (op === "orders-update") return await updatePendingOrder(req, res);
     if (op === "orders-mark-paid") return await markPaid(req, res);
     if (op === "photos-sign") return await signPhoto(req, res);
     if (op === "voice-url") return await voiceUrl(req, res);
@@ -428,26 +429,81 @@ async function orderByToken(req, res) {
   res.status(200).json({ order });
 }
 
-async function createOrder(req, res) {
-  const tooLong = cardMessageError(req.body?.items);
-  if (tooLong) {
-    res.status(400).json({ error: tooLong });
-    return;
-  }
-  const supabase = serviceSupabase();
-  if (!supabase) {
-    res.status(503).json({ error: "Supabase no está configurado." });
-    return;
-  }
+const GIFT_COLUMN = /gift_note_to|gift_note_message|gift_note_from|hide_prices|gift_note_cents|is_gift/i;
+
+function legacyGiftFields(row, evaluated) {
+  const legacy = {
+    ...row,
+    gift_note: evaluated.isGift || evaluated.giftNote ? giftNoteJson(evaluated.giftNote, Boolean(evaluated.isGift)) : null,
+  };
+  delete legacy.is_gift;
+  delete legacy.gift_note_to;
+  delete legacy.gift_note_message;
+  delete legacy.gift_note_from;
+  delete legacy.hide_prices;
+  delete legacy.gift_note_cents;
+  return legacy;
+}
+
+function orderMutableFields(req, evaluated, tax, customerId, now) {
+  const note = evaluated.giftNote;
+  return {
+    status: "pending_payment",
+    customer_name: String(req.body.customerName || "").trim(),
+    phone: evaluated.phone,
+    email: req.body.email || null,
+    recipient_name: req.body.recipientName || null,
+    recipient_phone: normalizePhone(req.body.recipientPhone || "") || null,
+    is_gift: Boolean(evaluated.isGift),
+    gift_note: note?.message || null,
+    gift_note_to: note?.to || null,
+    gift_note_message: note?.message || null,
+    gift_note_from: note?.from || null,
+    hide_prices: Boolean(evaluated.hidePrices),
+    gift_note_cents: evaluated.priced.giftNoteCents,
+    gift_wrap: Boolean(evaluated.giftWrap),
+    address_line: req.body.addressLine,
+    district: req.body.district,
+    province: req.body.province,
+    city: req.body.city || req.body.district,
+    department: req.body.department,
+    reference: req.body.reference || null,
+    tax_id: tax.skipped ? null : tax.taxId,
+    tax_id_type: tax.skipped ? null : tax.taxIdType,
+    tax_id_skipped: tax.skipped,
+    zone: evaluated.zone,
+    subtotal_cents: evaluated.priced.subtotalCents,
+    frame_discount_cents: evaluated.priced.frameDiscountCents,
+    frame_discount_label: evaluated.priced.frameDiscountLabel,
+    promo_code: evaluated.priced.promoDiscountCents > 0 ? evaluated.promo?.code : null,
+    promo_discount_cents: evaluated.priced.promoDiscountCents,
+    referral_code: evaluated.priced.referralDiscountCents > 0 ? evaluated.referral?.code ?? null : null,
+    referral_discount_cents: evaluated.priced.referralDiscountCents,
+    credit_applied_cents: evaluated.priced.creditAppliedCents,
+    gift_card_code: evaluated.priced.giftCardAppliedCents > 0 ? req.body.giftCardCode || null : null,
+    gift_card_applied_cents: evaluated.priced.giftCardAppliedCents,
+    gift_wrap_cents: evaluated.priced.giftWrapCents,
+    donation_cents: evaluated.priced.donationCents,
+    total_cents: evaluated.priced.totalCents,
+    payment_method: req.body.paymentMethod,
+    payment_status: "pending",
+    christmas_guaranteed: evaluated.christmasGuaranteed,
+    christmas_note: evaluated.christmasNote,
+    eta_min: evaluated.etaMin,
+    eta_max: evaluated.etaMax,
+    eta_label: evaluated.etaLabel,
+    customer_id: customerId,
+    updated_at: now,
+  };
+}
+
+async function prepareCheckout(req, supabase) {
   const sessionUser = await customerUser(req, supabase);
   const linked = await linkAccountForPurchase(
     { email: req.body?.email, password: req.body?.password, sessionUserId: sessionUser?.id ?? null },
     supabaseAuth(supabase),
   );
-  if (!linked.proceed) {
-    res.status(400).json({ error: linked.error });
-    return;
-  }
+  if (!linked.proceed) return { error: { status: 400, body: { error: linked.error } } };
   const authUser = { id: linked.userId, email: req.body?.email || sessionUser?.email || null };
   const [{ data: promos }, { data: stockRows }, { data: referrals }, { data: gifts }, { data: credits }] = await Promise.all([
     supabase.from("promo_codes").select("*"),
@@ -465,20 +521,13 @@ async function createOrder(req, res) {
     credits: Object.fromEntries((credits ?? []).map((row) => [row.phone, row.balance_cents])),
     enforceStock: serverStockChecksEnabled(),
   });
-  if (evaluated.error || !evaluated.priced) {
-    res.status(400).json({ error: evaluated.error || "No pudimos cotizar." });
-    return;
-  }
+  if (evaluated.error || !evaluated.priced) return { error: { status: 400, body: { error: evaluated.error || "No pudimos cotizar." } } };
   const tax = resolveTaxId({ taxId: req.body?.taxId, skipped: req.body?.taxIdSkipped === true });
-  if (!tax.ok) {
-    res.status(400).json({ error: tax.error });
-    return;
-  }
-  const { data: number, error: numberError } = await supabase.rpc("next_order_number");
-  if (numberError || !number) {
-    res.status(500).json({ error: numberError?.message || "No pudimos numerar el pedido." });
-    return;
-  }
+  if (!tax.ok) return { error: { status: 400, body: { error: tax.error } } };
+  return { linked, authUser, evaluated, tax };
+}
+
+async function upsertCheckoutCustomer(supabase, req, evaluated, authUser) {
   const customerRow = {
     phone: evaluated.phone,
     name: req.body.customerName,
@@ -487,71 +536,87 @@ async function createOrder(req, res) {
   };
   if (authUser.id) customerRow.auth_user_id = authUser.id;
   const { data: customer } = await supabase.from("customers").upsert(customerRow, { onConflict: "phone" }).select("id").single();
+  return customer ?? null;
+}
+
+async function writeOrderItems(supabase, orderId, items) {
+  if (!(items ?? []).length) return null;
+  const rows = items.map((item) => ({
+    order_id: orderId,
+    frame_id: item.testProduct ? null : item.frameId || "card",
+    test_product: Boolean(item.testProduct),
+    photo_path: item.photoPrintPath || null,
+    original_path: item.photoOriginalPath || null,
+    print_path: item.photoPrintPath || null,
+    crop: item.crop ?? {},
+    orientation: item.orientation || "portrait",
+    quantity: 1,
+    unit_price_cents: linePrice(item),
+    dpi: item.dpi || null,
+    resolution_status: item.resolutionStatus || null,
+    text_overlay: item.textOverlay || null,
+    card: item.card || null,
+    voice: item.voice || null,
+    collage: item.collage || null,
+    bundle_id: item.bundleId || null,
+    bundle_label: item.bundleLabel || null,
+  }));
+  let itemError = (await supabase.from("order_items").insert(rows)).error;
+  if (itemError && /collage/i.test(itemError.message || "")) {
+    if (rows.some((row) => row.collage)) return "Falta aplicar la migración del collage antes de guardar este pedido.";
+    itemError = (await supabase.from("order_items").insert(rows.map(({ collage, ...rest }) => rest))).error;
+  }
+  if (itemError && /test_product|frame_id/i.test(itemError.message || "") && rows.some((row) => row.test_product)) {
+    return "Falta aplicar la migración del producto de prueba antes de guardar este pedido.";
+  }
+  return itemError ? itemError.message : null;
+}
+
+function checkoutGuard(req, res) {
+  const tooLong = cardMessageError(req.body?.items);
+  if (tooLong) {
+    res.status(400).json({ error: tooLong });
+    return null;
+  }
+  const supabase = serviceSupabase();
+  if (!supabase) {
+    res.status(503).json({ error: "Supabase no está configurado." });
+    return null;
+  }
+  return supabase;
+}
+
+async function createOrder(req, res) {
+  const supabase = checkoutGuard(req, res);
+  if (!supabase) return;
+  const prepared = await prepareCheckout(req, supabase);
+  if (prepared.error) {
+    res.status(prepared.error.status).json(prepared.error.body);
+    return;
+  }
+  const { linked, authUser, evaluated, tax } = prepared;
+  const { data: number, error: numberError } = await supabase.rpc("next_order_number");
+  if (numberError || !number) {
+    res.status(500).json({ error: numberError?.message || "No pudimos numerar el pedido." });
+    return;
+  }
+  const customer = await upsertCheckoutCustomer(supabase, req, evaluated, authUser);
   const now = new Date().toISOString();
-  const note = evaluated.giftNote;
   const orderRow = {
-      public_token: crypto.randomUUID().replace(/-/g, "").slice(0, 12),
-      number,
-      status: "pending_payment",
-      customer_name: String(req.body.customerName || "").trim(),
-      phone: evaluated.phone,
-      email: req.body.email || null,
-      recipient_name: req.body.recipientName || null,
-      recipient_phone: normalizePhone(req.body.recipientPhone || "") || null,
-      is_gift: Boolean(evaluated.isGift),
-      gift_note: note?.message || null,
-      gift_note_to: note?.to || null,
-      gift_note_message: note?.message || null,
-      gift_note_from: note?.from || null,
-      hide_prices: Boolean(evaluated.hidePrices),
-      gift_note_cents: evaluated.priced.giftNoteCents,
-      gift_wrap: Boolean(evaluated.giftWrap),
-      address_line: req.body.addressLine,
-      district: req.body.district,
-      province: req.body.province,
-      city: req.body.city || req.body.district,
-      department: req.body.department,
-      reference: req.body.reference || null,
-      tax_id: tax.skipped ? null : tax.taxId,
-      tax_id_type: tax.skipped ? null : tax.taxIdType,
-      tax_id_skipped: tax.skipped,
-      zone: evaluated.zone,
-      subtotal_cents: evaluated.priced.subtotalCents,
-      frame_discount_cents: evaluated.priced.frameDiscountCents,
-      frame_discount_label: evaluated.priced.frameDiscountLabel,
-      promo_code: evaluated.priced.promoDiscountCents > 0 ? evaluated.promo?.code : null,
-      promo_discount_cents: evaluated.priced.promoDiscountCents,
-      referral_code: evaluated.priced.referralDiscountCents > 0 ? evaluated.referral?.code ?? null : null,
-      referral_discount_cents: evaluated.priced.referralDiscountCents,
-      credit_applied_cents: evaluated.priced.creditAppliedCents,
-      gift_card_code: evaluated.priced.giftCardAppliedCents > 0 ? req.body.giftCardCode || null : null,
-      gift_card_applied_cents: evaluated.priced.giftCardAppliedCents,
-      gift_wrap_cents: evaluated.priced.giftWrapCents,
-      donation_cents: evaluated.priced.donationCents,
-      total_cents: evaluated.priced.totalCents,
-      payment_method: req.body.paymentMethod,
-      payment_status: "pending",
-      christmas_guaranteed: evaluated.christmasGuaranteed,
-      christmas_note: evaluated.christmasNote,
-      eta_min: evaluated.etaMin,
-      eta_max: evaluated.etaMax,
-      eta_label: evaluated.etaLabel,
-      channel: req.body.channel || "web",
-      customer_id: customer?.id ?? null,
-      user_id: authUser.id,
-      created_at: now,
-      updated_at: now,
+    public_token: crypto.randomUUID().replace(/-/g, "").slice(0, 12),
+    number,
+    channel: req.body.channel || "web",
+    user_id: authUser.id,
+    created_at: now,
+    ...orderMutableFields(req, evaluated, tax, customer?.id ?? null, now),
   };
   let { data: inserted, error } = await supabase.from("orders").insert(orderRow).select("id, public_token").single();
-  if (error && /gift_note_to|gift_note_message|gift_note_from|hide_prices|gift_note_cents|is_gift/i.test(error.message || "")) {
-    const legacy = { ...orderRow, gift_note: evaluated.isGift || note ? giftNoteJson(note, Boolean(evaluated.isGift)) : null };
-    delete legacy.is_gift;
-    delete legacy.gift_note_to;
-    delete legacy.gift_note_message;
-    delete legacy.gift_note_from;
-    delete legacy.hide_prices;
-    delete legacy.gift_note_cents;
-    ({ data: inserted, error } = await supabase.from("orders").insert(legacy).select("id, public_token").single());
+  if (error && GIFT_COLUMN.test(error.message || "")) {
+    ({ data: inserted, error } = await supabase.from("orders").insert(legacyGiftFields(orderRow, evaluated)).select("id, public_token").single());
+  }
+  if (error && /donation_cents/i.test(error.message || "")) {
+    res.status(500).json({ error: "Falta aplicar la migración de la donación antes de guardar este pedido." });
+    return;
   }
   if (error && /donation_cents/i.test(error.message || "")) {
     res.status(500).json({ error: "Falta aplicar la migración de la donación antes de guardar este pedido." });
@@ -561,43 +626,10 @@ async function createOrder(req, res) {
     res.status(500).json({ error: error?.message || "No pudimos guardar el pedido." });
     return;
   }
-  if ((req.body.items ?? []).length) {
-    const rows = req.body.items.map((item) => ({
-      order_id: inserted.id,
-      frame_id: item.testProduct ? null : item.frameId || "card",
-      test_product: Boolean(item.testProduct),
-      photo_path: item.photoPrintPath || null,
-      original_path: item.photoOriginalPath || null,
-      print_path: item.photoPrintPath || null,
-      crop: item.crop ?? {},
-      orientation: item.orientation || "portrait",
-      quantity: 1,
-      unit_price_cents: linePrice(item),
-      dpi: item.dpi || null,
-      resolution_status: item.resolutionStatus || null,
-      text_overlay: item.textOverlay || null,
-      card: item.card || null,
-      voice: item.voice || null,
-      collage: item.collage || null,
-      bundle_id: item.bundleId || null,
-      bundle_label: item.bundleLabel || null,
-    }));
-    let itemError = (await supabase.from("order_items").insert(rows)).error;
-    if (itemError && /collage/i.test(itemError.message || "")) {
-      if (rows.some((row) => row.collage)) {
-        res.status(500).json({ error: "Falta aplicar la migración del collage antes de guardar este pedido." });
-        return;
-      }
-      itemError = (await supabase.from("order_items").insert(rows.map(({ collage, ...rest }) => rest))).error;
-    }
-    if (itemError && /test_product|frame_id/i.test(itemError.message || "") && rows.some((row) => row.test_product)) {
-      res.status(500).json({ error: "Falta aplicar la migración del producto de prueba antes de guardar este pedido." });
-      return;
-    }
-    if (itemError) {
-      res.status(500).json({ error: itemError.message });
-      return;
-    }
+  const itemError = await writeOrderItems(supabase, inserted.id, req.body.items);
+  if (itemError) {
+    res.status(500).json({ error: itemError });
+    return;
   }
   if (evaluated.priced.totalCents === 0) {
     try {
@@ -608,6 +640,73 @@ async function createOrder(req, res) {
     }
   }
   const { data } = await supabase.from("orders").select("*, order_items(*)").eq("id", inserted.id).single();
+  res.status(200).json({ ...mapOrderRow(data), accountNotice: linked.notice });
+}
+
+const STALE_PENDING = { error: "Ese pedido ya no está pendiente.", reuse: false };
+
+async function updatePendingOrder(req, res) {
+  const supabase = checkoutGuard(req, res);
+  if (!supabase) return;
+  const pendingOrderId = String(req.body?.pendingOrderId || "").trim();
+  if (!pendingOrderId) {
+    res.status(409).json(STALE_PENDING);
+    return;
+  }
+  const prepared = await prepareCheckout(req, supabase);
+  if (prepared.error) {
+    res.status(prepared.error.status).json(prepared.error.body);
+    return;
+  }
+  const { linked, authUser, evaluated, tax } = prepared;
+  const { data: existing } = await supabase
+    .from("orders")
+    .select("id, user_id, payment_status, status")
+    .eq("id", pendingOrderId)
+    .maybeSingle();
+  const ownerId = authUser.id;
+  if (!existing || !ownerId || existing.user_id !== ownerId || existing.payment_status !== "pending" || existing.status !== "pending_payment") {
+    res.status(409).json(STALE_PENDING);
+    return;
+  }
+  const customer = await upsertCheckoutCustomer(supabase, req, evaluated, authUser);
+  const now = new Date().toISOString();
+  const fields = orderMutableFields(req, evaluated, tax, customer?.id ?? null, now);
+  let updated = await supabase.from("orders").update(fields).eq("id", existing.id).eq("payment_status", "pending").eq("status", "pending_payment").select("id");
+  if (updated.error && GIFT_COLUMN.test(updated.error.message || "")) {
+    updated = await supabase.from("orders").update(legacyGiftFields(fields, evaluated)).eq("id", existing.id).eq("payment_status", "pending").eq("status", "pending_payment").select("id");
+  }
+  if (updated.error && /donation_cents/i.test(updated.error.message || "")) {
+    res.status(500).json({ error: "Falta aplicar la migración de la donación antes de guardar este pedido." });
+    return;
+  }
+  if (updated.error) {
+    res.status(500).json({ error: updated.error.message || "No pudimos guardar el pedido." });
+    return;
+  }
+  if (!updated.data?.length) {
+    res.status(409).json(STALE_PENDING);
+    return;
+  }
+  const removed = await supabase.from("order_items").delete().eq("order_id", existing.id);
+  if (removed.error) {
+    res.status(500).json({ error: removed.error.message || "No pudimos guardar el pedido." });
+    return;
+  }
+  const itemError = await writeOrderItems(supabase, existing.id, req.body.items);
+  if (itemError) {
+    res.status(500).json({ error: itemError });
+    return;
+  }
+  if (evaluated.priced.totalCents === 0) {
+    try {
+      await applyPaidOrder(supabase, { orderId: existing.id, method: "gift_card", provider: "gift_card", ref: `zero_${existing.id}` });
+    } catch (error) {
+      res.status(error.status || 500).json({ error: error.message || "No pudimos confirmar el pedido." });
+      return;
+    }
+  }
+  const { data } = await supabase.from("orders").select("*, order_items(*)").eq("id", existing.id).single();
   res.status(200).json({ ...mapOrderRow(data), accountNotice: linked.notice });
 }
 

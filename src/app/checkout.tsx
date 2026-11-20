@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Image } from "expo-image";
 import { InlineLink } from "../components/InlineLink";
 import { currentCustomer, passwordError, type CustomerSession } from "../lib/customer-auth";
@@ -26,16 +26,40 @@ import { GIFT_NOTE_MESSAGE_MAX } from "../lib/gift-note";
 import { quote as priceQuote } from "../lib/pricing";
 import { getRepo } from "../lib/repo";
 import { EXAMPLE_PHOTO_PROMPT, usesExamplePhoto } from "../lib/example-photo";
-import { rememberReceipt, useCart } from "../lib/store";
+import {
+  checkoutPageShowReset,
+  findSessionPendingMercadoPago,
+  PENDING_MP_NOTE,
+  placeCheckoutOrder,
+  readOrderPaymentStatus,
+  type SessionPendingOrder,
+} from "../lib/checkout-payment";
+import {
+  cartPendingKey,
+  clearCheckoutDraft,
+  clearPendingMercadoPago,
+  readCheckoutDraft,
+  readPendingMercadoPago,
+  readReceipt,
+  rememberCheckoutDraft,
+  rememberPendingMercadoPago,
+  rememberReceipt,
+  useCart,
+} from "../lib/store";
 import { resolveTaxId } from "../lib/tax-id";
 import type { CheckoutInput, Order } from "../lib/types";
 
 const IZIPAY_LOGO = require("../../assets/payments/izipay.png");
 const MERCADO_PAGO_LOGO = require("../../assets/payments/mercadopago.png");
 
+function oneParam(value: string | string[] | undefined): string {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return String(raw || "").trim();
+}
+
 export default function Checkout() {
   const now = useNow();
-  const params = useLocalSearchParams<{ pago?: string }>();
+  const params = useLocalSearchParams<{ pago?: string; pedido?: string }>();
   const items = useCart((state) => state.items);
   const setGift = useCart((state) => state.setGift);
   const clear = useCart((state) => state.clear);
@@ -84,7 +108,13 @@ export default function Checkout() {
   const [error, setError] = useState<string | null>(null);
   const [taxTouched, setTaxTouched] = useState(false);
   const [pending, setPending] = useState<Order | null>(null);
+  const [reuse, setReuse] = useState<SessionPendingOrder | null>(null);
   const [busy, setBusy] = useState(false);
+  const draftRestored = useRef(false);
+  const itemsRef = useRef(items);
+  const pedidoRef = useRef("");
+  itemsRef.current = items;
+  pedidoRef.current = oneParam(params.pedido);
   const [picker, setPicker] = useState<"department" | "province" | "district" | null>(null);
   const [query, setQuery] = useState("");
 
@@ -96,7 +126,7 @@ export default function Checkout() {
         if (stopped) return;
         const offered = Boolean(data?.mercadopago);
         setMercadoPago(offered);
-        setMethod(resolveCheckoutPayMethod(params.pago, offered));
+        setMethod(resolveCheckoutPayMethod(reuse ? "mercadopago" : params.pago, offered));
         setPayReady(true);
       })
       .catch(() => {
@@ -108,7 +138,66 @@ export default function Checkout() {
     return () => {
       stopped = true;
     };
-  }, [params.pago]);
+  }, [params.pago, reuse]);
+
+  const attachGen = useRef(0);
+  const attachPendingOrder = useCallback((cartItems: typeof items, pedido: string) => {
+    const generation = attachGen.current + 1;
+    attachGen.current = generation;
+    const candidate = findSessionPendingMercadoPago({
+      pedidoToken: pedido,
+      cartItems,
+      readReceipt: (token) => readReceipt<{ id?: string; publicToken?: string }>(token),
+      readPending: readPendingMercadoPago,
+    });
+    if (!candidate) {
+      setReuse(null);
+      return;
+    }
+    const draft = readCheckoutDraft<{ form?: Partial<typeof form> }>();
+    if (draft?.form && !draftRestored.current) {
+      draftRestored.current = true;
+      setForm((current) => ({ ...current, ...draft.form }));
+      const gift = draft.form;
+      if (typeof gift.giftPrinted === "boolean") {
+        setGift({
+          isGift: gift.giftPrinted,
+          to: gift.giftNoteTo || "",
+          message: gift.giftNoteMessage || "",
+          from: gift.giftNoteFrom || "",
+          hidePrices: Boolean(gift.hidePrices),
+        });
+      }
+    }
+    void readOrderPaymentStatus(candidate.publicToken).then((status) => {
+      if (generation !== attachGen.current) return;
+      if (status !== "pending") {
+        if (status === "approved" || status === "rejected") {
+          clearPendingMercadoPago(cartPendingKey(cartItems));
+          clearCheckoutDraft();
+        }
+        setReuse(null);
+        return;
+      }
+      setReuse(candidate);
+    });
+  }, [setGift]);
+
+  useEffect(() => {
+    attachPendingOrder(items, oneParam(params.pedido));
+  }, [attachPendingOrder, items, params.pedido]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.addEventListener !== "function") return;
+    const onPageShow = (event: Event) => {
+      if (!checkoutPageShowReset(event as { persisted?: boolean })) return;
+      setBusy(false);
+      setError(null);
+      attachPendingOrder(itemsRef.current, pedidoRef.current);
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, [attachPendingOrder]);
 
   useEffect(() => {
     void getRepo().getCampaign().then(setCampaign);
@@ -189,6 +278,8 @@ export default function Checkout() {
   }
 
   function finishPaid(order: Order) {
+    clearPendingMercadoPago(cartPendingKey(items));
+    clearCheckoutDraft();
     rememberReceipt(order);
     clear();
     rememberWaOrder(null);
@@ -270,7 +361,19 @@ export default function Checkout() {
     try {
       const wa = readWaOrder();
       const orderInput = { ...input, password: account ? undefined : password };
-      const order = wa ? await getRepo().updatePendingOrder(wa, orderInput) : await getRepo().placeOrder(orderInput);
+      const order = await placeCheckoutOrder({
+        waOrderId: wa,
+        method: checkoutPayMethodForSubmit(method, mercadoPago),
+        pedidoToken: oneParam(params.pedido),
+        cartItems: items,
+        orderInput,
+        readReceipt: (token) => readReceipt<{ id?: string; publicToken?: string }>(token),
+        readPending: readPendingMercadoPago,
+        paymentStatus: readOrderPaymentStatus,
+        placeOrder: (value) => getRepo().placeOrder(value),
+        updatePendingOrder: (orderId, value) => getRepo().updatePendingOrder(orderId, value),
+        revisePendingOrder: (orderId, value) => getRepo().revisePendingOrder(orderId, value),
+      });
       if (order.paymentStatus === "approved" || order.totalCents === 0) {
         if (order.paymentStatus === "approved") {
           finishPaid(order);
@@ -288,6 +391,8 @@ export default function Checkout() {
         const payload = (await response.json()) as { checkoutUrl?: string; error?: string };
         if (payload.checkoutUrl && typeof window !== "undefined") {
           rememberReceipt(order);
+          rememberPendingMercadoPago(cartPendingKey(items), { orderId: order.id, publicToken: order.publicToken });
+          rememberCheckoutDraft({ form });
           window.location.href = payload.checkoutUrl;
           return;
         }
@@ -481,6 +586,7 @@ export default function Checkout() {
           </Pressable>
         ) : null}
         {items.length && form.donation ? <Text style={{ fontFamily: font.medium, color: colors.ink }}>{donationSummaryText()}</Text> : null}
+        {reuse ? <Text style={{ fontFamily: font.semibold, color: colors.ink, lineHeight: 22 }}>{PENDING_MP_NOTE}</Text> : null}
         <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Pago</Text>
         <View style={{ gap: 8 }}>
           {checkoutPayOptions(mercadoPago).map((item) => {

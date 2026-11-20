@@ -18,6 +18,7 @@ const PATHS: Record<string, string> = {
   "orders-by-phone": "/api/track-orders",
   "orders-by-token": "/api/track-orders",
   "orders-create": "/api/create-order",
+  "orders-update": "/api/shop?op=orders-update",
   "tracking-email": "/api/tracking-email",
   profile: "/api/account",
   "customers-list": "/api/account",
@@ -30,8 +31,38 @@ async function shop(op: string, body: unknown, auth?: string | null) {
     body: JSON.stringify(body ?? {}),
   });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(json.error || "El servidor no respondió.");
+  if (!response.ok) {
+    const failure = new Error(json.error || "El servidor no respondió.") as Error & { reuse?: boolean };
+    if (json.reuse === false) failure.reuse = false;
+    throw failure;
+  }
   return json;
+}
+
+async function checkoutItems(input: CheckoutInput) {
+  const items = [];
+  for (const item of input.items) {
+    if (item.testProduct) {
+      items.push({ ...item, photoOriginalPath: null, photoPrintPath: null });
+      continue;
+    }
+    const photos = await uploadOrderPhotos(item.photoId);
+    let collage = item.collage ?? null;
+    if (collage) {
+      const sources = [];
+      for (const source of collage.sources) {
+        if (source.storagePath) {
+          sources.push(source);
+          continue;
+        }
+        const uploaded = await uploadOrderPhotos(source.photoId);
+        sources.push({ ...source, storagePath: uploaded.original || uploaded.print });
+      }
+      collage = { ...collage, sources };
+    }
+    items.push({ ...item, collage, photoOriginalPath: photos.original, photoPrintPath: photos.print });
+  }
+  return items;
 }
 
 export function createSupabaseRepo() {
@@ -217,28 +248,7 @@ export function createSupabaseRepo() {
       return data ? mapOrderRow(data) : null;
     },
     async placeOrder(input: CheckoutInput) {
-      const items = [];
-      for (const item of input.items) {
-        if (item.testProduct) {
-          items.push({ ...item, photoOriginalPath: null, photoPrintPath: null });
-          continue;
-        }
-        const photos = await uploadOrderPhotos(item.photoId);
-        let collage = item.collage ?? null;
-        if (collage) {
-          const sources = [];
-          for (const source of collage.sources) {
-            if (source.storagePath) {
-              sources.push(source);
-              continue;
-            }
-            const uploaded = await uploadOrderPhotos(source.photoId);
-            sources.push({ ...source, storagePath: uploaded.original || uploaded.print });
-          }
-          collage = { ...collage, sources };
-        }
-        items.push({ ...item, collage, photoOriginalPath: photos.original, photoPrintPath: photos.print });
-      }
+      const items = await checkoutItems(input);
       const { data } = await db().auth.getSession();
       const token = data.session?.access_token;
       const order = await shop("orders-create", { ...input, items, password: input.password }, token);
@@ -247,6 +257,12 @@ export function createSupabaseRepo() {
         if (!signed.ok) return order;
       }
       return order;
+    },
+    async revisePendingOrder(orderId: string, input: CheckoutInput) {
+      const items = await checkoutItems(input);
+      const { data } = await db().auth.getSession();
+      const token = data.session?.access_token;
+      return shop("orders-update", { ...input, items, pendingOrderId: orderId, password: input.password }, token);
     },
     async markPaid(orderId: string, payment: { method: string; provider: string; ref: string }) {
       return shop("orders-mark-paid", { orderId, ...payment });
