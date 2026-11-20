@@ -13,6 +13,24 @@ export function donationCheckboxLabel(): string {
   return `Agregar ${formatSoles(DONATION_CENTS)} de donación para ${DONATION_CAUSE}`;
 }
 
+export const DONATION_CHECKBOX_HINT = "Es opcional y se suma al total.";
+
+/** Props a screen reader needs. Web does not map accessibilityState.checked to aria-checked. */
+export function donationCheckboxA11y(checked: boolean) {
+  return {
+    accessibilityRole: "checkbox" as const,
+    accessibilityLabel: donationCheckboxLabel(),
+    accessibilityHint: DONATION_CHECKBOX_HINT,
+    accessibilityState: { checked },
+    "aria-checked": checked,
+  };
+}
+
+/** Space toggles a checkbox. Enter is left to buttons. */
+export function donationToggleKey(key: string): boolean {
+  return key === " " || key === "Spacebar";
+}
+
 export function donationSummaryText(): string {
   return `${DONATION_LABEL} — ${formatSoles(DONATION_CENTS)}`;
 }

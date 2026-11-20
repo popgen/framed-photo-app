@@ -32,7 +32,7 @@ import {
 import { countdownTarget, guaranteeFor } from "../lib/cutoff";
 import { DEPARTMENTS, districtsFor, provincesFor, shippingZone } from "../lib/zone";
 import { checkoutPayMethodForSubmit, checkoutPayOptions, resolveCheckoutPayMethod, type CheckoutPayMethod } from "../lib/checkout-payment";
-import { DONATION_CENTS, donationCheckboxLabel, donationSummaryText } from "../lib/donation";
+import { DONATION_CENTS, donationCheckboxA11y, donationCheckboxLabel, donationSummaryText, donationToggleKey } from "../lib/donation";
 import { dataMode, paymentsMode, providerFor } from "../lib/env";
 import { isTestOnlyCart, isTestProductItem, TEST_PRODUCT_CENTS } from "../lib/test-product";
 import { cardMessageError, cardOrderLine } from "../lib/cards";
@@ -782,9 +782,14 @@ export default function Checkout() {
         ) : null}
         {items.length ? (
           <Pressable
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: form.donation }}
-            onPress={() => setForm({ ...form, donation: !form.donation })}
+            {...donationCheckboxA11y(form.donation)}
+            onPress={() => setForm((current) => ({ ...current, donation: !current.donation }))}
+            onKeyDown={(event) => {
+              const key = "key" in event ? event.key : "";
+              if (!donationToggleKey(String(key))) return;
+              event.preventDefault();
+              setForm((current) => ({ ...current, donation: !current.donation }));
+            }}
             style={{ minHeight: 64, justifyContent: "center", gap: 4 }}
           >
             <Text style={{ fontFamily: font.semibold, color: colors.ink, fontSize: 16, lineHeight: 22 }}>{form.donation ? "☑" : "☐"} {donationCheckboxLabel()}</Text>

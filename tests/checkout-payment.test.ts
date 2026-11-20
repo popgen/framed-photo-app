@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { checkoutPayMethodForSubmit, checkoutPayOptions, resolveCheckoutPayMethod } from "../src/lib/checkout-payment";
-import { DONATION_CENTS, DONATION_MP_TITLE, acceptedDonationCents, donationCheckboxLabel, donationSummaryText } from "../src/lib/donation";
+import { DONATION_CENTS, DONATION_MP_TITLE, acceptedDonationCents, donationCheckboxA11y, donationCheckboxLabel, donationSummaryText, donationToggleKey } from "../src/lib/donation";
 import { buildMercadoPagoPreference } from "../src/lib/mercadopago";
 import { quote } from "../src/lib/pricing";
 import { createLocalRepo } from "../src/lib/repo-local";
@@ -77,6 +77,20 @@ describe("checkout payment options", () => {
 describe("donation", () => {
   it("adds S/ 5 after credits and refuses any other amount", () => {
     expect(donationCheckboxLabel()).toBe("Agregar S/ 5.00 de donación para Comunidades de la Selva");
+    expect(donationCheckboxA11y(false)).toMatchObject({
+      accessibilityRole: "checkbox",
+      accessibilityLabel: "Agregar S/ 5.00 de donación para Comunidades de la Selva",
+      accessibilityState: { checked: false },
+      "aria-checked": false,
+    });
+    expect(donationCheckboxA11y(true)["aria-checked"]).toBe(true);
+    expect(donationCheckboxA11y(true).accessibilityState.checked).toBe(true);
+    expect(donationToggleKey(" ")).toBe(true);
+    expect(donationToggleKey("Spacebar")).toBe(true);
+    expect(donationToggleKey("Enter")).toBe(false);
+    const checkout = readFileSync("src/app/checkout.tsx", "utf8");
+    expect(checkout).toContain("donationCheckboxA11y(form.donation)");
+    expect(checkout).toContain("donationToggleKey");
     expect(donationSummaryText()).toBe("Donación para Comunidades de la Selva — S/ 5.00");
     expect(acceptedDonationCents(undefined)).toBe(0);
     expect(acceptedDonationCents(500)).toBe(500);
