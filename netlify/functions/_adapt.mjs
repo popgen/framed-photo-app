@@ -41,6 +41,11 @@ export function netlifyHandler(routeHandler) {
         headers = { "content-type": "text/plain; charset=utf-8" };
         return res;
       },
+      html(markup) {
+        payload = markup == null ? "" : String(markup);
+        headers = { "content-type": "text/html; charset=utf-8" };
+        return res;
+      },
       redirect(url, extra = {}) {
         status = 303;
         payload = "";

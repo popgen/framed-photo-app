@@ -65,6 +65,12 @@ export default function Home() {
           </Pressable>
         ) : null}
         <CollagePromo />
+        <Pressable accessibilityRole="link" accessibilityLabel="Juega y gana" onPress={() => router.push("/juego")} style={{ minHeight: 48 }}>
+          <Card>
+            <Text style={section}>Juega y gana</Text>
+            <P style={centered}>Santa a la Carrera, un concurso de Navidad. El premio es un Trío parejo.</P>
+          </Card>
+        </Pressable>
         <Text style={section}>Super simple</Text>
         <Step n="1" title="Elige tu foto" body="Desde el teléfono, iCloud o una foto de ejemplo. Así empieza la impresión de fotos." icon={<PhotoIcon />} />
         <Step n="2" title="Elige tu marco" body="Desliza para enmarcar fotos, o arma una tarjeta navideña." icon={<FrameIcon />} />

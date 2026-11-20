@@ -32,6 +32,7 @@ export default function AdminLayout() {
     ["/admin/reclamos", "Reclamos"],
     ["/admin/whatsapp", "WhatsApp"],
     ["/admin/retablos", "Retablos"],
+    ["/admin/juego", "Concurso"],
   ] as const;
   return (
     <View style={{ flex: 1, backgroundColor: colors.bgDeep, alignItems: "center" }}>

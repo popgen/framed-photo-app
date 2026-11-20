@@ -150,6 +150,18 @@ export const pages: SeoEntry[] = [
     description: "Escríbenos sobre un pedido, un retablo o cualquier consulta. Respondemos a pedidos@mifotito.com.",
   },
   {
+    path: "/juego",
+    title: "Santa a la Carrera — Mi Fotito",
+    description:
+      "Juega Santa a la Carrera y entra al concurso de un Trío parejo. Un juego de Navidad para el celular, de Mi Fotito en el Perú.",
+  },
+  {
+    path: "/juego/bases",
+    title: "Bases del concurso Santa a la Carrera — Mi Fotito",
+    description:
+      "Bases del concurso Santa a la Carrera: un Trío parejo para el mejor puntaje confirmado. La entrega es dentro del Perú.",
+  },
+  {
     path: "/privacidad",
     title: "Política de privacidad — Mi Fotito",
     description: "Política de privacidad de Mi Fotito, Lima, Perú. Imprimimos fotos enmarcadas. Consultas a pedidos@mifotito.com.",
