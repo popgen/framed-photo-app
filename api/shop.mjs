@@ -26,6 +26,7 @@ import { normalizePhone } from "../src/lib/phone.ts";
 import { giftNoteJson } from "../src/lib/gift-note.ts";
 import { resolveTaxId } from "../src/lib/tax-id.ts";
 import { serverStockChecksEnabled } from "../src/lib/env.ts";
+import { TEST_PRODUCT_CENTS, TEST_PRODUCT_ID } from "../src/lib/test-product.ts";
 
 export default async function handler(req, res) {
   if (req.method !== "POST" && req.method !== "GET") {
@@ -526,6 +527,7 @@ async function createOrder(req, res) {
       gift_card_code: evaluated.priced.giftCardAppliedCents > 0 ? req.body.giftCardCode || null : null,
       gift_card_applied_cents: evaluated.priced.giftCardAppliedCents,
       gift_wrap_cents: evaluated.priced.giftWrapCents,
+      donation_cents: evaluated.priced.donationCents,
       total_cents: evaluated.priced.totalCents,
       payment_method: req.body.paymentMethod,
       payment_status: "pending",
@@ -551,6 +553,10 @@ async function createOrder(req, res) {
     delete legacy.gift_note_cents;
     ({ data: inserted, error } = await supabase.from("orders").insert(legacy).select("id, public_token").single());
   }
+  if (error && /donation_cents/i.test(error.message || "")) {
+    res.status(500).json({ error: "Falta aplicar la migración de la donación antes de guardar este pedido." });
+    return;
+  }
   if (error || !inserted) {
     res.status(500).json({ error: error?.message || "No pudimos guardar el pedido." });
     return;
@@ -558,7 +564,8 @@ async function createOrder(req, res) {
   if ((req.body.items ?? []).length) {
     const rows = req.body.items.map((item) => ({
       order_id: inserted.id,
-      frame_id: item.frameId || "card",
+      frame_id: item.testProduct ? null : item.frameId || "card",
+      test_product: Boolean(item.testProduct),
       photo_path: item.photoPrintPath || null,
       original_path: item.photoOriginalPath || null,
       print_path: item.photoPrintPath || null,
@@ -583,6 +590,10 @@ async function createOrder(req, res) {
       }
       itemError = (await supabase.from("order_items").insert(rows.map(({ collage, ...rest }) => rest))).error;
     }
+    if (itemError && /test_product|frame_id/i.test(itemError.message || "") && rows.some((row) => row.test_product)) {
+      res.status(500).json({ error: "Falta aplicar la migración del producto de prueba antes de guardar este pedido." });
+      return;
+    }
     if (itemError) {
       res.status(500).json({ error: itemError.message });
       return;
@@ -601,6 +612,7 @@ async function createOrder(req, res) {
 }
 
 function linePrice(item) {
+  if (item.testProduct) return TEST_PRODUCT_CENTS;
   if (item.card) return priceCards(item.card.quantity).cents;
   try {
     return framedPriceCents(frameById(item.frameId).priceCents, Boolean(item.collage)) + (item.voice ? item.voice.addonCents || 0 : 0);
@@ -756,11 +768,14 @@ function supabaseAuth(supabase) {
 export async function loadPayableOrder(orderId) {
   const supabase = serviceSupabase();
   if (!supabase || !orderId) return null;
-  const { data } = await supabase.from("orders").select("id, total_cents, payment_status, public_token, email, customer_name, phone, number, tax_id, tax_id_type").eq("id", orderId).maybeSingle();
+  const { data } = await supabase.from("orders").select("id, total_cents, donation_cents, payment_status, public_token, email, customer_name, phone, number, tax_id, tax_id_type, order_items(test_product)").eq("id", orderId).maybeSingle();
   if (!data) return null;
+  const itemRows = data.order_items ?? [];
   return {
     id: data.id,
     totalCents: Number(data.total_cents),
+    donationCents: Number(data.donation_cents ?? 0),
+    testOnly: itemRows.length > 0 && itemRows.every((item) => item.test_product),
     paymentStatus: data.payment_status,
     publicToken: data.public_token,
     email: data.email,
@@ -1122,7 +1137,7 @@ async function listPublicFrames(_req, res) {
   const lowAt = Object.fromEntries((stockRows ?? []).map((row) => [row.sku, row.low_stock_at ?? 5]));
   const enforce = serverStockChecksEnabled();
   res.status(200).json({
-    frames: frameRows.map((row) => {
+    frames: frameRows.filter((row) => row.id !== TEST_PRODUCT_ID).map((row) => {
       const offer = mapFrameRow(row, quantities);
       if (!enforce) return { ...offer, available: 99, lowStock: false, stockUncertain: false };
       return { ...offer, lowStock: frameLowStock(offer, quantities, lowAt), stockUncertain: false };

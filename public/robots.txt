@@ -10,5 +10,6 @@ Disallow: /cuenta
 Disallow: /carrito
 Disallow: /checkout
 Disallow: /pago
+Disallow: /prueba
 
 Sitemap: https://mifotito.com/sitemap.xml

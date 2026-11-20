@@ -76,6 +76,16 @@
   status = 200
 
 [[headers]]
+  for = "/prueba"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/prueba/"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
   for = "/*"
   [headers.values]
     X-Frame-Options = "DENY"

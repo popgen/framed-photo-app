@@ -192,15 +192,13 @@ export function PaySheet({
   onApprove,
   onReject,
 }: {
-  method: "card" | "yape" | "plin";
+  method: "card";
   total: string;
   onApprove: () => void;
   onReject: () => void;
 }) {
   const copy = {
-    card: { title: "Tarjeta de prueba", body: "Simula una tarjeta aprobada. No se hace un cobro real." },
-    yape: { title: "Yape de prueba", body: "Simula el pago con Yape. En vivo se cobra por el proveedor configurado." },
-    plin: { title: "Plin de prueba", body: "Simula la confirmación de Plin. En vivo mostramos el número de la tienda." },
+    card: { title: "Izipay de prueba", body: "Simula una tarjeta de crédito o débito. No se hace un cobro real." },
   }[method];
   return (
     <View style={styles.sheet}>

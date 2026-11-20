@@ -1,13 +1,19 @@
+import { DONATION_CENTS, donationSummaryText } from "./donation";
 import { siteUrl } from "./env";
 import { formatSoles } from "./money";
+import { isTestOnlyCart } from "./test-product";
 import { STATUS_LABEL, type Order, type OrderStatus } from "./types";
 
 function firstName(name: string): string {
   return name.trim().split(/\s+/)[0] || "hola";
 }
 
-export function paidMessage(order: Pick<Order, "number" | "customerName" | "totalCents" | "christmasNote" | "publicToken" | "isGift" | "giftNote" | "giftNoteTo" | "giftNoteMessage" | "giftNoteFrom" | "hidePrices">): string {
-  return `Hola ${firstName(order.customerName)}, recibimos tu pedido ${order.number} en Mi Fotito (${formatSoles(order.totalCents)}). ${order.christmasNote}${giftNoteSentence(order)} Sigue el estado: ${siteUrl()}/pedido/${order.publicToken}`;
+export function paidMessage(order: Pick<Order, "number" | "customerName" | "totalCents" | "christmasNote" | "publicToken" | "isGift" | "giftNote" | "giftNoteTo" | "giftNoteMessage" | "giftNoteFrom" | "hidePrices" | "donationCents"> & { items?: Order["items"] }): string {
+  const donation = order.donationCents === DONATION_CENTS ? ` ${donationSummaryText()}.` : "";
+  if (isTestOnlyCart(order.items)) {
+    return `Hola ${firstName(order.customerName)}, recibimos el pago de tu pedido de prueba ${order.number} (${formatSoles(order.totalCents)}).${donation} No entra a producción.`;
+  }
+  return `Hola ${firstName(order.customerName)}, recibimos tu pedido ${order.number} en Mi Fotito (${formatSoles(order.totalCents)}). ${order.christmasNote}${donation}${giftNoteSentence(order)} Sigue el estado: ${siteUrl()}/pedido/${order.publicToken}`;
 }
 
 function storedJson(message: string): boolean {

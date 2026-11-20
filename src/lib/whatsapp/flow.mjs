@@ -191,12 +191,19 @@ export function reduceWa(session, event, ctx) {
     replies.push(payButtons());
     return { session: current, replies, createOrder };
   }
-  if (choice === "pay_yape" || choice === "pay_plin" || choice === "pay_card") {
-    const pago = choice.replace("pay_", "");
-    const label = pago === "yape" ? "Yape" : pago === "plin" ? "Plin" : "tarjeta";
+  if (choice === "pay_yape" || choice === "pay_plin") {
     replies.push({
       kind: "text",
-      body: `Paga con ${label} en este enlace. Ahí también puedes cambiar la dirección: ${linkFor(origin, current.token, pago)}`,
+      body: `Yape se paga dentro de Mercado Pago. Elige Izipay o Mercado Pago en este enlace: ${linkFor(origin, current.token)}`,
+    });
+    return { session: current, replies, createOrder };
+  }
+  if (choice === "pay_card" || choice === "pay_mercadopago") {
+    const pago = choice === "pay_card" ? "card" : "mercadopago";
+    const label = pago === "card" ? "Izipay" : "Mercado Pago";
+    replies.push({
+      kind: "text",
+      body: `Paga con ${label} en este enlace. Si Mercado Pago no aparece, puedes pagar con Izipay. Ahí también puedes cambiar la dirección: ${linkFor(origin, current.token, pago)}`,
     });
     return { session: current, replies, createOrder };
   }
@@ -229,9 +236,8 @@ function payButtons() {
     kind: "buttons",
     body: "¿Cómo quieres pagar? El enlace abre el pago con tu foto.",
     buttons: [
-      { id: "pay_yape", title: "Pagar con Yape" },
-      { id: "pay_plin", title: "Pagar con Plin" },
-      { id: "pay_card", title: "Pagar con tarjeta" },
+      { id: "pay_card", title: "Pagar con Izipay" },
+      { id: "pay_mercadopago", title: "Mercado Pago" },
     ],
   };
 }

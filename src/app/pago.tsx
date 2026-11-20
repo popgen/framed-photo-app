@@ -20,7 +20,7 @@ export default function Pago() {
   const host = useRef(null);
   const waiting = params.estado === "esperando";
   const [message, setMessage] = useState<string | null>(params.error ? ERROR_COPY[params.error] || ERROR_COPY["1"] : waiting ? "Recibimos la respuesta del pago. Lo estamos confirmando." : null);
-  const [pagoCopy, setPagoCopy] = useState("Tarjeta o Yape, en la pasarela de Izipay.");
+  const [pagoCopy, setPagoCopy] = useState("Paga con tarjeta en la pasarela de Izipay.");
 
   useEffect(() => {
     if (!waiting) return;

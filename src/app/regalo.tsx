@@ -56,7 +56,7 @@ export default function Regalo() {
         {card || params.codigo ? <Banner tone="good" text={`Lista. El código es ${card?.code || params.codigo}. Se lo enviamos por correo.`} /> : null}
         {pay ? (
           <PaySheet
-            method="yape"
+            method="card"
             total={formatSoles(cents)}
             onReject={() => setPay(false)}
             onApprove={() => {

@@ -15,6 +15,7 @@ import { quote, type QuoteItem } from "../lib/pricing";
 import { VOICE_ADDON_CENTS } from "../lib/voice";
 import { EXAMPLE_PHOTO_PROMPT, usesExamplePhoto } from "../lib/example-photo";
 import { useCart } from "../lib/store";
+import { isTestOnlyCart, isTestProductItem, TEST_PRODUCT_CENTS, TEST_PRODUCT_NAME } from "../lib/test-product";
 
 export default function Carrito() {
   const items = useCart((state) => state.items);
@@ -24,6 +25,7 @@ export default function Carrito() {
   const [sampleNote, setSampleNote] = useState<string | null>(null);
   const priced = quote({
     items: items.flatMap((item): QuoteItem[] => {
+      if (isTestProductItem(item)) return [{ unitPriceCents: TEST_PRODUCT_CENTS, quantity: 1, kind: "plain" }];
       const lines: QuoteItem[] = item.card
         ? [{ unitPriceCents: priceCards(item.card.quantity).cents, quantity: 1, kind: "plain" }]
         : [{ unitPriceCents: framedPriceCents(frameById(item.frameId).priceCents, Boolean(item.collage)), quantity: 1, kind: "frame" }];
@@ -71,6 +73,20 @@ export default function Carrito() {
               </Card>
             );
           }
+          if (isTestProductItem(item)) {
+            return (
+              <Card key={item.id}>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{TEST_PRODUCT_NAME}</Text>
+                  <Text style={{ fontFamily: font.body, color: colors.muted }}>No entra a producción. El envío es S/ 0.</Text>
+                  <Text style={{ fontFamily: font.bold, color: colors.ink }}>{formatSoles(TEST_PRODUCT_CENTS)}</Text>
+                </View>
+                <Pressable onPress={() => remove(item.id)} style={{ minHeight: 44, justifyContent: "center" }}>
+                  <Text style={{ fontFamily: font.semibold, color: colors.bad }}>Quitar</Text>
+                </Pressable>
+              </Card>
+            );
+          }
           const frame = frameById(item.frameId);
           const price = framedPriceCents(frame.priceCents, Boolean(item.collage));
           return (
@@ -98,7 +114,7 @@ export default function Carrito() {
             </Card>
           );
         })}
-        <GiftNoteEditor
+        {isTestOnlyCart(items) ? null : <GiftNoteEditor
           printed={gift.isGift}
           to={gift.to}
           message={gift.message}
@@ -106,8 +122,8 @@ export default function Carrito() {
           buyerName=""
           hidePrices={gift.hidePrices}
           onChange={(next) => setGift({ isGift: next.printed, to: next.to, message: next.message, from: next.fromName, hidePrices: next.hidePrices })}
-        />
-        {priced.frameDiscountLabel ? (
+        />}
+        {isTestOnlyCart(items) ? null : priced.frameDiscountLabel ? (
           <Text style={{ fontFamily: font.medium, color: colors.pine }}>
             {priced.frameDiscountLabel}: -{formatSoles(priced.frameDiscountCents)}
           </Text>

@@ -4,6 +4,7 @@ import { signInCustomer } from "./customer-auth";
 import { createLocalRepo } from "./repo-local";
 import { getSupabase } from "./supabase";
 import { frames as catalogFrames } from "./catalog";
+import { TEST_PRODUCT_ID } from "./test-product";
 import { stockChecksEnabled } from "./env";
 import { mapFrameRow, mapGiftRow, mapInventoryRow, mapOrderRow, mapProfile, mapPromoRow } from "./db-map";
 import { frameLowStock, framesWhenStockUnknown } from "./inventory";
@@ -66,7 +67,9 @@ export function createSupabaseRepo() {
         stockChecksEnabled() ? rows : rows.map((frame) => ({ ...frame, available: 99, lowStock: false, stockUncertain: false }));
       try {
         const json = await shop("frames", {});
-        if (Array.isArray(json.frames) && json.frames.length && !json.stockUncertain) return hide(json.frames as FrameOffer[]);
+        if (Array.isArray(json.frames) && json.frames.length && !json.stockUncertain) {
+          return hide((json.frames as FrameOffer[]).filter((frame) => frame.id !== TEST_PRODUCT_ID));
+        }
       } catch {
         // The shop route can be down. Fall through to a direct read, then assume stock is available.
       }
@@ -76,12 +79,13 @@ export function createSupabaseRepo() {
           db().from("inventory").select("sku, quantity, low_stock_at"),
         ]);
         if (error || !data?.length) return hide(framesWhenStockUnknown(catalogFrames));
+        const rows = data.filter((row) => row.id !== TEST_PRODUCT_ID);
         if (stock.error || !stock.data) {
-          return hide(data.map((row) => ({ ...mapFrameRow(row, {}), available: 99, lowStock: false, stockUncertain: true })));
+          return hide(rows.map((row) => ({ ...mapFrameRow(row, {}), available: 99, lowStock: false, stockUncertain: true })));
         }
         const quantities = Object.fromEntries(stock.data.map((row) => [row.sku, row.quantity]));
         const lowAt = Object.fromEntries(stock.data.map((row) => [row.sku, row.low_stock_at ?? 5]));
-        return hide(data.map((row) => {
+        return hide(rows.map((row) => {
           const offer = mapFrameRow(row, quantities);
           return { ...offer, lowStock: frameLowStock(offer, quantities, lowAt), stockUncertain: false };
         }));
@@ -215,6 +219,10 @@ export function createSupabaseRepo() {
     async placeOrder(input: CheckoutInput) {
       const items = [];
       for (const item of input.items) {
+        if (item.testProduct) {
+          items.push({ ...item, photoOriginalPath: null, photoPrintPath: null });
+          continue;
+        }
         const photos = await uploadOrderPhotos(item.photoId);
         let collage = item.collage ?? null;
         if (collage) {

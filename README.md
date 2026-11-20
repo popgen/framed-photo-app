@@ -121,7 +121,7 @@ Si faltan o están vacías, el cliente puede elegir cualquier marco y el servido
 
 ## Pagos
 
-Por defecto `PAYMENTS_MODE` es `mock` (sandbox). En la demo del navegador, Yape, Plin y tarjeta abren la hoja de prueba y el pedido queda pagado en ese navegador. No hay cobro real.
+Por defecto `PAYMENTS_MODE` es `mock` (sandbox). En la demo del navegador, Izipay (tarjeta) abre la hoja de prueba y el pedido queda pagado en ese navegador. No hay cobro real. Yape y Plin ya no se ofrecen en el checkout. Yape se paga dentro de Mercado Pago. Los pedidos antiguos de Yape o Plin siguen viéndose en el admin.
 
 En `live`, el monto sale del pedido guardado en el servidor. El cliente no fija el precio. Tarjeta y Yape abren el formulario embebido de Izipay (`/pago`): la tarjeta no pasa por nuestros servidores. El pedido pasa a pagado, y se muestra la confirmación, solo cuando el regreso o el IPN traen un `kr-hash` válido y el monto coincide. Un aviso repetido no vuelve a descontar stock ni a mandar el correo. El IPN es `https://mifotito.com/api/payments/izipay-ipn`.
 
@@ -165,7 +165,7 @@ El cliente podrá mandar una foto al número de WhatsApp Business. Hoy ese bot e
 2. Webhook: `https://tu-dominio/api/webhooks/whatsapp`. Verificación: el `WHATSAPP_VERIFY_TOKEN`. Suscribe el campo `messages`.
 3. Sin token, el handler no llama a Graph. Registra la respuesta y, si el id del media termina en `small`, simula una foto chica (700×900). Cualquier otra foto simulada usa 1772×2362, que es 300 dpi en 15×20.
 4. Prueba local del sandbox dentro del admin → WhatsApp. Crea un pedido etiquetado WhatsApp y un enlace `/w/…` con la foto ya puesta.
-5. Con credenciales, el webhook baja el binario a máxima resolución, mide ancho y alto, guarda el archivo y contesta con la lista de marcos, botones de muro / mismos marcos, el enlace mágico y Yape, Plin o tarjeta. «Hablar con alguien» marca el pedido para una persona.
+5. Con credenciales, el webhook baja el binario a máxima resolución, mide ancho y alto, guarda el archivo y contesta con la lista de marcos, botones de muro / mismos marcos, el enlace mágico e Izipay o Mercado Pago. Yape va dentro de Mercado Pago. «Hablar con alguien» marca el pedido para una persona.
 
 Ejemplo sin credenciales:
 

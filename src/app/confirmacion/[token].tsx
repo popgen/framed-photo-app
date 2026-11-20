@@ -8,7 +8,9 @@ import { Button, Screen } from "../../components/ui";
 import { colors, font } from "../../components/theme";
 import { rememberWaOrder } from "../../lib/boot";
 import { mercadoPagoConfirmationState } from "../../lib/mercadopago";
+import { donationSummaryText, DONATION_CENTS } from "../../lib/donation";
 import { formatSoles } from "../../lib/money";
+import { isTestOnlyCart } from "../../lib/test-product";
 import { getRepo } from "../../lib/repo";
 import { readReceipt, rememberReceipt, useCart } from "../../lib/store";
 import type { Order } from "../../lib/types";
@@ -114,12 +116,21 @@ export default function Confirmacion() {
   return (
     <Screen>
       <View style={{ padding: 20, gap: 14 }}>
-        <GiftSuccess title={campaignTitle} body={campaignBody} />
+        {isTestOnlyCart(order.items) ? (
+          <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink, textAlign: "center" }}>Recibimos el pago de prueba</Text>
+        ) : (
+          <GiftSuccess title={campaignTitle} body={campaignBody} />
+        )}
         <Text style={{ fontFamily: font.display, fontSize: 32, color: colors.ink, textAlign: "center" }}>{order.number}</Text>
         <Text style={{ fontFamily: font.semibold, color: colors.ink, textAlign: "center" }}>{formatSoles(order.totalCents)}</Text>
+        {order.donationCents === DONATION_CENTS ? <Text style={{ fontFamily: font.medium, color: colors.ink, textAlign: "center" }}>{donationSummaryText()}</Text> : null}
         <Text style={{ fontFamily: font.medium, color: colors.muted, textAlign: "center" }}>Guarda este número. Puedes entrar más tarde con tu correo y contraseña para seguir tu pedido.</Text>
         {order.accountNotice ? <Text style={{ fontFamily: font.medium, color: colors.ink, textAlign: "center" }}>{order.accountNotice}</Text> : null}
-        <Text style={{ fontFamily: font.body, color: colors.muted, textAlign: "center" }}>{order.etaLabel}. {order.christmasNote}</Text>
+        {isTestOnlyCart(order.items) ? (
+          <Text style={{ fontFamily: font.body, color: colors.muted, textAlign: "center" }}>Este pedido no entra a producción.</Text>
+        ) : (
+          <Text style={{ fontFamily: font.body, color: colors.muted, textAlign: "center" }}>{order.etaLabel}. {order.christmasNote}</Text>
+        )}
         {order.isGift ? <Text style={{ fontFamily: font.semibold, color: colors.ink, textAlign: "center" }}>Regalo</Text> : null}
         {order.giftNoteMessage ? (
           <View style={{ gap: 8 }}>

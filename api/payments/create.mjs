@@ -149,8 +149,9 @@ async function createMercadoPagoPayment(res, { env, fetchImpl, loadOrder, orderI
       orderId: order.id,
       email: order.email,
       name: order.customerName || "Cliente",
-      description: `Pedido ${order.number || "Mi Fotito"}`,
+      description: order.testOnly ? "Producto de prueba" : `Pedido ${order.number || "Mi Fotito"}`,
       publicToken: order.publicToken || "",
+      donationCents: Number(order.donationCents) || 0,
     },
     fetchImpl,
   );

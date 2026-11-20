@@ -1,3 +1,5 @@
+import { DONATION_CENTS, DONATION_MP_TITLE } from "./donation";
+
 export const MERCADOPAGO_PREFERENCE_URL = "https://api.mercadopago.com/checkout/preferences";
 export const MERCADOPAGO_PAYMENT_URL = "https://api.mercadopago.com/v1/payments";
 export const MERCADOPAGO_NOTIFICATION_URL = "https://mifotito.com/api/payments/mercadopago-webhook";
@@ -53,6 +55,7 @@ export function buildMercadoPagoPreference(input: {
   name?: string | null;
   description: string;
   publicToken: string;
+  donationCents?: number | null;
 }): Record<string, unknown> {
   const confirmation = orderConfirmationUrl(input.publicToken);
   const payer: Record<string, string> = {};
@@ -60,15 +63,35 @@ export function buildMercadoPagoPreference(input: {
   const email = input.email?.trim();
   if (name) payer.name = name.slice(0, 256);
   if (email) payer.email = email;
+  const donationCents = input.donationCents === DONATION_CENTS ? DONATION_CENTS : 0;
+  const merchandiseCents = Math.max(0, input.amountCents - donationCents);
+  const items: Record<string, unknown>[] = [];
+  if (merchandiseCents > 0) {
+    items.push({
+      title: (input.description || "Pedido Mi Fotito").slice(0, 256),
+      quantity: 1,
+      currency_id: "PEN",
+      unit_price: centsToUnitPrice(merchandiseCents),
+    });
+  }
+  if (donationCents > 0) {
+    items.push({
+      title: DONATION_MP_TITLE,
+      quantity: 1,
+      currency_id: "PEN",
+      unit_price: centsToUnitPrice(donationCents),
+    });
+  }
+  if (!items.length) {
+    items.push({
+      title: (input.description || "Pedido Mi Fotito").slice(0, 256),
+      quantity: 1,
+      currency_id: "PEN",
+      unit_price: centsToUnitPrice(input.amountCents),
+    });
+  }
   return {
-    items: [
-      {
-        title: (input.description || "Pedido Mi Fotito").slice(0, 256),
-        quantity: 1,
-        currency_id: "PEN",
-        unit_price: centsToUnitPrice(input.amountCents),
-      },
-    ],
+    items,
     payer,
     payment_methods: {
       installments: MERCADOPAGO_MAX_INSTALLMENTS,

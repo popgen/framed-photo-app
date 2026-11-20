@@ -109,7 +109,7 @@ Un `WebView` propio parece el camino corto, pero:
   Un TWA es el camino que Google documenta para publicar una web como app.
 - El `WebView` no comparte sesión, autocompletado ni contraseñas con Chrome.
   La persona tendría que volver a entrar a su cuenta dentro de la app.
-- Izipay, Yape y Mercado Pago abren pasarelas de pago. En Chrome funcionan; en un
+- Izipay y Mercado Pago abren pasarelas de pago. Yape se paga dentro de Mercado Pago. En Chrome funcionan; en un
   `WebView` sin configurar se rompen los redirects de 3-D Secure.
 - El `WebView` de un teléfono viejo se queda atrás; el TWA usa el Chrome que la
   persona ya actualiza sola.

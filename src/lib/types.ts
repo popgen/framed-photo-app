@@ -50,6 +50,7 @@ export type OrderItem = {
   collage?: CollageSnapshot | null;
   photoOriginalPath?: string | null;
   photoPrintPath?: string | null;
+  testProduct?: boolean;
 };
 
 export type Order = {
@@ -92,6 +93,7 @@ export type Order = {
   giftCardAppliedCents: number;
   giftWrapCents: number;
   giftNoteCents?: number;
+  donationCents?: number;
   shippingCents?: number | null;
   totalCents: number;
   paymentMethod?: string | null;
@@ -211,6 +213,7 @@ export type CheckoutInput = {
     collage?: CollageSnapshot | null;
     photoOriginalPath?: string | null;
     photoPrintPath?: string | null;
+    testProduct?: boolean;
   }[];
   customerName: string;
   phone: string;
@@ -239,6 +242,7 @@ export type CheckoutInput = {
   referralCode?: string;
   useCredit: boolean;
   giftCardCode?: string;
+  donationCents?: number;
   paymentMethod: "card" | "yape" | "plin" | "mercadopago" | "gift_card";
   ackLowRes: boolean;
   channel?: "web" | "whatsapp";

@@ -11,7 +11,9 @@ import { frameById } from "../../../lib/catalog";
 import { backgroundLabel, spacingLabel } from "../../../lib/collage";
 import { downloadCardPdf, downloadPrint } from "../../../lib/print-export";
 import { getRepo } from "../../../lib/repo";
+import { DONATION_LABEL, donationSummaryText } from "../../../lib/donation";
 import { giftWrapBadge, orderMoneyLines, paymentMethodLabel, paymentStatusLabel } from "../../../lib/order-admin";
+import { isTestOnlyCart, isTestProductItem, TEST_PRODUCT_NAME } from "../../../lib/test-product";
 import { STATUS_FLOW, STATUS_LABEL, type OrderStatus } from "../../../lib/types";
 
 export default function AdminOrder() {
@@ -54,7 +56,7 @@ export default function AdminOrder() {
       <Text style={{ fontFamily: font.body, color: colors.ink }}>{order.addressLine}, {order.district}, {order.province}, {order.department}</Text>
       <Text style={{ fontFamily: font.body, color: colors.ink }}>{order.taxIdSkipped || !order.taxId ? "Sin DNI/RUC" : `${order.taxIdType} ${order.taxId}`}</Text>
       <Text style={{ fontFamily: font.body, color: colors.muted }}>{order.phone} · {order.email}</Text>
-      <Text style={{ fontFamily: font.body, color: colors.muted }}>{order.christmasNote}</Text>
+      {isTestOnlyCart(order.items) ? <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Prueba</Text> : <Text style={{ fontFamily: font.body, color: colors.muted }}>{order.christmasNote}</Text>}
       {order.isGift ? <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Regalo</Text> : null}
       {order.giftWrap ? (
         <View style={{ alignSelf: "flex-start", backgroundColor: "#E7F6EE", borderRadius: 999, paddingHorizontal: 12, minHeight: 44, justifyContent: "center" }}>
@@ -65,7 +67,7 @@ export default function AdminOrder() {
       <View style={{ backgroundColor: colors.white, borderRadius: 16, padding: 12, gap: 6 }}>
         {orderMoneyLines(order).map((line) => (
           <Text key={line.label} style={{ fontFamily: line.label === "Total" ? font.semibold : font.body, color: colors.ink }}>
-            {line.label} · {line.text}
+            {line.label === DONATION_LABEL ? donationSummaryText() : `${line.label} · ${line.text}`}
           </Text>
         ))}
       </View>
@@ -88,13 +90,13 @@ export default function AdminOrder() {
       ) : null}
       {error ? <Banner tone="bad" text={error} /> : null}
       {warning ? <Banner tone="warn" text={warning} /> : null}
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+      {isTestOnlyCart(order.items) ? <Text style={{ fontFamily: font.body, color: colors.muted }}>Este pedido no entra a producción.</Text> : <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
         {STATUS_FLOW.map((status) => (
           <Pressable key={status} onPress={() => void run(() => getRepo().setStatus(order.id, status as OrderStatus))} style={chip(order.status === status)}>
             <Text style={chipText(order.status === status)}>{STATUS_LABEL[status]}</Text>
           </Pressable>
         ))}
-      </View>
+      </View>}
       {order.status === "cancelled" ? (
         <Text style={{ fontFamily: font.semibold, color: colors.bad }}>Pedido cancelado</Text>
       ) : confirmCancel ? (
@@ -123,7 +125,7 @@ export default function AdminOrder() {
       )}
       {order.items.map((item) => (
         <View key={item.id} style={{ backgroundColor: colors.white, borderRadius: 16, padding: 12, gap: 8 }}>
-          <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{item.card ? `Tarjeta ${item.card.sizeId}` : item.collage ? `Collage · ${item.collage.templateName} · ${frameById(item.frameId).name}` : `${frameById(item.frameId).name} · ${item.dpi} dpi`}</Text>
+          <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{isTestProductItem(item) ? TEST_PRODUCT_NAME : item.card ? `Tarjeta ${item.card.sizeId}` : item.collage ? `Collage · ${item.collage.templateName} · ${frameById(item.frameId).name}` : `${frameById(item.frameId).name} · ${item.dpi} dpi`}</Text>
           {item.collage ? (
             <View style={{ gap: 4 }}>
               <Text style={{ fontFamily: font.body, color: colors.ink }}>{item.collage.sources.length} fotos · separación {spacingLabel(item.collage.spacing)} · fondo {backgroundLabel(item.collage.background)}</Text>
@@ -163,7 +165,7 @@ export default function AdminOrder() {
           <Pressable onPress={() => void run(() => getRepo().flagBlurry(order.id, item.id, "La foto se ve borrosa para el tamaño elegido."))} style={chip(false)}>
             <Text style={chipText(false)}>Pedir otra foto</Text>
           </Pressable>
-          {item.card ? (
+          {isTestProductItem(item) ? null : item.card ? (
             <Pressable onPress={() => void downloadCardPdf(item.card!, `${order.number}-tarjeta.pdf`).catch((err: Error) => setError(err.message))} style={chip(false)}>
               <Text style={chipText(false)}>Descargar PDF</Text>
             </Pressable>

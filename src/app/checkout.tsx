@@ -1,5 +1,6 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
+import { Image } from "expo-image";
 import { InlineLink } from "../components/InlineLink";
 import { currentCustomer, passwordError, type CustomerSession } from "../lib/customer-auth";
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
@@ -13,7 +14,10 @@ import { readWaOrder, rememberWaOrder } from "../lib/boot";
 import { countdownVisible } from "../lib/campaign";
 import { countdownTarget, guaranteeFor } from "../lib/cutoff";
 import { DEPARTMENTS, districtsFor, provincesFor, shippingZone } from "../lib/zone";
-import { dataMode, paymentsMode, providerFor, type PaymentMethod } from "../lib/env";
+import { checkoutPayMethodForSubmit, checkoutPayOptions, resolveCheckoutPayMethod, type CheckoutPayMethod } from "../lib/checkout-payment";
+import { DONATION_CENTS, donationCheckboxLabel, donationSummaryText } from "../lib/donation";
+import { dataMode, paymentsMode, providerFor } from "../lib/env";
+import { isTestOnlyCart, isTestProductItem, TEST_PRODUCT_CENTS } from "../lib/test-product";
 import { cardOrderLine } from "../lib/cards";
 import { frameById } from "../lib/catalog";
 import { framedPriceCents } from "../lib/collage";
@@ -25,6 +29,9 @@ import { EXAMPLE_PHOTO_PROMPT, usesExamplePhoto } from "../lib/example-photo";
 import { rememberReceipt, useCart } from "../lib/store";
 import { resolveTaxId } from "../lib/tax-id";
 import type { CheckoutInput, Order } from "../lib/types";
+
+const IZIPAY_LOGO = require("../../assets/payments/izipay.png");
+const MERCADO_PAGO_LOGO = require("../../assets/payments/mercadopago.png");
 
 export default function Checkout() {
   const now = useNow();
@@ -66,8 +73,11 @@ export default function Checkout() {
     giftCardCode: "",
     useCredit: false,
     ackLowRes: false,
+    donation: false,
   });
-  const [method, setMethod] = useState<PaymentMethod>(params.pago === "plin" || params.pago === "card" ? params.pago : "yape");
+  const explicitCard = params.pago === "card";
+  const [method, setMethod] = useState<CheckoutPayMethod | null>(explicitCard ? "card" : null);
+  const [payReady, setPayReady] = useState(explicitCard);
   const [mercadoPago, setMercadoPago] = useState(false);
   const [quote, setQuote] = useState<Awaited<ReturnType<ReturnType<typeof getRepo>["quoteCheckout"]>> | null>(null);
   const [credit, setCredit] = useState(0);
@@ -83,11 +93,18 @@ export default function Checkout() {
     void fetch("/api/payments/methods")
       .then((response) => (response.ok ? response.json() : null))
       .then((data: { mercadopago?: boolean } | null) => {
-        if (stopped || !data?.mercadopago) return;
-        setMercadoPago(true);
-        if (params.pago === "mercadopago") setMethod("mercadopago");
+        if (stopped) return;
+        const offered = Boolean(data?.mercadopago);
+        setMercadoPago(offered);
+        setMethod(resolveCheckoutPayMethod(params.pago, offered));
+        setPayReady(true);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (stopped) return;
+        setMercadoPago(false);
+        setMethod(resolveCheckoutPayMethod(params.pago, false));
+        setPayReady(true);
+      });
     return () => {
       stopped = true;
     };
@@ -116,6 +133,7 @@ export default function Checkout() {
         card: item.card,
         voice: item.voice,
         collage: item.collage,
+        testProduct: Boolean(item.testProduct),
       })),
       ...form,
       isGift: form.giftPrinted,
@@ -123,10 +141,11 @@ export default function Checkout() {
       hidePrices: form.hidePrices || form.giftWrap,
       city: form.district,
       province: form.province,
-      paymentMethod: method,
+      donationCents: items.length && form.donation ? DONATION_CENTS : 0,
+      paymentMethod: checkoutPayMethodForSubmit(method, mercadoPago),
       channel: readWaOrder() ? "whatsapp" : "web",
     }),
-    [form, items, method],
+    [form, items, method, mercadoPago],
   );
 
   useEffect(() => {
@@ -138,10 +157,15 @@ export default function Checkout() {
     return () => clearTimeout(handle);
   }, [input, form.phone]);
 
+  const testOnly = isTestOnlyCart(items);
   const instant = priceQuote({
-    items: items.map((item) => ({ unitPriceCents: item.collage ? framedPriceCents(frameById(item.frameId).priceCents, true) : frameById(item.frameId).priceCents })),
-    giftWrap: form.giftWrap,
-    giftNote: form.giftPrinted && form.giftNoteMessage.trim().length > 0 && form.giftNoteMessage.trim().length <= GIFT_NOTE_MESSAGE_MAX,
+    items: items.map((item) => ({
+      unitPriceCents: isTestProductItem(item) ? TEST_PRODUCT_CENTS : item.collage ? framedPriceCents(frameById(item.frameId).priceCents, true) : frameById(item.frameId).priceCents,
+      kind: isTestProductItem(item) ? "plain" as const : "frame" as const,
+    })),
+    giftWrap: testOnly ? false : form.giftWrap,
+    giftNote: testOnly ? false : form.giftPrinted && form.giftNoteMessage.trim().length > 0 && form.giftNoteMessage.trim().length <= GIFT_NOTE_MESSAGE_MAX,
+    donationCents: items.length && form.donation ? DONATION_CENTS : 0,
   });
   const shownTotal = quote?.totalCents ?? instant.totalCents;
   const taxCheck = resolveTaxId({ taxId: form.taxId, skipped: form.taxIdSkipped });
@@ -203,10 +227,11 @@ export default function Checkout() {
         setError("El pago se confirma cuando la pasarela lo verifica. Puedes intentar otra vez.");
         return;
       }
+      const payable = checkoutPayMethodForSubmit(method, mercadoPago);
       const paid = await getRepo().markPaid(order.id, {
-        method: order.totalCents === 0 ? "gift_card" : method,
-        provider: providerFor(method, paymentsMode()),
-        ref: `${providerFor(method, paymentsMode())}_${order.id.slice(0, 8)}`,
+        method: order.totalCents === 0 ? "gift_card" : payable,
+        provider: providerFor(payable, paymentsMode()),
+        ref: `${providerFor(payable, paymentsMode())}_${order.id.slice(0, 8)}`,
       });
       finishPaid({ ...paid, accountNotice: paid.accountNotice || order.accountNotice });
     } catch (err) {
@@ -235,6 +260,10 @@ export default function Checkout() {
         setError(problem);
         return;
       }
+    }
+    if (!payReady || method !== "card" && method !== "mercadopago") {
+      setError("Elige cómo quieres pagar.");
+      return;
     }
     setError(null);
     setBusy(true);
@@ -265,7 +294,7 @@ export default function Checkout() {
         setError(payload.error || "No pudimos abrir Mercado Pago.");
         return;
       }
-      if (dataMode() === "supabase" && method !== "plin") {
+      if (dataMode() === "supabase" && method === "card") {
         const response = await fetch("/api/payments/create", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -292,16 +321,6 @@ export default function Checkout() {
         setError(payload.error || "No pudimos abrir el pago.");
         return;
       }
-      if (dataMode() === "supabase" && method === "plin" && paymentsMode() === "live") {
-        const response = await fetch("/api/payments/create", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ orderId: order.id, method }),
-        });
-        const payload = (await response.json()) as { instructions?: string; error?: string };
-        setError(payload.instructions || payload.error || "Te escribimos cuando confirmemos el Plin.");
-        return;
-      }
       setPending(order);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Revisa los datos.");
@@ -319,7 +338,7 @@ export default function Checkout() {
             Al pagar aceptas los <InlineLink href="/terminos">Términos y condiciones</InlineLink> y la <InlineLink href="/privacidad">Política de privacidad</InlineLink>.
           </Text>
           <Text style={{ fontFamily: font.display, fontSize: 28, color: colors.ink }}>{formatSoles(shownTotal)}</Text>
-          <Button label={busy ? "Procesando…" : "Pagar"} disabled={busy || !items.length} onPress={() => void start()} />
+          <Button label={busy ? "Procesando…" : "Pagar"} disabled={busy || !items.length || !payReady || !method} onPress={() => void start()} />
         </View>
       }
     >
@@ -392,7 +411,13 @@ export default function Checkout() {
         <Field label="Dirección" value={form.addressLine} onChangeText={(addressLine) => setForm({ ...form, addressLine })} />
         <Field label="Referencia" value={form.reference} onChangeText={(reference) => setForm({ ...form, reference })} />
         <Text style={{ fontFamily: font.semibold, color: zone === "provinces" ? colors.warn : colors.pine }}>
-          {zone === "lima" ? "Lima y Callao · 2 a 3 días hábiles" : zone === "provinces" ? "Provincias · 3 a 5 días hábiles" : "Elige departamento, provincia y distrito para ver el plazo."}
+          {testOnly
+            ? "Producto de prueba. El envío es S/ 0 y no entra a producción."
+            : zone === "lima"
+              ? "Lima y Callao · 2 a 3 días hábiles"
+              : zone === "provinces"
+                ? "Provincias · 3 a 5 días hábiles"
+                : "Elige departamento, provincia y distrito para ver el plazo."}
         </Text>
         {form.giftPrinted ? <Text style={{ fontFamily: font.body, color: colors.muted }}>Si el regalo va a otra dirección, márcalo aquí.</Text> : null}
         <Pressable onPress={() => setForm({ ...form, otherRecipient: !form.otherRecipient })} style={{ minHeight: 44, justifyContent: "center" }}>
@@ -404,7 +429,7 @@ export default function Checkout() {
             <Field label="Celular de quien lo recibe" value={form.recipientPhone} onChangeText={(recipientPhone) => setForm({ ...form, recipientPhone })} />
           </>
         ) : null}
-        <GiftNoteEditor
+        {testOnly ? null : <GiftNoteEditor
           printed={form.giftPrinted}
           to={form.giftNoteTo}
           message={form.giftNoteMessage}
@@ -415,47 +440,73 @@ export default function Checkout() {
             setGift({ isGift: next.printed, to: next.to, message: next.message, from: next.fromName, hidePrices: next.hidePrices });
             setForm({ ...form, giftPrinted: next.printed, giftNoteTo: next.to, giftNoteMessage: next.message, giftNoteFrom: next.fromName, hidePrices: next.hidePrices });
           }}
-        />
-        {form.giftPrinted && !form.giftWrap ? <Text style={{ fontFamily: font.body, color: colors.muted }}>Si quieres, suma el envoltorio. Va aparte de la nota.</Text> : null}
-        <Pressable onPress={() => setForm({ ...form, giftWrap: !form.giftWrap })} style={{ minHeight: 52, justifyContent: "center", backgroundColor: form.giftWrap ? "#E7F6EE" : colors.white, borderRadius: 16, padding: 12, gap: 4 }}>
-          <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{form.giftWrap ? "☑" : "☐"} {campaign?.giftWrapTitle ?? "Envoltorio de regalo"} · S/ 10</Text>
-          <Text style={{ fontFamily: font.body, color: colors.muted }}>{campaign?.giftWrapBody ?? "La caja va sin precios."}</Text>
-          {form.giftWrap ? <Text style={{ fontFamily: font.medium, color: colors.ink }}>☑ No incluir precios en la caja</Text> : null}
-        </Pressable>
-        <DiscountCodeField
-          promoCode={form.promoCode}
-          referralCode={form.referralCode}
-          giftCardCode={form.giftCardCode}
-          phone={form.phone}
-          giftAppliedCents={quote?.giftCardAppliedCents}
-          onChange={(codes) => setForm((current) => ({ ...current, ...codes }))}
-        />
-        {credit > 0 ? (
-          <Pressable onPress={() => setForm({ ...form, useCredit: !form.useCredit })} style={{ minHeight: 44, justifyContent: "center" }}>
-            <Text style={{ fontFamily: font.medium, color: colors.ink }}>{form.useCredit ? "☑" : "☐"} Usar mi saldo {formatSoles(credit)}</Text>
-          </Pressable>
-        ) : null}
+        />}
+        {testOnly ? null : (
+          <>
+            {form.giftPrinted && !form.giftWrap ? <Text style={{ fontFamily: font.body, color: colors.muted }}>Si quieres, suma el envoltorio. Va aparte de la nota.</Text> : null}
+            <Pressable onPress={() => setForm({ ...form, giftWrap: !form.giftWrap })} style={{ minHeight: 52, justifyContent: "center", backgroundColor: form.giftWrap ? "#E7F6EE" : colors.white, borderRadius: 16, padding: 12, gap: 4 }}>
+              <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{form.giftWrap ? "☑" : "☐"} {campaign?.giftWrapTitle ?? "Envoltorio de regalo"} · S/ 10</Text>
+              <Text style={{ fontFamily: font.body, color: colors.muted }}>{campaign?.giftWrapBody ?? "La caja va sin precios."}</Text>
+              {form.giftWrap ? <Text style={{ fontFamily: font.medium, color: colors.ink }}>☑ No incluir precios en la caja</Text> : null}
+            </Pressable>
+            <DiscountCodeField
+              promoCode={form.promoCode}
+              referralCode={form.referralCode}
+              giftCardCode={form.giftCardCode}
+              phone={form.phone}
+              giftAppliedCents={quote?.giftCardAppliedCents}
+              onChange={(codes) => setForm((current) => ({ ...current, ...codes }))}
+            />
+            {credit > 0 ? (
+              <Pressable onPress={() => setForm({ ...form, useCredit: !form.useCredit })} style={{ minHeight: 44, justifyContent: "center" }}>
+                <Text style={{ fontFamily: font.medium, color: colors.ink }}>{form.useCredit ? "☑" : "☐"} Usar mi saldo {formatSoles(credit)}</Text>
+              </Pressable>
+            ) : null}
+          </>
+        )}
         {items.some((item) => item.resolutionStatus === "low") ? (
           <Pressable onPress={() => setForm({ ...form, ackLowRes: !form.ackLowRes })} style={{ minHeight: 44, justifyContent: "center" }}>
             <Text style={{ fontFamily: font.medium, color: colors.ink }}>{form.ackLowRes ? "☑" : "☐"} Acepto imprimir una foto de resolución baja</Text>
           </Pressable>
         ) : null}
+        {items.length ? (
+          <Pressable
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: form.donation }}
+            onPress={() => setForm({ ...form, donation: !form.donation })}
+            style={{ minHeight: 64, justifyContent: "center", gap: 4 }}
+          >
+            <Text style={{ fontFamily: font.semibold, color: colors.ink, fontSize: 16, lineHeight: 22 }}>{form.donation ? "☑" : "☐"} {donationCheckboxLabel()}</Text>
+            <Text style={{ fontFamily: font.body, color: colors.muted, lineHeight: 20 }}>Es opcional y se suma al total.</Text>
+          </Pressable>
+        ) : null}
+        {items.length && form.donation ? <Text style={{ fontFamily: font.medium, color: colors.ink }}>{donationSummaryText()}</Text> : null}
         <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Pago</Text>
         <View style={{ gap: 8 }}>
-          {([
-            { id: "yape" as const, label: "Yape" },
-            { id: "plin" as const, label: "Plin" },
-            { id: "card" as const, label: "Tarjeta" },
-            ...(mercadoPago ? [{ id: "mercadopago" as const, label: "Mercado Pago (cuotas, saldo o PagoEfectivo)" }] : []),
-          ]).map((item) => (
-            <Pressable key={item.id} onPress={() => setMethod(item.id)} style={{ minHeight: item.id === "mercadopago" ? 64 : 52, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 12, justifyContent: "center", backgroundColor: method === item.id ? colors.ink : colors.white }}>
-              <Text style={{ fontFamily: font.semibold, color: method === item.id ? "white" : colors.ink, fontSize: item.id === "mercadopago" ? 15 : 16, lineHeight: 22 }}>{item.label}</Text>
-            </Pressable>
-          ))}
+          {checkoutPayOptions(mercadoPago).map((item) => {
+            const selected = method === item.id;
+            const logo = item.id === "card" ? IZIPAY_LOGO : MERCADO_PAGO_LOGO;
+            const logoWidth = item.id === "card" ? 72 : 95;
+            return (
+              <Pressable
+                key={item.id}
+                accessibilityRole="button"
+                accessibilityLabel={`${item.label} (${item.hint})`}
+                accessibilityState={{ selected }}
+                onPress={() => setMethod(item.id)}
+                style={{ minHeight: 64, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: selected ? colors.ink : colors.white }}
+              >
+                <View style={{ width: logoWidth + 8, height: 32, borderRadius: 8, backgroundColor: colors.white, alignItems: "center", justifyContent: "center" }}>
+                  <Image source={logo} alt={item.label} accessibilityLabel={item.label} style={{ height: 24, width: logoWidth }} contentFit="contain" />
+                </View>
+                <Text style={{ flex: 1, fontFamily: font.semibold, color: selected ? "white" : colors.ink, fontSize: 15, lineHeight: 20 }}>{item.label} ({item.hint})</Text>
+              </Pressable>
+            );
+          })}
         </View>
         {method === "mercadopago" ? (
           <Text style={{ fontFamily: font.body, color: colors.muted, lineHeight: 20 }}>
-            Te llevamos a Mercado Pago. Puedes pagar con tarjeta en cuotas, con tu saldo o con PagoEfectivo. El pedido sigue pendiente hasta que Mercado Pago confirme el pago.
+            Te llevamos a Mercado Pago. Ahí puedes pagar con Yape, con tarjeta en cuotas, con tu saldo o con PagoEfectivo. El pedido sigue pendiente hasta que Mercado Pago confirme el pago.
           </Text>
         ) : null}
         {quote?.promoError ? <Banner tone="bad" text={quote.promoError} /> : null}
@@ -467,7 +518,7 @@ export default function Checkout() {
         {quote?.referralDiscountCents ? <Text style={{ fontFamily: font.medium, color: colors.pine }}>Código de amigo: -{formatSoles(quote.referralDiscountCents)}</Text> : null}
         {quote?.giftCardAppliedCents ? <Text style={{ fontFamily: font.medium, color: colors.pine }}>Tarjeta de regalo: -{formatSoles(quote.giftCardAppliedCents)}</Text> : null}
         {error ? <Banner tone="bad" text={error} /> : null}
-        {pending && pending.totalCents > 0 && method !== "mercadopago" ? <PaySheet method={method} total={formatSoles(pending.totalCents)} onApprove={() => void pay(true)} onReject={() => void pay(false)} /> : null}
+        {pending && pending.totalCents > 0 && method === "card" ? <PaySheet method="card" total={formatSoles(pending.totalCents)} onApprove={() => void pay(true)} onReject={() => void pay(false)} /> : null}
         <Modal visible={picker !== null} animationType="slide" transparent onRequestClose={() => setPicker(null)}>
           <View style={{ flex: 1, backgroundColor: "rgba(36,23,20,0.45)", justifyContent: "flex-end" }}>
             <View style={{ maxHeight: "82%", backgroundColor: colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, gap: 10 }}>

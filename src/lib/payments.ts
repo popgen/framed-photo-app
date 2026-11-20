@@ -326,7 +326,7 @@ export async function requestIzipayForm(
 
 export async function requestMercadoPagoCheckout(
   env: Record<string, string | undefined>,
-  input: { amountCents: number; orderId: string; email?: string | null; name?: string | null; description: string; publicToken: string },
+  input: { amountCents: number; orderId: string; email?: string | null; name?: string | null; description: string; publicToken: string; donationCents?: number | null },
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ checkoutUrl: string } | { error: string }> {
   const mp = readMercadoPagoEnv(env);
@@ -342,6 +342,7 @@ export async function requestMercadoPagoCheckout(
         name: input.name,
         description: input.description,
         publicToken: input.publicToken,
+        donationCents: input.donationCents,
       }),
     ),
   });
