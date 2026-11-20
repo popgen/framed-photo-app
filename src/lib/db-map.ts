@@ -52,6 +52,7 @@ export function mapOrderRow(row: Record<string, any>): Order {
     giftCardAppliedCents: row.gift_card_applied_cents ?? 0,
     giftWrapCents: row.gift_wrap_cents ?? 0,
     giftNoteCents: row.gift_note_cents ?? 0,
+    donationCents: row.donation_cents ?? 0,
     shippingCents: row.shipping_cents ?? row.shipping_cost_cents ?? null,
     totalCents: row.total_cents,
     paymentMethod: row.payment_method,
@@ -78,6 +79,7 @@ export function mapItemRow(row: Record<string, any>): OrderItem {
   return {
     id: row.id,
     frameId: row.frame_id ?? "",
+    testProduct: Boolean(row.test_product),
     photoId: row.photo_path ?? row.print_path ?? "",
     crop: row.crop,
     orientation: row.orientation ?? "portrait",

@@ -162,7 +162,7 @@ export const pages: SeoEntry[] = [
 ];
 
 /** Token, account, cart and admin paths. Crawlers may fetch the rest. */
-export const DISALLOW = ["/admin", "/api", "/pedido/", "/confirmacion/", "/w/", "/v/", "/cuenta", "/carrito", "/checkout", "/pago"];
+export const DISALLOW = ["/admin", "/api", "/pedido/", "/confirmacion/", "/w/", "/v/", "/cuenta", "/carrito", "/checkout", "/pago", "/prueba"];
 
 const LEGAL_PATHS = new Set(["/privacidad", "/terminos"]);
 

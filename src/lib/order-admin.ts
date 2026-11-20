@@ -1,3 +1,4 @@
+import { DONATION_CENTS, DONATION_LABEL } from "./donation";
 import { formatSoles } from "./money";
 import type { Order } from "./types";
 
@@ -17,6 +18,7 @@ type BreakdownOrder = Pick<
   | "giftCardAppliedCents"
   | "giftNoteCents"
   | "giftWrapCents"
+  | "donationCents"
   | "totalCents"
 > & { shippingCents?: number | null };
 
@@ -35,6 +37,7 @@ export function orderMoneyLines(order: BreakdownOrder): MoneyLine[] {
   });
   lines.push({ label: "Nota de regalo", text: formatSoles(order.giftNoteCents ?? 0) });
   lines.push({ label: "Envoltorio", text: formatSoles(order.giftWrapCents || 0) });
+  if (order.donationCents === DONATION_CENTS) lines.push({ label: DONATION_LABEL, text: formatSoles(order.donationCents) });
   lines.push({ label: "Envío", text: formatSoles(order.shippingCents || 0) });
   lines.push({ label: "Total", text: formatSoles(order.totalCents) });
   return lines;

@@ -37,8 +37,15 @@ describe("whatsapp ordering", () => {
     const confirmed = reduceWa(identified.session, { type: "select", id: "confirm" }, ctx);
     expect(confirmed.createOrder).toBe(true);
     expect(confirmed.replies[0].body).toContain("http://localhost:8081/w/");
-    const pay = reduceWa(confirmed.session, { type: "select", id: "pay_yape" }, ctx);
-    expect(pay.replies[0].body).toContain("pago=yape");
+    const buttons = confirmed.replies.find((reply) => reply.kind === "buttons" && reply.buttons?.some((button) => String(button.id).startsWith("pay_")));
+    expect(buttons?.buttons?.map((button) => button.title)).toEqual(["Pagar con Izipay", "Mercado Pago"]);
+    expect(JSON.stringify(buttons)).not.toMatch(/plin|yape/i);
+    const pay = reduceWa(confirmed.session, { type: "select", id: "pay_card" }, ctx);
+    expect(pay.replies[0].body).toContain("pago=card");
+    const oldYape = reduceWa(confirmed.session, { type: "select", id: "pay_yape" }, ctx);
+    expect(oldYape.replies[0].body).toMatch(/Mercado Pago/);
+    expect(oldYape.replies[0].body).not.toContain("pago=yape");
+    expect(oldYape.replies[0].body).not.toContain("pago=plin");
   });
 
   it("warns when the photo is too small and still links a smaller size", () => {

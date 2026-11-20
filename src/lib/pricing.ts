@@ -1,3 +1,4 @@
+import { DONATION_CENTS } from "./donation";
 import { GIFT_NOTE_CENTS } from "./gift-note";
 
 export const GIFT_WRAP_CENTS = 1000;
@@ -33,6 +34,8 @@ export type QuoteInput = {
   useCredit?: boolean;
   giftCardBalanceCents?: number | null;
   giftCardError?: string | null;
+  /** Only 500 is added. Any other number is ignored here; the order API rejects it. */
+  donationCents?: number | null;
   now?: Date;
 };
 
@@ -50,6 +53,7 @@ export type Quote = {
   giftCardError: string | null;
   giftWrapCents: number;
   giftNoteCents: number;
+  donationCents: number;
   totalCents: number;
 };
 
@@ -123,6 +127,9 @@ export function quote(input: QuoteInput): Quote {
     total -= giftCardApplied;
   }
 
+  const donationCents = input.donationCents === DONATION_CENTS ? DONATION_CENTS : 0;
+  total += donationCents;
+
   return {
     unitCount: units,
     subtotalCents: subtotal,
@@ -137,6 +144,7 @@ export function quote(input: QuoteInput): Quote {
     giftCardError,
     giftWrapCents,
     giftNoteCents,
+    donationCents,
     totalCents: Math.max(0, total),
   };
 }

@@ -107,7 +107,7 @@ Mi Fotito imprime tu foto y te la lleva enmarcada hasta tu casa, en Lima y a
 provincias.
 
 Elige la foto desde tu teléfono, mírala dentro del marco antes de pedirla, y
-paga en soles con Yape, Plin o tarjeta. Nosotros imprimimos, enmarcamos y
+paga en soles con Izipay (tarjeta) o Mercado Pago (incluye Yape). Nosotros imprimimos, enmarcamos y
 enviamos.
 
 • Marcos desde S/ 59, con envío incluido

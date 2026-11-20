@@ -1,5 +1,6 @@
 import { cardMessageError, priceCards } from "./cards";
 import { framedPriceCents } from "./collage";
+import { acceptedDonationCents } from "./donation";
 import { EXAMPLE_PHOTO_PROMPT, usesExamplePhoto } from "./example-photo";
 import { frameById } from "./catalog";
 import { defaultCampaign } from "./campaign";
@@ -12,11 +13,14 @@ import { quote, type QuoteItem } from "./pricing";
 import { shippingZone } from "./zone";
 import { chargedGiftWrap, hidePricesForOrder } from "./gift-wrap";
 import { giftNoteFromCheckout } from "./gift-note";
+import { isTestOnlyCart, isTestProductItem, testProductEnabled, testProductQuoteLines } from "./test-product";
 import { VOICE_ADDON_CENTS } from "./voice";
 import type { CheckoutInput, GiftCard, Promo, Referral } from "./types";
 
 export function quoteLines(input: CheckoutInput): QuoteItem[] {
   return input.items.flatMap((item) => {
+    const testLines = testProductQuoteLines(item);
+    if (testLines) return testLines;
     const lines: QuoteItem[] = item.card
       ? [{ unitPriceCents: priceCards(item.card.quantity).cents, quantity: 1, kind: "plain" }]
       : [{ unitPriceCents: framedPriceCents(frameById(item.frameId).priceCents, Boolean(item.collage)), quantity: 1, kind: "frame" }];
@@ -28,7 +32,7 @@ export function quoteLines(input: CheckoutInput): QuoteItem[] {
 export function stockNeeds(input: CheckoutInput) {
   return expandNeeds(
     input.items
-      .filter((item) => !item.card)
+      .filter((item) => !item.card && !isTestProductItem(item))
       .map((item) => ({ consumes: frameById(item.frameId).consumes, quantity: 1 })),
   );
 }
@@ -37,6 +41,8 @@ export function evaluateOrder(input: CheckoutInput, ctx: { promos: Promo[]; stoc
   const phone = normalizePhone(input.phone);
   if (!phone) return { error: "Revisa el celular." };
   if (!input.items.length) return { error: "Tu carrito está vacío." };
+  if (input.items.some((item) => isTestProductItem(item)) && !testProductEnabled()) return { error: "El producto de prueba no está disponible." };
+  if (input.items.some((item) => isTestProductItem(item)) && !isTestOnlyCart(input.items)) return { error: "El producto de prueba se compra solo." };
   if (input.items.some((item) => usesExamplePhoto(item))) return { error: EXAMPLE_PHOTO_PROMPT };
   const cardError = cardMessageError(input.items);
   if (cardError) return { error: cardError };
@@ -45,21 +51,25 @@ export function evaluateOrder(input: CheckoutInput, ctx: { promos: Promo[]; stoc
     { promos: ctx.promos, referrals: ctx.referrals ?? [], giftCards: ctx.giftCards ?? [] },
   );
   const { promo, promoCode, referral, referralDiscountCents: referralDiscount, referralError, giftCardBalanceCents: giftCardBalance, giftCardError } = resolved;
+  const donationCents = acceptedDonationCents(input.donationCents);
+  if (donationCents == null) return { error: "La donación solo puede ser de S/ 5.00." };
+  const testOnly = isTestOnlyCart(input.items);
   const parsedNote = giftNoteFromCheckout(input);
   if (!parsedNote.ok) return { error: parsedNote.error };
-  const giftWrap = chargedGiftWrap(input);
+  const giftWrap = testOnly ? false : chargedGiftWrap(input);
   const priced = quote({
     items: quoteLines(input),
     giftWrap,
-    giftNote: Boolean(parsedNote.note),
-    promo,
-    promoCode,
-    referralDiscountCents: referralDiscount,
-    referralError,
-    creditAvailableCents: ctx.credits?.[phone] ?? 0,
-    useCredit: input.useCredit,
-    giftCardBalanceCents: giftCardBalance,
-    giftCardError,
+    giftNote: testOnly ? false : Boolean(parsedNote.note),
+    promo: testOnly ? null : promo,
+    promoCode: testOnly ? null : promoCode,
+    referralDiscountCents: testOnly ? 0 : referralDiscount,
+    referralError: testOnly ? null : referralError,
+    creditAvailableCents: testOnly ? 0 : ctx.credits?.[phone] ?? 0,
+    useCredit: testOnly ? false : input.useCredit,
+    giftCardBalanceCents: testOnly ? null : giftCardBalance,
+    giftCardError: testOnly ? null : giftCardError,
+    donationCents,
   });
   if (priced.promoError) return { error: priced.promoError };
   if (priced.referralError) return { error: priced.referralError };
@@ -76,18 +86,18 @@ export function evaluateOrder(input: CheckoutInput, ctx: { promos: Promo[]; stoc
   return {
     phone,
     priced,
-    promo,
-    referral,
+    promo: testOnly ? null : promo,
+    referral: testOnly ? null : referral,
     needs,
     zone,
-    christmasGuaranteed: guarantee.guaranteed,
-    christmasNote: `${guarantee.headline}. ${guarantee.detail}`,
-    etaMin: eta.min,
-    etaMax: eta.max,
-    etaLabel: eta.label,
-    giftNote: parsedNote.note,
-    isGift: parsedNote.isGift,
+    christmasGuaranteed: testOnly ? false : guarantee.guaranteed,
+    christmasNote: testOnly ? "" : `${guarantee.headline}. ${guarantee.detail}`,
+    etaMin: testOnly ? null : eta.min,
+    etaMax: testOnly ? null : eta.max,
+    etaLabel: testOnly ? "" : eta.label,
+    giftNote: testOnly ? null : parsedNote.note,
+    isGift: testOnly ? false : parsedNote.isGift,
     giftWrap,
-    hidePrices: hidePricesForOrder(Boolean(parsedNote.note?.hidePrices), giftWrap),
+    hidePrices: testOnly ? false : hidePricesForOrder(Boolean(parsedNote.note?.hidePrices), giftWrap),
   };
 }

@@ -14,7 +14,6 @@ import { formatOrderNumber } from "./order-number";
 import { isOpenShipment, sortTracking, toPublicShipment, toTrackingCard } from "./tracking";
 import { applyStock, expandNeeds, frameLowStock, framesAvailable } from "./inventory";
 import { inquiryFromSize } from "./retablo";
-import { VOICE_ADDON_CENTS } from "./voice";
 import { provisionCheckoutAccount, readLocalCustomer } from "./customer-auth";
 import { ADMIN_UNAUTHORIZED } from "./admin-access";
 import { chargedGiftWrap, hidePricesForOrder } from "./gift-wrap";
@@ -22,9 +21,12 @@ import { trackingEmail, trackingWarning } from "./tracking-mail";
 import { isEmail, normalizePhone } from "./phone";
 import { resolveTaxId } from "./tax-id";
 import { resolveDiscountInput } from "./discount-code";
-import { REFERRAL_FRIEND_CENTS, REFERRAL_REWARD_CENTS, quote, type QuoteItem } from "./pricing";
+import { REFERRAL_FRIEND_CENTS, REFERRAL_REWARD_CENTS, quote } from "./pricing";
 import { assessResolution, centeredCrop } from "./print-size";
+import { acceptedDonationCents } from "./donation";
 import { giftNoteFromCheckout } from "./gift-note";
+import { quoteLines } from "./server-order";
+import { isTestOnlyCart, isTestProductItem, TEST_PRODUCT_CENTS, TEST_PRODUCT_ID, testProductEnabled } from "./test-product";
 import { districtsFor, shippingZone } from "./zone";
 import {
   blurryMessage,
@@ -256,13 +258,8 @@ async function notify(state: DB, notice: Omit<Notice, "id" | "createdAt">) {
 }
 
 function priceInput(state: DB, input: CheckoutInput, phone: string | null) {
-  const items: QuoteItem[] = input.items.flatMap((item) => {
-    const lines: QuoteItem[] = item.card
-      ? [{ unitPriceCents: priceCards(item.card.quantity).cents, quantity: 1, kind: "plain" }]
-      : [{ unitPriceCents: framedPriceCents(frameById(item.frameId).priceCents, Boolean(item.collage)), quantity: 1, kind: "frame" }];
-    if (item.voice) lines.push({ unitPriceCents: item.voice.addonCents || VOICE_ADDON_CENTS, quantity: 1, kind: "plain" });
-    return lines;
-  });
+  const testOnly = isTestOnlyCart(input.items);
+  const donationCents = acceptedDonationCents(input.donationCents) ?? 0;
   const resolved = resolveDiscountInput(
     { promoCode: input.promoCode, referralCode: input.referralCode, giftCardCode: input.giftCardCode, phone },
     { promos: state.promos, referrals: state.referrals, giftCards: state.giftCards },
@@ -270,19 +267,20 @@ function priceInput(state: DB, input: CheckoutInput, phone: string | null) {
   const { promo, promoCode, referralDiscountCents: referralDiscount, referralError, giftCardBalanceCents: giftCardBalance, giftCardError } = resolved;
   const parsedNote = giftNoteFromCheckout(input);
   const priced = quote({
-    items,
-    giftWrap: chargedGiftWrap(input),
-    giftNote: parsedNote.ok && Boolean(parsedNote.note),
-    promo,
-    promoCode,
-    referralDiscountCents: referralDiscount,
-    referralError,
-    creditAvailableCents: phone ? (state.credits[phone] ?? 0) : 0,
-    useCredit: input.useCredit,
-    giftCardBalanceCents: giftCardBalance,
-    giftCardError,
+    items: quoteLines(input),
+    giftWrap: testOnly ? false : chargedGiftWrap(input),
+    giftNote: testOnly ? false : parsedNote.ok && Boolean(parsedNote.note),
+    promo: testOnly ? null : promo,
+    promoCode: testOnly ? null : promoCode,
+    referralDiscountCents: testOnly ? 0 : referralDiscount,
+    referralError: testOnly ? null : referralError,
+    creditAvailableCents: testOnly || !phone ? 0 : (state.credits[phone] ?? 0),
+    useCredit: testOnly ? false : input.useCredit,
+    giftCardBalanceCents: testOnly ? null : giftCardBalance,
+    giftCardError: testOnly ? null : giftCardError,
+    donationCents,
   });
-  const needs = expandNeeds(input.items.filter((item) => !item.card).map((item) => ({ consumes: frameById(item.frameId).consumes, quantity: 1 })));
+  const needs = expandNeeds(input.items.filter((item) => !item.card && !isTestProductItem(item)).map((item) => ({ consumes: frameById(item.frameId).consumes, quantity: 1 })));
   const stock = applyStock(stockRecord(state), needs);
   const stockError = stockChecksEnabled() && !stock.ok ? `No hay stock suficiente (${stock.missing.join(", ")}).` : null;
   return { priced, stockError, promo, phone };
@@ -290,6 +288,9 @@ function priceInput(state: DB, input: CheckoutInput, phone: string | null) {
 
 function assertCheckout(input: CheckoutInput, phone: string | null) {
   if (!input.items.length) throw new AppError("Tu carrito está vacío.");
+  if (acceptedDonationCents(input.donationCents) == null) throw new AppError("La donación solo puede ser de S/ 5.00.");
+  if (input.items.some((item) => isTestProductItem(item)) && !testProductEnabled()) throw new AppError("El producto de prueba no está disponible.");
+  if (input.items.some((item) => isTestProductItem(item)) && !isTestOnlyCart(input.items)) throw new AppError("El producto de prueba se compra solo.");
   if (input.items.some((item) => usesExamplePhoto(item))) throw new AppError(EXAMPLE_PHOTO_PROMPT);
   const cardError = cardMessageError(input.items);
   if (cardError) throw new AppError(cardError);
@@ -324,17 +325,21 @@ function buildOrder(state: DB, input: CheckoutInput, phone: string, status: Orde
   if (!note.ok) throw new AppError(note.error);
   const zone = shippingZone(input.department, input.province, input.district);
   const now = new Date();
-  const fest = festive(zone, now, state.campaign);
+  const testOnly = isTestOnlyCart(input.items);
+  const fest = testOnly
+    ? { christmasGuaranteed: false, christmasNote: "", etaMin: "", etaMax: "", etaLabel: "" }
+    : festive(zone, now, state.campaign);
   const number = formatOrderNumber(state.seq, now);
   state.seq += 1;
   const items: OrderItem[] = input.items.map((item) => ({
     id: uid("it_"),
-    frameId: item.frameId,
+    frameId: isTestProductItem(item) ? TEST_PRODUCT_ID : item.frameId,
     photoId: item.photoId,
     crop: item.crop,
     orientation: item.orientation,
     quantity: 1,
-    unitPriceCents: item.card ? priceCards(item.card.quantity).cents : framedPriceCents(frameById(item.frameId).priceCents, Boolean(item.collage)),
+    unitPriceCents: isTestProductItem(item) ? TEST_PRODUCT_CENTS : item.card ? priceCards(item.card.quantity).cents : framedPriceCents(frameById(item.frameId).priceCents, Boolean(item.collage)),
+    testProduct: isTestProductItem(item),
     bundleId: item.bundleId,
     bundleLabel: item.bundleLabel,
     dpi: Math.round(item.dpi),
@@ -359,13 +364,13 @@ function buildOrder(state: DB, input: CheckoutInput, phone: string, status: Orde
     province: input.province.trim(),
     recipientName: input.recipientName?.trim() || null,
     recipientPhone: input.recipientPhone ? normalizePhone(input.recipientPhone) : null,
-    isGift: note.isGift,
-    giftNote: note.note?.message ?? null,
-    giftNoteTo: note.note?.to ?? null,
-    giftNoteMessage: note.note?.message ?? null,
-    giftNoteFrom: note.note?.from ?? null,
-    hidePrices: hidePricesForOrder(Boolean(note.note?.hidePrices), chargedGiftWrap(input)),
-    giftWrap: chargedGiftWrap(input),
+    isGift: testOnly ? false : note.isGift,
+    giftNote: testOnly ? null : note.note?.message ?? null,
+    giftNoteTo: testOnly ? null : note.note?.to ?? null,
+    giftNoteMessage: testOnly ? null : note.note?.message ?? null,
+    giftNoteFrom: testOnly ? null : note.note?.from ?? null,
+    hidePrices: testOnly ? false : hidePricesForOrder(Boolean(note.note?.hidePrices), chargedGiftWrap(input)),
+    giftWrap: testOnly ? false : chargedGiftWrap(input),
     addressLine: input.addressLine.trim(),
     district: input.district.trim(),
     city: (input.city || input.district).trim(),
@@ -384,6 +389,8 @@ function buildOrder(state: DB, input: CheckoutInput, phone: string, status: Orde
     giftCardAppliedCents: priced.giftCardAppliedCents,
     giftWrapCents: priced.giftWrapCents,
     giftNoteCents: priced.giftNoteCents,
+    donationCents: priced.donationCents,
+    shippingCents: testOnly ? 0 : undefined,
     totalCents: priced.totalCents,
     paymentMethod: input.paymentMethod,
     paymentStatus: status === "pending_payment" ? "pending" : "approved",
@@ -460,7 +467,7 @@ export function createLocalRepo() {
       const order = state.orders.find((item) => item.id === orderId);
       if (!order) throw new AppError("No encontramos el pedido.");
       if (order.paymentStatus === "approved") return order;
-      const needs = expandNeeds(order.items.map((item) => ({ consumes: frameById(item.frameId).consumes, quantity: item.quantity })));
+      const needs = expandNeeds(order.items.filter((item) => !item.card && !isTestProductItem(item)).map((item) => ({ consumes: frameById(item.frameId).consumes, quantity: item.quantity })));
       writeStock(state, consumeForOrder(state, needs));
       if (order.promoCode) {
         const promo = state.promos.find((item) => item.code === order.promoCode);
@@ -554,7 +561,9 @@ export function createLocalRepo() {
       if (status === "shipped" && !order.trackingNumber) throw new AppError("Ingresa el número de guía antes de marcarlo en camino.");
       order.status = status;
       order.updatedAt = new Date().toISOString();
-      await notify(state, { orderId: order.id, channel: "whatsapp", to: order.phone, event: "status", body: statusMessage(order, status) });
+      if (!isTestOnlyCart(order.items)) {
+        await notify(state, { orderId: order.id, channel: "whatsapp", to: order.phone, event: "status", body: statusMessage(order, status) });
+      }
       persist(state);
       return order;
     },
@@ -579,8 +588,8 @@ export function createLocalRepo() {
       order.trackingNumber = clean;
       order.status = "shipped";
       order.updatedAt = new Date().toISOString();
-      const warning = trackingWarning({ email: order.email, smtpReady: true, sent: Boolean(order.email) });
-      if (order.email) {
+      const warning = isTestOnlyCart(order.items) ? null : trackingWarning({ email: order.email, smtpReady: true, sent: Boolean(order.email) });
+      if (order.email && !isTestOnlyCart(order.items)) {
         const mail = trackingEmail({
           number: order.number,
           publicToken: order.publicToken,
@@ -687,7 +696,8 @@ export function createLocalRepo() {
       const claim = state.claims.find((item) => item.id === claimId);
       if (!claim) throw new AppError("No encontramos el reclamo.");
       const source = mustOrder(state, claim.orderId);
-      const needs = expandNeeds(source.items.map((item) => ({ consumes: frameById(item.frameId).consumes, quantity: item.quantity })));
+      if (isTestOnlyCart(source.items)) throw new AppError("Un pedido de prueba no se repone.");
+      const needs = expandNeeds(source.items.filter((item) => !item.card && !isTestProductItem(item)).map((item) => ({ consumes: frameById(item.frameId).consumes, quantity: item.quantity })));
       writeStock(state, consumeForOrder(state, needs));
       const now = new Date();
       const fest = festive(source.zone, now, state.campaign);

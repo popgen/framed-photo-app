@@ -7,6 +7,7 @@ import { Banner, Button, Screen } from "../../components/ui";
 import { colors, font } from "../../components/theme";
 import { currentCustomer, type CustomerSession } from "../../lib/customer-auth";
 import { getRepo } from "../../lib/repo";
+import { isTestOnlyCart } from "../../lib/test-product";
 import { STATUS_FLOW, STATUS_LABEL, type Order } from "../../lib/types";
 
 export default function Pedido() {
@@ -40,8 +41,14 @@ export default function Pedido() {
           <>
             <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{order.number} · {STATUS_LABEL[order.status]}</Text>
             {order.channel === "whatsapp" ? <Banner tone="good" text="Te escribimos por correo sobre este pedido." /> : null}
-            <Text style={{ fontFamily: font.body, color: colors.muted }}>{order.etaLabel}</Text>
-            <Text style={{ fontFamily: font.body, color: colors.ink }}>{order.christmasNote}</Text>
+            {isTestOnlyCart(order.items) ? (
+              <Text style={{ fontFamily: font.body, color: colors.muted }}>Pedido de prueba. No entra a producción.</Text>
+            ) : (
+              <>
+                <Text style={{ fontFamily: font.body, color: colors.muted }}>{order.etaLabel}</Text>
+                <Text style={{ fontFamily: font.body, color: colors.ink }}>{order.christmasNote}</Text>
+              </>
+            )}
             {order.isGift ? <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Regalo</Text> : null}
             {order.giftNoteMessage ? (
               <View style={{ gap: 8 }}>
@@ -51,7 +58,7 @@ export default function Pedido() {
               </View>
             ) : null}
             {order.trackingNumber ? <Text style={{ fontFamily: font.semibold, color: colors.ink }}>Guía {order.trackingNumber}</Text> : null}
-            <View style={{ gap: 8 }}>
+            {isTestOnlyCart(order.items) ? null : <View style={{ gap: 8 }}>
               {STATUS_FLOW.map((status) => {
                 const reached = STATUS_FLOW.indexOf(status) <= STATUS_FLOW.indexOf(order.status as (typeof STATUS_FLOW)[number]);
                 return (
@@ -60,8 +67,8 @@ export default function Pedido() {
                   </Text>
                 );
               })}
-            </View>
-            <Button label="Llegó dañado" tone="ghost" onPress={() => router.push(`/reclamo?token=${order.publicToken}`)} />
+            </View>}
+            {isTestOnlyCart(order.items) ? null : <Button label="Llegó dañado" tone="ghost" onPress={() => router.push(`/reclamo?token=${order.publicToken}`)} />}
           </>
         ) : null}
       </View>

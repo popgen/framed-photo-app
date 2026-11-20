@@ -1,4 +1,5 @@
 import { maskPhone, maskStreet } from "./order-number";
+import { isTestOnlyCart, isTestProductItem } from "./test-product";
 import { STATUS_LABEL, type Order, type OrderStatus } from "./types";
 
 export type TrackingCard = {
@@ -57,9 +58,10 @@ export function shortName(full: string): string {
   return `${parts[0]} ${[...parts[1]][0]}.`;
 }
 
-export function itemKind(items: { card?: unknown }[]): string {
+export function itemKind(items: { card?: unknown; testProduct?: boolean | null; frameId?: string | null }[]): string {
+  if (isTestOnlyCart(items)) return "Prueba";
   const cards = items.filter((item) => item.card);
-  const frames = items.length - cards.length;
+  const frames = items.filter((item) => !item.card && !isTestProductItem(item)).length;
   if (cards.length && frames === 0) return cards.length > 1 ? "Tarjetas" : "Tarjeta";
   if (frames > 1) return "Muro";
   if (frames === 1) return "Marco";
@@ -68,13 +70,14 @@ export function itemKind(items: { card?: unknown }[]): string {
 
 export function toPublicShipment(order: Pick<Order, "number" | "status" | "etaLabel" | "customerName" | "items">): PublicShipment {
   const index = OPEN_STEPS.indexOf(order.status);
+  const testOnly = isTestOnlyCart(order.items);
   return {
     number: order.number,
-    itemLabel: itemKind(order.items),
+    itemLabel: itemKind(order.items ?? []),
     status: order.status,
-    etaLabel: order.etaLabel,
+    etaLabel: testOnly ? "" : order.etaLabel,
     nameHint: shortName(order.customerName),
-    timeline: OPEN_STEPS.map((status, step) => ({
+    timeline: testOnly ? [] : OPEN_STEPS.map((status, step) => ({
       status,
       label: STATUS_LABEL[status],
       reached: index >= 0 && step <= index,
