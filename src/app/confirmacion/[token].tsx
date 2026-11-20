@@ -12,7 +12,7 @@ import { donationSummaryText, DONATION_CENTS } from "../../lib/donation";
 import { formatSoles } from "../../lib/money";
 import { isTestOnlyCart } from "../../lib/test-product";
 import { getRepo } from "../../lib/repo";
-import { readReceipt, rememberReceipt, useCart } from "../../lib/store";
+import { cartPendingKey, clearCheckoutDraft, clearPendingMercadoPago, readReceipt, rememberReceipt, useCart } from "../../lib/store";
 import type { Order } from "../../lib/types";
 
 export default function Confirmacion() {
@@ -51,6 +51,8 @@ export default function Confirmacion() {
     if (!sawPending.current || finished.current) return;
     if (mpState !== "approved" || order?.paymentMethod !== "mercadopago") return;
     finished.current = true;
+    clearPendingMercadoPago(cartPendingKey(useCart.getState().items));
+    clearCheckoutDraft();
     clear();
     rememberWaOrder(null);
     refresh();

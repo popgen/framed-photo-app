@@ -98,6 +98,64 @@ export const useCart = create<CartState>((set, get) => ({
 }));
 
 const RECEIPT = "recuerdo-receipt-";
+const PENDING_MP = "recuerdo-mp-pending-";
+const CHECKOUT_DRAFT = "recuerdo-mp-checkout-draft";
+
+export type PendingMercadoPago = { orderId: string; publicToken: string };
+
+/** Stable sessionStorage key for the cart that already has a Mercado Pago order. */
+export function cartPendingKey(items: { id: string }[]): string {
+  return items.map((item) => item.id).filter(Boolean).join(".");
+}
+
+export function rememberPendingMercadoPago(cartKey: string, order: PendingMercadoPago): void {
+  if (typeof sessionStorage === "undefined") return;
+  if (!cartKey || !order.orderId || !order.publicToken) return;
+  sessionStorage.setItem(`${PENDING_MP}${cartKey}`, JSON.stringify({ orderId: order.orderId, publicToken: order.publicToken }));
+}
+
+export function readPendingMercadoPago(cartKey: string): PendingMercadoPago | null {
+  if (typeof sessionStorage === "undefined" || !cartKey) return null;
+  const raw = sessionStorage.getItem(`${PENDING_MP}${cartKey}`);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<PendingMercadoPago>;
+    if (!parsed.orderId || !parsed.publicToken) return null;
+    return { orderId: String(parsed.orderId), publicToken: String(parsed.publicToken) };
+  } catch {
+    return null;
+  }
+}
+
+export function clearPendingMercadoPago(cartKey: string): void {
+  if (typeof sessionStorage === "undefined" || !cartKey) return;
+  sessionStorage.removeItem(`${PENDING_MP}${cartKey}`);
+}
+
+export function rememberCheckoutDraft(draft: unknown): void {
+  if (typeof sessionStorage === "undefined") return;
+  try {
+    sessionStorage.setItem(CHECKOUT_DRAFT, JSON.stringify(draft));
+  } catch {
+    // A full or blocked sessionStorage still leaves the cart in localStorage.
+  }
+}
+
+export function readCheckoutDraft<T>(): T | null {
+  if (typeof sessionStorage === "undefined") return null;
+  const raw = sessionStorage.getItem(CHECKOUT_DRAFT);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+export function clearCheckoutDraft(): void {
+  if (typeof sessionStorage === "undefined") return;
+  sessionStorage.removeItem(CHECKOUT_DRAFT);
+}
 
 export function rememberReceipt(order: { publicToken: string }): void {
   if (typeof sessionStorage === "undefined") return;

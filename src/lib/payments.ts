@@ -343,6 +343,7 @@ export async function requestMercadoPagoCheckout(
         description: input.description,
         publicToken: input.publicToken,
         donationCents: input.donationCents,
+        site: configuredSite(env),
       }),
     ),
   });
