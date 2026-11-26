@@ -168,7 +168,7 @@ export function Progress({ step }: { step: 1 | 2 | 3 }) {
 export function TabBar() {
   const path = usePathname();
   const insets = useSafeAreaInsets();
-  const count = useCart((state) => state.items.length);
+  const count = useCart((state) => (Array.isArray(state.items) ? state.items.length : 0));
   const tabs = [
     { href: "/", label: "Inicio", icon: "M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z" },
     { href: "/crear", label: "Crear", icon: "M5 4h10l4 4v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zm9 1.5V9h3.5" },

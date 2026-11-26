@@ -26,4 +26,24 @@ describe("cartQuoteLines", () => {
     const lines = cartQuoteLines([base, { frameId: "card-a4", card: { quantity: 1 } }]);
     expect(lines).toHaveLength(2);
   });
+
+  it("returns no lines for an empty cart", () => {
+    expect(cartQuoteLines([])).toEqual([]);
+    expect(quote({ items: cartQuoteLines([]) }).totalCents).toBe(0);
+  });
+
+  it("does not throw on a missing, null, or non-array cart", () => {
+    expect(cartQuoteLines(undefined)).toEqual([]);
+    expect(cartQuoteLines(null)).toEqual([]);
+    expect(cartQuoteLines({} as never)).toEqual([]);
+  });
+
+  it("skips a stale card id that has no card payload, and an unknown frame", () => {
+    const lines = cartQuoteLines([
+      { frameId: "card-a4" },
+      { frameId: "nope" },
+      { frameId: "wood-15" },
+    ]);
+    expect(lines).toEqual([{ unitPriceCents: 5900, quantity: 1, kind: "frame" }]);
+  });
 });

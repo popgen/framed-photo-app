@@ -56,11 +56,22 @@ function loadGift(): CartGift {
   }
 }
 
+/** Keep only well-shaped lines so a stale or corrupted localStorage cart cannot crash the app. */
+export function sanitizeCartItems(raw: unknown): CartItem[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((item): item is CartItem => {
+    if (!item || typeof item !== "object") return false;
+    const id = (item as CartItem).id;
+    return typeof id === "string" && id.length > 0;
+  });
+}
+
 function load(): CartItem[] {
   if (typeof localStorage === "undefined") return [];
   try {
     const raw = localStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as CartItem[]) : [];
+    if (!raw) return [];
+    return sanitizeCartItems(JSON.parse(raw));
   } catch {
     return [];
   }
@@ -70,7 +81,13 @@ export const useCart = create<CartState>((set, get) => ({
   items: [],
   gift: emptyCartGift,
   ready: false,
-  hydrate: () => set({ items: load(), gift: loadGift(), ready: true }),
+  hydrate: () => {
+    const items = load();
+    const gift = loadGift();
+    persist(items);
+    persistGift(gift);
+    set({ items, gift, ready: true });
+  },
   add: (item) => {
     const items = [...get().items, item];
     persist(items);

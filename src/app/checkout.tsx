@@ -10,6 +10,7 @@ import { useApp } from "../components/provider";
 import { GiftNoteEditor } from "../components/GiftNoteCard";
 import { DiscountCodeField } from "../components/DiscountCodeField";
 import { PlacePicker } from "../components/PlacePicker";
+import { EmptyCart } from "../components/EmptyCart";
 import { Banner, Button, Field, Progress, Screen } from "../components/ui";
 import { colors, font } from "../components/theme";
 import { readWaOrder, rememberWaOrder } from "../lib/boot";
@@ -78,7 +79,7 @@ function oneParam(value: string | string[] | undefined): string {
 export default function Checkout() {
   const now = useNow();
   const params = useLocalSearchParams<{ pago?: string; pedido?: string }>();
-  const items = useCart((state) => state.items);
+  const items = useCart((state) => (Array.isArray(state.items) ? state.items : []));
   const setGift = useCart((state) => state.setGift);
   const clear = useCart((state) => state.clear);
   const savedGift = useCart.getState().gift;
@@ -595,6 +596,14 @@ export default function Checkout() {
 
   const focus = error ? focusForCheckoutError(error, draft) : null;
   const pointed = focus && error ? { ...focus, error } : null;
+
+  if (!items.length) {
+    return (
+      <Screen>
+        <EmptyCart />
+      </Screen>
+    );
+  }
 
   return (
     <Screen
