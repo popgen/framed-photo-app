@@ -34,8 +34,13 @@ export type FrameDef = {
 
 export const frames = framesJson as FrameDef[];
 
+export function findFrame(id: string | null | undefined): FrameDef | undefined {
+  if (!id) return undefined;
+  return frames.find((item) => item.id === id);
+}
+
 export function frameById(id: string): FrameDef {
-  const frame = frames.find((item) => item.id === id);
+  const frame = findFrame(id);
   if (!frame) throw new Error(`Marco desconocido: ${id}`);
   return frame;
 }
