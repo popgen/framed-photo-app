@@ -34,13 +34,12 @@ import { DEPARTMENTS, districtsFor, provincesFor, shippingZone } from "../lib/zo
 import { checkoutPayMethodForSubmit, checkoutPayOptions, resolveCheckoutPayMethod, type CheckoutPayMethod } from "../lib/checkout-payment";
 import { DONATION_CENTS, donationCheckboxA11y, donationCheckboxLabel, donationSummaryText, donationToggleKey } from "../lib/donation";
 import { dataMode, paymentsMode, providerFor } from "../lib/env";
-import { isTestOnlyCart, isTestProductItem, TEST_PRODUCT_CENTS } from "../lib/test-product";
+import { isTestOnlyCart } from "../lib/test-product";
 import { cardMessageError, cardOrderLine } from "../lib/cards";
 import { revealHeader } from "../lib/editor-sections";
-import { frameById } from "../lib/catalog";
-import { framedPriceCents } from "../lib/collage";
 import { formatSoles } from "../lib/money";
 import { GIFT_NOTE_MESSAGE_MAX } from "../lib/gift-note";
+import { cartQuoteLines } from "../lib/cart-lines";
 import { quote as priceQuote } from "../lib/pricing";
 import { getRepo } from "../lib/repo";
 import { EXAMPLE_PHOTO_PROMPT, usesExamplePhoto } from "../lib/example-photo";
@@ -356,10 +355,7 @@ export default function Checkout() {
   }, [open, focusNonce, reduced]);
 
   const instant = priceQuote({
-    items: items.map((item) => ({
-      unitPriceCents: isTestProductItem(item) ? TEST_PRODUCT_CENTS : item.collage ? framedPriceCents(frameById(item.frameId).priceCents, true) : frameById(item.frameId).priceCents,
-      kind: isTestProductItem(item) ? "plain" as const : "frame" as const,
-    })),
+    items: cartQuoteLines(items),
     giftWrap: testOnly ? false : form.giftWrap,
     giftNote: testOnly ? false : form.giftPrinted && form.giftNoteMessage.trim().length > 0 && form.giftNoteMessage.trim().length <= GIFT_NOTE_MESSAGE_MAX,
     donationCents: items.length && form.donation ? DONATION_CENTS : 0,
@@ -872,3 +868,25 @@ export default function Checkout() {
 const choice = { minHeight: 52, borderRadius: 14, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, justifyContent: "center" as const, paddingHorizontal: 14 };
 const choiceLabel = { fontFamily: font.medium, color: colors.muted, fontSize: 12 };
 const choiceValue = { fontFamily: font.semibold, color: colors.ink, fontSize: 16 };
+
+/** Expo Router shows this instead of a blank page if checkout ever throws, for example on a stale saved cart. */
+export function ErrorBoundary({ retry }: { error: Error; retry: () => Promise<void> }) {
+  return (
+    <Screen>
+      <View style={{ padding: 16, gap: 12 }}>
+        <Text style={{ fontFamily: font.display, fontSize: 28, color: colors.ink }}>No pudimos abrir el pago</Text>
+        <Text style={{ fontFamily: font.body, color: colors.muted }}>
+          Algo en tu carrito no cargó bien. Prueba de nuevo, o vacía el carrito y vuelve a crear tu marco. Si sigue igual, escríbenos a pedidos@mifotito.com.
+        </Text>
+        <Button label="Reintentar" onPress={() => void retry()} />
+        <Button
+          label="Vaciar carrito y empezar de nuevo"
+          onPress={() => {
+            useCart.getState().clear();
+            router.replace("/crear");
+          }}
+        />
+      </View>
+    </Screen>
+  );
+}
