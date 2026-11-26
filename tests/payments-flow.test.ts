@@ -97,6 +97,23 @@ describe("card payment callbacks", () => {
     expect(box.notices()).toBe(0);
   });
 
+  it("marks the order paid from an IPN signed with the REST password", async () => {
+    const paid = JSON.stringify({
+      orderStatus: "PAID",
+      orderDetails: { orderId: "ord_1", orderTotalAmount: 5900 },
+      transactions: [{ uuid: "tx_1", paymentMethodType: "CARD" }],
+    });
+    const hash = await krHash(paid, "prodpassword_test");
+    const box = memoryStore(order);
+    const env = { hmacKey: "hmac-key", apiKey: "prodpassword_test" };
+    const rejected = await completeIzipayCallback(box.store, { "kr-answer": paid, "kr-hash": hash, "kr-hash-key": "password" }, "hmac-key");
+    expect(rejected.body.status).toBe("bad_signature");
+    const accepted = await completeIzipayCallback(box.store, { "kr-answer": paid, "kr-hash": hash, "kr-hash-key": "password" }, env);
+    expect(accepted.http).toBe(200);
+    expect(accepted.body.ok).toBe(true);
+    expect(box.read().paymentStatus).toBe("approved");
+  });
+
   it("verifies a Stripe webhook and ignores a second delivery", async () => {
     const raw = JSON.stringify({
       type: "checkout.session.completed",

@@ -7,7 +7,9 @@ export default async function handler(req, res) {
   }
   const result = await confirmIzipay(req);
   if (!result.ok && result.status === "bad_signature") {
-    console.warn("[mifotito] Izipay IPN rechazado.", result.error);
+    const hashKey = req.body?.["kr-hash-key"];
+    const fields = req.body && typeof req.body === "object" ? Object.keys(req.body) : [];
+    console.warn("[mifotito] Izipay IPN rechazado.", result.error, "kr-hash-key=", hashKey || "(vacío)", "campos=", fields.join(","));
     res.status(400).json({ ok: false });
     return;
   }

@@ -105,6 +105,28 @@ export async function verifyKrHash(answer: string, hash: string, hmacKey: string
   return diff === 0;
 }
 
+/** IPN sets kr-hash-key=password and signs with the REST API password. The browser return uses the HMAC key. */
+export function izipaySignatureKey(hashKey: string | undefined, env: IzipayEnv): string | undefined {
+  const name = String(hashKey || "").trim().toLowerCase();
+  if (name === "password") return env.apiKey;
+  return env.hmacKey;
+}
+
+export async function verifyIzipayPostedHash(
+  body: Record<string, unknown> | null | undefined,
+  env: IzipayEnv,
+): Promise<boolean> {
+  const answer = String(body?.["kr-answer"] || "");
+  const hash = String(body?.["kr-hash"] || "");
+  const key = izipaySignatureKey(body?.["kr-hash-key"] != null ? String(body["kr-hash-key"]) : "", env);
+  if (!key || !answer || !hash) return false;
+  const algo = String(body?.["kr-hash-algorithm"] || "sha256_hmac").trim().toLowerCase();
+  if (algo && algo !== "sha256_hmac" && algo !== "sha256") return false;
+  if (await verifyKrHash(answer, hash, key)) return true;
+  const normalized = answer.replaceAll("\\/", "/");
+  return normalized !== answer && (await verifyKrHash(normalized, hash, key));
+}
+
 export function readPaidAnswer(answer: string): { paid: boolean; orderId: string; amountCents: number; ref: string; method: "card" | "yape" } | null {
   let parsed: {
     orderStatus?: string;
