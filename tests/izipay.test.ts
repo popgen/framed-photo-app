@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createPaymentBody, izipayMethodRejected, izipayPagoCopy, izipayReady, izipaySmartFormExpanded, krHash, paymentMethodsFor, readPaidAnswer, verifyKrHash, IZIPAY_PAYMENT_METHOD_CARDS, IZIPAY_PAYMENT_METHOD_YAPE } from "../src/lib/izipay";
+import { createPaymentBody, izipayMethodRejected, izipayPagoCopy, izipayReady, izipaySmartFormExpanded, izipaySignatureKey, krHash, paymentMethodsFor, readPaidAnswer, verifyIzipayPostedHash, verifyKrHash, IZIPAY_PAYMENT_METHOD_CARDS, IZIPAY_PAYMENT_METHOD_YAPE } from "../src/lib/izipay";
 import { requestIzipayForm } from "../src/lib/payments";
 
 describe("Izipay form", () => {
@@ -54,6 +54,35 @@ describe("Izipay form", () => {
     expect(await verifyKrHash(answer, hash, "otra")).toBe(false);
     expect(readPaidAnswer(answer)).toMatchObject({ paid: true, orderId: "ord_1", amountCents: 5900, method: "yape", ref: "tx_1" });
     expect(readPaidAnswer(JSON.stringify({ orderStatus: "UNPAID", orderDetails: { orderId: "ord_1", orderTotalAmount: 5900 } }))?.paid).toBe(false);
+  });
+
+  it("uses the REST password when kr-hash-key is password, and the HMAC key for the browser return", async () => {
+    const env = { apiKey: "prodpassword_test", hmacKey: "hmac-key" };
+    const answer = JSON.stringify({
+      orderStatus: "PAID",
+      orderDetails: { orderId: "ord_1", orderTotalAmount: 1200 },
+      transactions: [{ uuid: "tx_1", paymentMethodType: "CARD" }],
+    });
+    expect(izipaySignatureKey("password", env)).toBe("prodpassword_test");
+    expect(izipaySignatureKey("sha256_hmac", env)).toBe("hmac-key");
+    expect(izipaySignatureKey("", env)).toBe("hmac-key");
+    const ipnHash = await krHash(answer, env.apiKey);
+    const returnHash = await krHash(answer, env.hmacKey);
+    expect(await verifyIzipayPostedHash({ "kr-answer": answer, "kr-hash": ipnHash, "kr-hash-key": "password", "kr-hash-algorithm": "sha256_hmac" }, env)).toBe(true);
+    expect(await verifyIzipayPostedHash({ "kr-answer": answer, "kr-hash": returnHash, "kr-hash-key": "sha256_hmac" }, env)).toBe(true);
+    expect(await verifyIzipayPostedHash({ "kr-answer": answer, "kr-hash": returnHash }, env)).toBe(true);
+    expect(await verifyIzipayPostedHash({ "kr-answer": answer, "kr-hash": ipnHash, "kr-hash-key": "sha256_hmac" }, env)).toBe(false);
+    expect(await verifyIzipayPostedHash({ "kr-answer": answer, "kr-hash": returnHash, "kr-hash-key": "password" }, env)).toBe(false);
+  });
+
+  it("accepts an IPN kr-answer whose slashes were escaped as in the official sample", async () => {
+    const env = { apiKey: "prodpassword_test", hmacKey: "hmac-key" };
+    const unescaped = '{"shopId":"1","url":"https://mifotito.com"}';
+    const escaped = unescaped.replaceAll("/", "\\/");
+    expect(escaped.includes("\\/")).toBe(true);
+    const hash = await krHash(unescaped, env.apiKey);
+    expect(await verifyIzipayPostedHash({ "kr-answer": unescaped, "kr-hash": hash, "kr-hash-key": "password" }, env)).toBe(true);
+    expect(await verifyIzipayPostedHash({ "kr-answer": escaped, "kr-hash": hash, "kr-hash-key": "password" }, env)).toBe(true);
   });
 });
 

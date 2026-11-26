@@ -1,4 +1,4 @@
-import { readPaidAnswer, verifyKrHash, izipayReady, readIzipayEnv, createPaymentBody, IZIPAY_CREATE_URL, izipayAuthHeader, izipayMethodRejected } from "./izipay";
+import { readPaidAnswer, verifyIzipayPostedHash, izipayReady, readIzipayEnv, createPaymentBody, IZIPAY_CREATE_URL, izipayAuthHeader, izipayMethodRejected, type IzipayEnv } from "./izipay";
 import {
   buildMercadoPagoPreference,
   mercadoPagoDataId,
@@ -78,14 +78,16 @@ type CallbackBody = { http: number; body: Record<string, unknown> };
 export async function completeIzipayCallback(
   store: PaymentStore,
   requestBody: Record<string, unknown> | null | undefined,
-  hmacKey: string | undefined,
+  hmacKeyOrEnv: string | IzipayEnv | undefined,
+  apiKey?: string,
 ): Promise<CallbackBody> {
-  const answer = String(requestBody?.["kr-answer"] || "");
-  const hash = String(requestBody?.["kr-hash"] || "");
-  if (!hmacKey || !answer || !(await verifyKrHash(answer, hash, hmacKey))) {
+  const env: IzipayEnv = typeof hmacKeyOrEnv === "object" && hmacKeyOrEnv
+    ? hmacKeyOrEnv
+    : { hmacKey: hmacKeyOrEnv, apiKey };
+  if (!(await verifyIzipayPostedHash(requestBody, env))) {
     return { http: 400, body: { ok: false, status: "bad_signature", error: PAYMENT_BAD_SIGNATURE } };
   }
-  const paid = readPaidAnswer(answer);
+  const paid = readPaidAnswer(String(requestBody?.["kr-answer"] || ""));
   if (!paid?.paid) return { http: 200, body: { ok: false, declined: true, status: "declined", error: PAYMENT_DECLINED } };
   return settleVerified(store, {
     orderId: paid.orderId,

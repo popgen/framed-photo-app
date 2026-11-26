@@ -8,6 +8,7 @@ import { TEST_PRODUCT_ID } from "./test-product";
 import { stockChecksEnabled } from "./env";
 import { mapFrameRow, mapGiftRow, mapInventoryRow, mapOrderRow, mapProfile, mapPromoRow } from "./db-map";
 import { frameLowStock, framesWhenStockUnknown } from "./inventory";
+import { attachStorageToCheckoutItem } from "./checkout-media";
 import { uploadOrderPhotos } from "./photo-upload";
 import { isOpenShipment, type PublicShipment } from "./tracking";
 import type { CheckoutInput, CustomerProfile, FrameOffer, GiftCard, OrderStatus } from "./types";
@@ -42,25 +43,7 @@ async function shop(op: string, body: unknown, auth?: string | null) {
 async function checkoutItems(input: CheckoutInput) {
   const items = [];
   for (const item of input.items) {
-    if (item.testProduct) {
-      items.push({ ...item, photoOriginalPath: null, photoPrintPath: null });
-      continue;
-    }
-    const photos = await uploadOrderPhotos(item.photoId);
-    let collage = item.collage ?? null;
-    if (collage) {
-      const sources = [];
-      for (const source of collage.sources) {
-        if (source.storagePath) {
-          sources.push(source);
-          continue;
-        }
-        const uploaded = await uploadOrderPhotos(source.photoId);
-        sources.push({ ...source, storagePath: uploaded.original || uploaded.print });
-      }
-      collage = { ...collage, sources };
-    }
-    items.push({ ...item, collage, photoOriginalPath: photos.original, photoPrintPath: photos.print });
+    items.push(await attachStorageToCheckoutItem(item, uploadOrderPhotos));
   }
   return items;
 }

@@ -90,13 +90,26 @@ export async function downloadCardPdf(card: CardSnapshot, filename: string): Pro
   URL.revokeObjectURL(url);
 }
 
+async function resolvePanelPhoto(id: string): Promise<{ uri?: string; source?: number } | null> {
+  if (id.startsWith("uploads/")) {
+    const { getRepo } = await import("./repo");
+    try {
+      const uri = await getRepo().signPhoto(id);
+      return uri ? { uri } : null;
+    } catch {
+      return null;
+    }
+  }
+  return resolvePhoto(id);
+}
+
 async function croppedPanel(id: string | null | undefined, crop?: Crop | null): Promise<Uint8Array | undefined> {
   if (!id || typeof document === "undefined") return undefined;
-  const photo = await resolvePhoto(id);
-  if (!photo) return undefined;
+  const photo = await resolvePanelPhoto(id);
+  if (!photo) throw new Error("No encontramos la foto de esta tarjeta en el servidor.");
   const asset = photo.source != null ? Image.resolveAssetSource(photo.source) : undefined;
   const uri = photo.uri ?? asset?.uri;
-  if (!uri) return undefined;
+  if (!uri) throw new Error("No encontramos la foto de esta tarjeta en el servidor.");
   const image = await loadCardImage(uri);
   const sx = crop?.x ?? 0;
   const sy = crop?.y ?? 0;
