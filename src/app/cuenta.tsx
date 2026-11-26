@@ -32,6 +32,7 @@ export default function Cuenta() {
   const [ordersState, setOrdersState] = useState<"cargando" | "listo" | "error">("cargando");
   const [showAll, setShowAll] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -56,12 +57,14 @@ export default function Cuenta() {
   async function enter(session: CustomerSession) {
     const repo = getRepo();
     setOrdersState("cargando");
+    setLoaded(false);
     const stored = await repo.getProfile().catch(() => null);
     const next: CustomerProfile = stored?.phone ? { ...stored, email: stored.email || session.email } : { name: "", phone: "", email: session.email, addresses: [] };
     setPhone(stored?.phone || "");
     setProfile(next);
     setSaved(next);
     setEditing(!profileIsFilled(next));
+    setLoaded(true);
     try {
       setOrders(await repo.listMyOrders());
       setOrdersState("listo");
@@ -74,6 +77,7 @@ export default function Cuenta() {
     await signOutCustomer();
     setAccount(null);
     setOrders([]);
+    setLoaded(false);
     setEditing(false);
     setNote(null);
   }
@@ -175,7 +179,9 @@ export default function Cuenta() {
               <Text accessibilityRole="header" style={{ fontFamily: font.display, fontSize: 32, color: colors.ink }}>Mi cuenta</Text>
             </Animated.View>
 
-            {editing ? (
+            {!loaded ? (
+              <Text style={{ fontFamily: font.body, color: colors.muted }}>Un momento…</Text>
+            ) : editing ? (
               <Card style={{ gap: 12 }}>
                 <Text accessibilityRole="header" style={sectionTitle}>{profileIsFilled(saved) ? "Editar mis datos" : "Completa tus datos"}</Text>
                 <Field label="Nombre" value={profile.name} onChangeText={(name) => setProfile({ ...profile, name })} autoComplete="name" />
