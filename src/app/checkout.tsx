@@ -3,12 +3,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Image } from "expo-image";
 import { InlineLink } from "../components/InlineLink";
 import { currentCustomer, passwordError, type CustomerSession } from "../lib/customer-auth";
-import { Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { Collapsible } from "../components/Collapsible";
 import { Countdown, GuaranteeNote, PaySheet, useNow, useReducedMotion } from "../components/fx";
 import { useApp } from "../components/provider";
 import { GiftNoteEditor } from "../components/GiftNoteCard";
 import { DiscountCodeField } from "../components/DiscountCodeField";
+import { PlacePicker } from "../components/PlacePicker";
 import { Banner, Button, Field, Progress, Screen } from "../components/ui";
 import { colors, font } from "../components/theme";
 import { readWaOrder, rememberWaOrder } from "../lib/boot";
@@ -133,7 +134,6 @@ export default function Checkout() {
   itemsRef.current = items;
   pedidoRef.current = oneParam(params.pedido);
   const [picker, setPicker] = useState<"department" | "province" | "district" | null>(null);
-  const [query, setQuery] = useState("");
   const reduced = useReducedMotion();
   const [open, setOpen] = useState<CheckoutSection | null>("personal");
   const [done, setDone] = useState<CheckoutSection[]>([]);
@@ -366,20 +366,6 @@ export default function Checkout() {
   const guarantee = campaign ? guaranteeFor(now, zone, campaign) : null;
   const provinces = provincesFor(form.department);
   const districts = districtsFor(form.department, form.province);
-  const choices = picker === "department" ? DEPARTMENTS : picker === "province" ? provinces : districts;
-  const visibleChoices = choices.filter((item) => item.toLowerCase().includes(query.trim().toLowerCase()));
-
-  function openPicker(next: "department" | "province" | "district") {
-    setQuery("");
-    setPicker(next);
-  }
-
-  function choosePlace(item: string) {
-    if (picker === "department") setForm({ ...form, department: item, province: "", district: "" });
-    else if (picker === "province") setForm({ ...form, province: item, district: "" });
-    else setForm({ ...form, district: item, city: item });
-    setPicker(null);
-  }
 
   function finishPaid(order: Order) {
     clearPendingMercadoPago(cartPendingKey(items));
@@ -690,18 +676,38 @@ export default function Checkout() {
         <Collapsible title="Dirección" headerId={checkoutHeaderId("address")} open={open === "address"} onToggle={() => toggleSection("address")} badge={sectionBadge("address", open, done, draft)}>
           <View style={{ gap: 12 }}>
             {pointed?.section === "address" && pointed.field !== "addressLine" ? <Banner tone="bad" text={pointed.error} /> : null}
-            <Pressable accessibilityRole="button" accessibilityLabel={form.department ? `Departamento, ${form.department}` : "Departamento"} nativeID={checkoutFieldId("department")} onPress={() => openPicker("department")} style={choice}>
-              <Text style={choiceLabel}>Departamento</Text>
-              <Text style={choiceValue}>{form.department || "Elegir"}</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel={form.province ? `Provincia, ${form.province}` : "Provincia"} nativeID={checkoutFieldId("province")} onPress={() => form.department && openPicker("province")} style={[choice, !form.department && { opacity: 0.45 }]}>
-              <Text style={choiceLabel}>Provincia</Text>
-              <Text style={choiceValue}>{form.province || "Elegir"}</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel={form.district ? `Distrito, ${form.district}` : "Distrito"} nativeID={checkoutFieldId("district")} onPress={() => form.province && openPicker("district")} style={[choice, !form.province && { opacity: 0.45 }]}>
-              <Text style={choiceLabel}>Distrito</Text>
-              <Text style={choiceValue}>{form.district || "Elegir"}</Text>
-            </Pressable>
+            <PlacePicker
+              label="Departamento"
+              value={form.department}
+              options={DEPARTMENTS}
+              nativeID={checkoutFieldId("department")}
+              accessibilityLabel={form.department ? `Departamento, ${form.department}` : "Departamento"}
+              open={picker === "department"}
+              onOpenChange={(next) => setPicker(next ? "department" : null)}
+              onSelect={(item) => setForm({ ...form, department: item, province: "", district: "" })}
+            />
+            <PlacePicker
+              label="Provincia"
+              value={form.province}
+              options={provinces}
+              disabled={!form.department}
+              nativeID={checkoutFieldId("province")}
+              accessibilityLabel={form.province ? `Provincia, ${form.province}` : "Provincia"}
+              open={picker === "province"}
+              onOpenChange={(next) => setPicker(next ? "province" : null)}
+              onSelect={(item) => setForm({ ...form, province: item, district: "" })}
+            />
+            <PlacePicker
+              label="Distrito"
+              value={form.district}
+              options={districts}
+              disabled={!form.province}
+              nativeID={checkoutFieldId("district")}
+              accessibilityLabel={form.district ? `Distrito, ${form.district}` : "Distrito"}
+              open={picker === "district"}
+              onOpenChange={(next) => setPicker(next ? "district" : null)}
+              onSelect={(item) => setForm({ ...form, district: item, city: item })}
+            />
             <Field label="Dirección" nativeID={checkoutFieldId("addressLine")} error={pointed?.field === "addressLine" ? pointed.error : undefined} value={form.addressLine} onChangeText={(addressLine) => setForm({ ...form, addressLine })} />
             <Field label="Referencia" value={form.reference} onChangeText={(reference) => setForm({ ...form, reference })} />
             <Text style={{ fontFamily: font.semibold, color: zone === "provinces" ? colors.warn : colors.pine }}>
@@ -832,42 +838,10 @@ export default function Checkout() {
         {quote?.giftCardAppliedCents ? <Text style={{ fontFamily: font.medium, color: colors.pine }}>Tarjeta de regalo: -{formatSoles(quote.giftCardAppliedCents)}</Text> : null}
         {error ? <Banner tone="bad" text={error} /> : null}
         {pending && pending.totalCents > 0 && method === "card" ? <PaySheet method="card" total={formatSoles(pending.totalCents)} onApprove={() => void pay(true)} onReject={() => void pay(false)} /> : null}
-        <Modal visible={picker !== null} animationType="slide" transparent onRequestClose={() => setPicker(null)}>
-          <View style={{ flex: 1, backgroundColor: "rgba(36,23,20,0.45)", justifyContent: "flex-end" }}>
-            <View style={{ maxHeight: "82%", backgroundColor: colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, gap: 10 }}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                <Text style={{ fontFamily: font.displaySoft, fontSize: 24, color: colors.ink }}>{picker === "department" ? "Departamento" : picker === "province" ? "Provincia" : "Distrito"}</Text>
-                <Pressable onPress={() => setPicker(null)} style={{ minHeight: 44, justifyContent: "center", paddingHorizontal: 8 }}>
-                  <Text style={{ fontFamily: font.semibold, color: colors.red }}>Cerrar</Text>
-                </Pressable>
-              </View>
-              <TextInput
-                value={query}
-                onChangeText={setQuery}
-                placeholder="Buscar"
-                placeholderTextColor="#A89488"
-                autoCorrect={false}
-                style={{ minHeight: 48, borderRadius: 14, backgroundColor: colors.white, paddingHorizontal: 14, fontFamily: font.body, fontSize: 16, color: colors.ink }}
-              />
-              <ScrollView keyboardShouldPersistTaps="handled">
-                {visibleChoices.map((item) => (
-                  <Pressable key={item} onPress={() => choosePlace(item)} style={{ minHeight: 48, justifyContent: "center", borderBottomWidth: 1, borderBottomColor: colors.line }}>
-                    <Text style={{ fontFamily: font.medium, fontSize: 16, color: colors.ink }}>{item}</Text>
-                  </Pressable>
-                ))}
-                {!visibleChoices.length ? <Text style={{ fontFamily: font.body, color: colors.muted, paddingVertical: 12 }}>No hay coincidencias.</Text> : null}
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
       </View>
     </Screen>
   );
 }
-
-const choice = { minHeight: 52, borderRadius: 14, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, justifyContent: "center" as const, paddingHorizontal: 14 };
-const choiceLabel = { fontFamily: font.medium, color: colors.muted, fontSize: 12 };
-const choiceValue = { fontFamily: font.semibold, color: colors.ink, fontSize: 16 };
 
 /** Expo Router shows this instead of a blank page if checkout ever throws, for example on a stale saved cart. */
 export function ErrorBoundary({ retry }: { error: Error; retry: () => Promise<void> }) {
