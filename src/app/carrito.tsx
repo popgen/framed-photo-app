@@ -11,8 +11,8 @@ import { cardOrderLine, priceCards } from "../lib/cards";
 import { frameById } from "../lib/catalog";
 import { framedPriceCents } from "../lib/collage";
 import { formatSoles } from "../lib/money";
-import { quote, type QuoteItem } from "../lib/pricing";
-import { VOICE_ADDON_CENTS } from "../lib/voice";
+import { cartQuoteLines } from "../lib/cart-lines";
+import { quote } from "../lib/pricing";
 import { EXAMPLE_PHOTO_PROMPT, usesExamplePhoto } from "../lib/example-photo";
 import { useCart } from "../lib/store";
 import { isTestOnlyCart, isTestProductItem, TEST_PRODUCT_CENTS, TEST_PRODUCT_NAME } from "../lib/test-product";
@@ -23,16 +23,7 @@ export default function Carrito() {
   const setGift = useCart((state) => state.setGift);
   const remove = useCart((state) => state.remove);
   const [sampleNote, setSampleNote] = useState<string | null>(null);
-  const priced = quote({
-    items: items.flatMap((item): QuoteItem[] => {
-      if (isTestProductItem(item)) return [{ unitPriceCents: TEST_PRODUCT_CENTS, quantity: 1, kind: "plain" }];
-      const lines: QuoteItem[] = item.card
-        ? [{ unitPriceCents: priceCards(item.card.quantity).cents, quantity: 1, kind: "plain" }]
-        : [{ unitPriceCents: framedPriceCents(frameById(item.frameId).priceCents, Boolean(item.collage)), quantity: 1, kind: "frame" }];
-      if (item.voice) lines.push({ unitPriceCents: item.voice.addonCents || VOICE_ADDON_CENTS, quantity: 1, kind: "plain" });
-      return lines;
-    }),
-  });
+  const priced = quote({ items: cartQuoteLines(items) });
   return (
     <Screen
       footer={
