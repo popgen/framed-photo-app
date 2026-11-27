@@ -6,6 +6,7 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import { ClearPhotosButton, forgetClearedDraft } from "../components/ClearPhotosButton";
 import { CollageBoard } from "../components/CollageBoard";
 import { FrameView } from "../components/FrameView";
+import { MoreFramesSoon } from "../components/PrintBorderPicker";
 import { PhotoSources } from "../components/PhotoSources";
 import { useRepo } from "../components/provider";
 import { PriceTicker, useReducedMotion } from "../components/fx";
@@ -407,10 +408,11 @@ export default function CollagePage() {
               {offers.map((item, index) => (
                 <Pressable key={item.id} onPress={() => setFrameIndex(index)} style={{ width: 78, alignItems: "center", opacity: item.id === frame.id ? 1 : 0.55 }}>
                   <FrameView frame={item} width={64} />
-                  <Text style={{ fontFamily: font.medium, fontSize: 11, color: colors.ink, textAlign: "center" }}>{item.sizeLabel}</Text>
+                  <Text style={{ fontFamily: font.medium, fontSize: 11, color: colors.ink, textAlign: "center" }}>{item.name}</Text>
                 </Pressable>
               ))}
             </ScrollView>
+            <MoreFramesSoon />
           </>
         ) : null}
       </View>

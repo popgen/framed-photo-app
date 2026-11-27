@@ -44,7 +44,7 @@ export default async function handler(req, res) {
 
 async function handleIncoming(req, res, body) {
   const incoming = extract(body);
-  const catalog = JSON.parse(await readFrames()).map((frame) => ({
+  const catalog = JSON.parse(await readFrames()).filter((frame) => !frame.retired).map((frame) => ({
     id: frame.id,
     name: frame.name,
     priceCents: frame.priceCents,

@@ -19,6 +19,7 @@ import { maskPhone, maskStreet } from "../src/lib/order-number.ts";
 import { isOpenShipment, toPublicShipment, toTrackingCard, trackLimitMessage, TRACK_IP_LIMIT, TRACK_PHONE_LIMIT } from "../src/lib/tracking.ts";
 import { cardMessageError, priceCards } from "../src/lib/cards.ts";
 import { frameById } from "../src/lib/catalog.ts";
+import { normalizePrintBorder } from "../src/lib/print-borders.ts";
 import { framedPriceCents } from "../src/lib/collage.ts";
 import { frameLowStock } from "../src/lib/inventory.ts";
 import { giftCode } from "../src/lib/ids.ts";
@@ -555,6 +556,7 @@ async function writeOrderItems(supabase, orderId, items) {
     dpi: item.dpi || null,
     resolution_status: item.resolutionStatus || null,
     text_overlay: item.textOverlay || null,
+    print_border: item.card || item.collage || item.testProduct ? null : normalizePrintBorder(item.printBorder),
     card: item.card || null,
     voice: item.voice || null,
     collage: item.collage || null,
@@ -562,6 +564,10 @@ async function writeOrderItems(supabase, orderId, items) {
     bundle_label: item.bundleLabel || null,
   }));
   let itemError = (await supabase.from("order_items").insert(rows)).error;
+  if (itemError && /print_border/i.test(itemError.message || "")) {
+    if (rows.some((row) => row.print_border)) return "Falta aplicar la migración del marco navideño impreso antes de guardar este pedido.";
+    itemError = (await supabase.from("order_items").insert(rows.map(({ print_border, ...rest }) => rest))).error;
+  }
   if (itemError && /collage/i.test(itemError.message || "")) {
     if (rows.some((row) => row.collage)) return "Falta aplicar la migración del collage antes de guardar este pedido.";
     itemError = (await supabase.from("order_items").insert(rows.map(({ collage, ...rest }) => rest))).error;

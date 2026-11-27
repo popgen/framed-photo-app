@@ -30,6 +30,8 @@ export type FrameDef = {
   category?: "navidad";
   style?: FrameStyle;
   border?: BorderCm;
+  /** Retired frames stay defined so old orders, carts and admin views still resolve, but are never offered. */
+  retired?: boolean;
 };
 
 export const frames = framesJson as FrameDef[];
@@ -37,6 +39,23 @@ export const frames = framesJson as FrameDef[];
 export function findFrame(id: string | null | undefined): FrameDef | undefined {
   if (!id) return undefined;
   return frames.find((item) => item.id === id);
+}
+
+/** The physical frames on sale, in the order the selectors show them: white, black, natural wood. */
+export const OFFERED_FRAME_IDS = ["thin-white-15", "thin-black-15", "wood-15"] as const;
+
+export function isOfferedFrame(id: string | null | undefined): boolean {
+  const frame = findFrame(id);
+  return Boolean(frame && !frame.retired);
+}
+
+/** Keeps only frames on sale (drops retired or unknown ids) and puts them in selector order. */
+export function offeredFrames<T extends { id: string }>(list: T[]): T[] {
+  const rank = (id: string) => {
+    const at = (OFFERED_FRAME_IDS as readonly string[]).indexOf(id);
+    return at >= 0 ? at : OFFERED_FRAME_IDS.length;
+  };
+  return list.filter((item) => isOfferedFrame(item.id)).sort((a, b) => rank(a.id) - rank(b.id));
 }
 
 export function frameById(id: string): FrameDef {

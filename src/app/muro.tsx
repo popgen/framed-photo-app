@@ -17,7 +17,8 @@ import { assessResolution, centeredCrop } from "../lib/print-size";
 import { serializeOverlay, type TextOverlay } from "../lib/overlay";
 import { useCart } from "../lib/store";
 import { fillEmptyWallSlots, replaceWallSlot, wallPhotosReady, type WallSlotPhoto } from "../lib/wall-slots";
-import { walls } from "../lib/walls";
+import { offeredWalls as walls } from "../lib/walls";
+import { MoreFramesSoon } from "../components/PrintBorderPicker";
 
 export default function Muro() {
   const { width } = useWindowDimensions();
@@ -114,6 +115,7 @@ export default function Muro() {
             </Pressable>
           ))}
         </View>
+        <MoreFramesSoon />
         <Card>
           <View style={{ backgroundColor: "#E7D9CC", borderRadius: 18, minHeight: 280, padding: 12, flexDirection: "row", flexWrap: "wrap", justifyContent: "center", alignItems: "center", gap: 8 }}>
             {finish.frames.map((frameId, index) => {

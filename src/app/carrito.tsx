@@ -17,6 +17,7 @@ import { quote } from "../lib/pricing";
 import { EXAMPLE_PHOTO_PROMPT, usesExamplePhoto } from "../lib/example-photo";
 import { useCart } from "../lib/store";
 import { isTestOnlyCart, isTestProductItem, TEST_PRODUCT_CENTS, TEST_PRODUCT_NAME } from "../lib/test-product";
+import { printBorderLabel } from "../lib/print-borders";
 
 export default function Carrito() {
   const items = useCart((state) => (Array.isArray(state.items) ? state.items : []));
@@ -108,12 +109,14 @@ export default function Carrito() {
                   orientation={item.orientation}
                   width={78}
                   overlay={item.collage ? undefined : item.textOverlay}
+                  printBorder={item.collage ? null : item.printBorder}
                   opening={item.collage ? <CollageStill photoId={item.photoId} /> : undefined}
                 />
                 <View style={{ flex: 1, gap: 4 }}>
                   <Text style={{ fontFamily: font.semibold, color: colors.ink }}>{frame.name}</Text>
                   <Text style={{ fontFamily: font.body, color: colors.muted }}>{item.collage ? `Collage · ${item.collage.templateName}` : frame.sizeLabel}</Text>
                   {item.bundleLabel ? <Text style={{ fontFamily: font.medium, color: colors.pine }}>{item.bundleLabel}</Text> : null}
+                  {!item.collage && printBorderLabel(item.printBorder) ? <Text testID="carrito-borde" style={{ fontFamily: font.medium, color: colors.pine }}>{printBorderLabel(item.printBorder)} · sin costo</Text> : null}
                   <Text style={{ fontFamily: font.bold, color: colors.ink }}>{formatSoles(price)}</Text>
                 </View>
               </View>

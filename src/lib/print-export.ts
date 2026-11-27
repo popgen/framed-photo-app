@@ -10,6 +10,7 @@ export async function downloadPrint(_args: {
   orientation: Orientation;
   filename: string;
   overlay?: TextOverlay | null;
+  printBorder?: string | null;
 }): Promise<void> {
   throw new Error("La descarga para imprenta está disponible en la versión web.");
 }

@@ -6,13 +6,16 @@ import Animated, { FadeInDown, useAnimatedStyle, useSharedValue, withRepeat, wit
 import { useEffect } from "react";
 import { CollagePromo } from "../components/CollagePromo";
 import { FrameView } from "../components/FrameView";
+import { MoreFramesSoon } from "../components/PrintBorderPicker";
+import { PeruBadge } from "../components/PeruBadge";
 import { Countdown, GuaranteeNote, Ornaments, useNow, useReducedMotion } from "../components/fx";
 import { useRepo } from "../components/provider";
 import { Button, Card, H1, P, Screen, TabBar } from "../components/ui";
 import { colors, font } from "../components/theme";
 import { cardsPromoVisible, countdownVisible, motionEnabled, ornamentKind } from "../lib/campaign";
 import { countdownTarget, guaranteeFor } from "../lib/cutoff";
-import { frameById, frames } from "../lib/catalog";
+import { frameById } from "../lib/catalog";
+import { findPrintBorder } from "../lib/print-borders";
 import { priceCards } from "../lib/cards";
 import { formatSoles } from "../lib/money";
 import { centeredCrop } from "../lib/print-size";
@@ -44,8 +47,9 @@ export default function Home() {
         <P style={centered}>{active.heroSubtitle}</P>
         {countdownVisible(now, active) ? <Countdown target={countdownTarget(now, null, active)} now={now} /> : null}
         <GuaranteeNote guarantee={guarantee} align="center" />
-        <View style={{ alignItems: "center" }}>
+        <View style={{ alignItems: "center", gap: 10 }}>
           <Button label={active.cta} onPress={() => router.push("/crear")} />
+          <PeruBadge />
         </View>
         <Animated.View entering={reduced ? undefined : FadeInDown.springify().damping(14)} style={{ alignItems: "center", paddingTop: 8 }}>
           <FrameView frame={frameById("wood-15")} photoId="asset:sample" crop={crop} width={230} animateSample />
@@ -75,23 +79,24 @@ export default function Home() {
         <Step n="1" title="Elige tu foto" body="Desde el teléfono, iCloud o una foto de ejemplo. Así empieza la impresión de fotos." icon={<PhotoIcon />} />
         <Step n="2" title="Elige tu marco" body="Desliza para enmarcar fotos, o arma una tarjeta navideña." icon={<FrameIcon />} />
         <Step n="3" title="Llega a tu casa en días" body="Fotos impresas, con acrílico, hasta la puerta en Lima." icon={<HomeIcon />} />
-        <Text style={section}>Marcos de Navidad</Text>
-        <P style={centered}>Regalos navideños: tu foto impresa en un marco de la temporada.</P>
+        <Text style={section}>Marco navideño impreso</Text>
+        <P style={centered}>Seis bordes de Navidad que se imprimen sobre tu foto. No es un marco físico y no cuesta más.</P>
         <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-          {frames.filter((item) => item.category === "navidad").slice(0, 3).map((item) => (
-            <Pressable key={item.id} onPress={() => router.push("/crear")} style={{ alignItems: "center", width: "32%" }}>
-              <FrameView frame={item} width={96} />
-              <Text style={{ fontFamily: font.medium, fontSize: 12, color: colors.ink, textAlign: "center" }}>{item.name}</Text>
+          {(["acebo", "copos", "andino"] as const).map((id) => (
+            <Pressable key={id} onPress={() => router.push("/crear")} style={{ alignItems: "center", width: "32%" }}>
+              <FrameView frame={frameById("wood-15")} photoId="asset:sample" crop={crop} width={96} printBorder={id} />
+              <Text style={{ fontFamily: font.medium, fontSize: 12, color: colors.ink, textAlign: "center" }}>{findPrintBorder(id)?.name}</Text>
             </Pressable>
           ))}
         </View>
         <Text style={section}>Marcos de fotos</Text>
-        <Tier title="Básico" price="S/ 59" body="15×20 y el cuadrado 20×20. Patita de mesa, acrílico y envío incluido." />
-        <Tier title="Muro" price="S/ 109" body="30×40 para colgar. Negro, blanco o madera." />
-        <Tier title="Premium" price="S/ 129" body="Foto 15×20 dentro de un 30×40 con paspartú blanco." />
+        <Tier title="Marco 15×20" price="S/ 59" body="Blanco, negro o madera natural. Patita de mesa, acrílico y envío incluido." />
+        <View style={{ alignItems: "center" }}>
+          <MoreFramesSoon />
+        </View>
         <Card>
           <Text style={section}>Un muro, no un marco</Text>
-          <P style={centered}>Arma un trío, una cuadrícula o un mixto con cuadros con fotos. Es decoración con fotos para la casa. El segundo marco va con 20% y desde el tercero el set baja 15%.</P>
+          <P style={centered}>Arma un trío parejo de cuadros con fotos. Es decoración con fotos para la casa. El segundo marco va con 20% y desde el tercero el set baja 15%.</P>
           <Button label="Armar mi muro" tone="ghost" onPress={() => router.push("/muro")} />
         </Card>
         {active.giftWrapFeatured ? (

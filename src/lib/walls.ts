@@ -1,3 +1,5 @@
+import { isOfferedFrame } from "./catalog";
+
 export type WallLayout = {
   id: "trio" | "grid" | "mixed";
   name: string;
@@ -34,3 +36,8 @@ export const walls: WallLayout[] = [
     ],
   },
 ];
+
+/** Wall sets whose frames are all still on sale. Layouts left without a finish are hidden. */
+export const offeredWalls: WallLayout[] = walls
+  .map((layout) => ({ ...layout, finishes: layout.finishes.filter((finish) => finish.frames.every(isOfferedFrame)) }))
+  .filter((layout) => layout.finishes.length > 0);

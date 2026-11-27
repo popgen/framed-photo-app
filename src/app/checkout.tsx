@@ -268,6 +268,7 @@ export default function Checkout() {
         bundleId: item.bundleId,
         bundleLabel: item.bundleLabel,
         textOverlay: item.textOverlay,
+        printBorder: item.printBorder ?? null,
         card: item.card,
         voice: item.voice,
         collage: item.collage,

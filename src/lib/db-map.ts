@@ -92,6 +92,7 @@ export function mapItemRow(row: Record<string, any>): OrderItem {
     blurry: Boolean(row.blurry),
     blurryNote: row.blurry_note,
     textOverlay: row.text_overlay,
+    printBorder: row.print_border ?? null,
     card: row.card,
     voice: row.voice,
     collage: row.collage ?? null,

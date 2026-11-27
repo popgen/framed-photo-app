@@ -5,14 +5,14 @@ import { colors, font } from "../../components/theme";
 import { siteUrl, supportNumber } from "../../lib/env";
 import { samplePhoto } from "../../lib/photos";
 import { getRepo } from "../../lib/repo";
-import { frames } from "../../lib/catalog";
+import { frames, offeredFrames } from "../../lib/catalog";
 import { emptySession, reduceWa } from "../../lib/whatsapp/flow.mjs";
 import type { WaDraft } from "../../lib/types";
 
 type Reply = { kind: string; body: string; buttons?: { id: string; title: string }[]; rows?: { id: string; title: string }[] };
 type Session = ReturnType<typeof emptySession>;
 
-const catalog = frames.map((frame) => ({
+const catalog = offeredFrames(frames).map((frame) => ({
   id: frame.id,
   name: frame.name,
   priceCents: frame.priceCents,
