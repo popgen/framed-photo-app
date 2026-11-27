@@ -237,7 +237,7 @@ function seed(): DB {
         orderId: "ord_seed_done",
         orderNumber: "MF-26-1003",
         phone: "51933333333",
-        note: "El acrílico llegó rayado en una esquina.",
+        note: "El marco llegó rayado en una esquina.",
         photoId: "asset:sample",
         status: "open",
         createdAt: "2026-11-10T18:00:00-05:00",

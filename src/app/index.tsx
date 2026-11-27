@@ -78,7 +78,7 @@ export default function Home() {
         <Text style={section}>Super simple</Text>
         <Step n="1" title="Elige tu foto" body="Desde el teléfono, iCloud o una foto de ejemplo. Así empieza la impresión de fotos." icon={<PhotoIcon />} />
         <Step n="2" title="Elige tu marco" body="Desliza para enmarcar fotos, o arma una tarjeta navideña." icon={<FrameIcon />} />
-        <Step n="3" title="Llega a tu casa en días" body="Fotos impresas, con acrílico, hasta la puerta en Lima." icon={<HomeIcon />} />
+        <Step n="3" title="Llega a tu casa en días" body="Fotos impresas y enmarcadas, hasta la puerta en Lima." icon={<HomeIcon />} />
         <Text style={section}>Marco navideño impreso</Text>
         <P style={centered}>Seis bordes de Navidad que se imprimen sobre tu foto. No es un marco físico y no cuesta más.</P>
         <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
@@ -90,7 +90,7 @@ export default function Home() {
           ))}
         </View>
         <Text style={section}>Marcos de fotos</Text>
-        <Tier title="Marco 15×20" price="S/ 59" body="Blanco, negro o madera natural. Patita de mesa, acrílico y envío incluido." />
+        <Tier title="Marco 15×20" price="S/ 59" body="Blanco, negro o madera natural. Patita de mesa y envío incluido." />
         <View style={{ alignItems: "center" }}>
           <MoreFramesSoon />
         </View>

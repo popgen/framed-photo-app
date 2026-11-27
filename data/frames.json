@@ -17,7 +17,7 @@
     "stand": true,
     "hanging": false,
     "consumes": [{ "sku": "body-15-black", "qty": 1 }],
-    "blurb": "Acrílico al frente y patita de mesa. Para la repisa.",
+    "blurb": "Marco negro delgado con patita de mesa. Para la repisa.",
     "sort": 1
   },
   {
@@ -38,7 +38,7 @@
     "stand": true,
     "hanging": false,
     "consumes": [{ "sku": "body-15-white", "qty": 1 }],
-    "blurb": "Marco blanco, liviano, con acrílico y soporte de mesa.",
+    "blurb": "Marco blanco, liviano, con soporte de mesa.",
     "sort": 2
   },
   {
@@ -59,7 +59,7 @@
     "stand": true,
     "hanging": false,
     "consumes": [{ "sku": "body-15-wood", "qty": 1 }],
-    "blurb": "Madera clara, acrílico y patita. El clásico de la casa.",
+    "blurb": "Madera clara y patita. El clásico de la casa.",
     "sort": 3
   },
   {
@@ -80,7 +80,7 @@
     "stand": true,
     "hanging": false,
     "consumes": [{ "sku": "body-15-gold", "qty": 1 }],
-    "blurb": "Un filo dorado, acrílico y soporte. Para un regalo fino.",
+    "blurb": "Un filo dorado y soporte. Para un regalo fino.",
     "sort": 4,
     "retired": true
   },
@@ -124,7 +124,7 @@
     "stand": false,
     "hanging": true,
     "consumes": [{ "sku": "body-30-white", "qty": 1 }],
-    "blurb": "Blanco amplio, acrílico y listo para la pared.",
+    "blurb": "Blanco amplio y listo para la pared.",
     "sort": 6,
     "retired": true
   },
@@ -218,7 +218,7 @@
     "stand": true,
     "hanging": false,
     "consumes": [{ "sku": "body-20-black", "qty": 1 }],
-    "blurb": "Cuadrado 20×20 con acrílico y patita de mesa.",
+    "blurb": "Cuadrado 20×20 con patita de mesa.",
     "sort": 10,
     "retired": true
   },

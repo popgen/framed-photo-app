@@ -101,7 +101,7 @@ export const pages: SeoEntry[] = [
     path: "/crear",
     title: "Imprimir fotos y enmarcarlas — Mi Fotito",
     description:
-      "Imprimir fotos online y enmarcarlas en un cuadro personalizado. Fotos en marco, con acrílico, para la mesa o la pared. Pedido en línea y delivery en Lima.",
+      "Imprimir fotos online y enmarcarlas en un cuadro personalizado. Fotos en marco blanco, negro o de madera natural, para la mesa o la pared. Pedido en línea y delivery en Lima.",
   },
   {
     path: "/collage",
