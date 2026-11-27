@@ -61,7 +61,7 @@ function qualityLine(catalog, frame, photo) {
 function frameList(catalog) {
   return {
     kind: "list",
-    body: "Elige el marco. El precio ya incluye el acrílico y el envío.",
+    body: "Elige el marco. El precio ya incluye el envío.",
     button: "Ver marcos",
     rows: catalog.map((frame) => ({
       id: frame.id,
