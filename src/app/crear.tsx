@@ -9,6 +9,8 @@ import { Collapsible } from "../components/Collapsible";
 import { Cropper } from "../components/Cropper";
 import { PhotoSources, type PhotoSourcesHandle } from "../components/PhotoSources";
 import { FrameView } from "../components/FrameView";
+import { MoreFramesSoon, PrintBorderPicker } from "../components/PrintBorderPicker";
+import { PeruBadge } from "../components/PeruBadge";
 import { TextStyleEditor } from "../components/TextStyleEditor";
 import { VoiceRecorder } from "../components/VoiceRecorder";
 import { PriceTicker, useReducedMotion } from "../components/fx";
@@ -28,6 +30,7 @@ import { serializeOverlay, type TextOverlay } from "../lib/overlay";
 import { useCart } from "../lib/store";
 import type { VoiceNote } from "../lib/voice";
 import type { FrameOffer } from "../lib/types";
+import { findPrintBorder, type PrintBorderId } from "../lib/print-borders";
 
 export default function Crear() {
   const params = useLocalSearchParams<{ import?: string }>();
@@ -44,6 +47,7 @@ export default function Crear() {
   const [source, setSource] = useState<{ uri?: string; source?: number } | null>(null);
   const [ack, setAck] = useState(false);
   const [overlay, setOverlay] = useState<TextOverlay | null>(null);
+  const [printBorder, setPrintBorder] = useState<PrintBorderId | null>(null);
   const [voice, setVoice] = useState<VoiceNote | null>(null);
   const [sampleNote, setSampleNote] = useState<string | null>(null);
   const [section, setSection] = useState<EditorSection | null>(INITIAL_EDITOR_SECTION);
@@ -215,7 +219,7 @@ export default function Crear() {
   const soldOut = checkStock && !frame.stockUncertain && frame.available <= 0;
   const showingExample = Boolean(photo && isExamplePhoto(photo.id));
   const preview = (
-    <FrameView frame={frame} photoId={photo?.id} crop={photo ? activeCrop : null} orientation={orientation} width={Math.min(260, contentWidth - 20)} overlay={overlay} onOverlayChange={setOverlay} animateSample />
+    <FrameView frame={frame} photoId={photo?.id} crop={photo ? activeCrop : null} orientation={orientation} width={Math.min(260, contentWidth - 20)} overlay={overlay} onOverlayChange={setOverlay} printBorder={printBorder} animateSample />
   );
 
   return (
@@ -242,6 +246,7 @@ export default function Crear() {
                   dpi: Math.round(assessed.dpi),
                   resolutionStatus: assessed.status,
                   textOverlay: serializeOverlay(overlay),
+                  printBorder,
                   voice,
                 });
                 router.push("/carrito");
@@ -287,12 +292,16 @@ export default function Crear() {
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={{ fontFamily: font.displaySoft, fontSize: 24, lineHeight: 28, color: colors.ink }}>{frame.name}</Text>
             <Text style={{ fontFamily: font.medium, color: colors.muted }}>{frame.tierLabel} · {frame.sizeLabel}</Text>
+            {printBorder ? <Text style={{ fontFamily: font.medium, color: colors.pine }}>+ Marco navideño impreso: {findPrintBorder(printBorder)?.name}</Text> : null}
           </View>
           <View style={{ flexShrink: 0 }}>
             <PriceTicker cents={frame.priceCents} />
           </View>
         </View>
-        <Text style={{ fontFamily: font.body, color: colors.muted }}>Desliza el marco como un filtro.</Text>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <Text style={{ fontFamily: font.body, color: colors.muted }}>Desliza el marco como un filtro.</Text>
+          <PeruBadge />
+        </View>
         {checkStock && frame.stockUncertain ? (
           <View style={{ gap: 8 }}>
             <Banner tone="warn" text="No pudimos leer el stock. Puedes seguir; lo confirmamos al pagar." />
@@ -308,7 +317,7 @@ export default function Crear() {
         <CollagePromo />
         <Collapsible title="Elige tu marco" headerId={editorHeaderId("frame")} open={section === "frame"} onToggle={() => toggleSection("frame")}>
           <View style={{ gap: 14 }}>
-            <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+            {frameChips(offers).length > 2 ? <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
               {frameChips(offers).map((item) => (
                 <Pressable
                   key={item.id}
@@ -324,21 +333,23 @@ export default function Crear() {
                   <Text style={{ fontFamily: font.semibold, color: chip === item.id ? "white" : colors.ink }}>{item.label}</Text>
                 </Pressable>
               ))}
-            </View>
+            </View> : null}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
               {visible.map((item) => (
-                <Pressable key={item.id} onPress={() => { const found = offers.findIndex((frameItem) => frameItem.id === item.id); if (found >= 0) shift(found - index); }} style={{ width: 96, alignItems: "center", opacity: item.id === frame.id ? 1 : 0.55 }}>
+                <Pressable key={item.id} testID={`marco-${item.id}`} accessibilityRole="radio" accessibilityState={{ checked: item.id === frame.id }} onPress={() => { const found = offers.findIndex((frameItem) => frameItem.id === item.id); if (found >= 0) shift(found - index); }} style={{ width: 96, alignItems: "center", opacity: item.id === frame.id ? 1 : 0.55 }}>
                   <FrameView frame={item} width={64} />
                   <Text numberOfLines={2} style={{ fontFamily: font.medium, fontSize: 11, color: colors.ink, textAlign: "center" }}>{item.name}</Text>
                 </Pressable>
               ))}
             </ScrollView>
+            <MoreFramesSoon />
             {frame.aspect !== "1:1" ? (
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <Mini label="Vertical" on={orientation === "portrait"} onPress={() => turn("portrait", frame, photo, crop, setOrientation, setCrop)} />
                 <Mini label="Horizontal" on={orientation === "landscape"} onPress={() => turn("landscape", frame, photo, crop, setOrientation, setCrop)} />
               </View>
             ) : null}
+            <PrintBorderPicker value={printBorder} onChange={setPrintBorder} />
           </View>
         </Collapsible>
         {assessed?.message ? <Banner tone={assessed.status === "low" ? "bad" : "warn"} text={assessed.message} /> : null}

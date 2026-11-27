@@ -1,5 +1,5 @@
 import { Image } from "expo-image";
-import { ReactNode, useEffect, useRef, useState } from "react";
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { PanResponder, StyleSheet, Text, View } from "react-native";
 import { SampleScene } from "./SampleScene";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
@@ -7,6 +7,7 @@ import { openingOf, type FrameDef } from "../lib/catalog";
 import { frameStage } from "../lib/frame-stage";
 import { fontById, placeOverlay, type TextOverlay } from "../lib/overlay";
 import { resolvePhoto } from "../lib/photos";
+import { printBorderDataUri } from "../lib/print-borders";
 import type { Crop, Orientation } from "../lib/print-size";
 
 const ART: Record<string, number> = {
@@ -39,6 +40,7 @@ export function FrameView({
   onOverlayChange,
   animateSample = false,
   opening,
+  printBorder,
 }: {
   frame: FrameDef;
   photoId?: string | null;
@@ -49,6 +51,8 @@ export function FrameView({
   onOverlayChange?: (next: TextOverlay) => void;
   animateSample?: boolean;
   opening?: ReactNode;
+  /** A printed Christmas border id. It is drawn on the photo, inside the frame opening, like the print. */
+  printBorder?: string | null;
 }) {
   const [photo, setPhoto] = useState<{ uri?: string; source?: number } | null>(null);
   useEffect(() => {
@@ -80,6 +84,9 @@ export function FrameView({
   const contentLeft = (openingW - contentW) / 2;
   const contentTop = (openingH - contentH) / 2;
   const source = photo?.source ?? (photo?.uri ? { uri: photo.uri } : null);
+  const borderW = Math.round(contentW);
+  const borderH = Math.round(contentH);
+  const borderUri = useMemo(() => (printBorder && !opening ? printBorderDataUri(printBorder, borderW * 2, borderH * 2) : null), [printBorder, opening, borderW, borderH]);
 
   return (
     <View style={{ width: boxW, height: boxH + (frame.stand && !landscape ? 16 : 0), alignItems: "center" }}>
@@ -136,6 +143,9 @@ export function FrameView({
               ) : (
                 <View style={styles.empty} />
               )}
+              {borderUri ? (
+                <Image testID="borde-preview" source={{ uri: borderUri }} contentFit="fill" pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, width: contentW, height: contentH }} />
+              ) : null}
               {overlay?.text ? (
                 <OverlayText
                   overlay={overlay}

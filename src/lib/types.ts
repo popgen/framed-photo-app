@@ -45,6 +45,8 @@ export type OrderItem = {
   blurry: boolean;
   blurryNote?: string | null;
   textOverlay?: TextOverlay | null;
+  /** Printed Christmas border id (see print-borders.ts), drawn on the photo, not a physical frame. */
+  printBorder?: string | null;
   card?: CardSnapshot | null;
   voice?: VoiceNote | null;
   collage?: CollageSnapshot | null;
@@ -208,6 +210,7 @@ export type CheckoutInput = {
     bundleId?: string | null;
     bundleLabel?: string | null;
     textOverlay?: TextOverlay | null;
+    printBorder?: string | null;
     card?: CardSnapshot | null;
     voice?: VoiceNote | null;
     collage?: CollageSnapshot | null;

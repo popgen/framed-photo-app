@@ -9,6 +9,7 @@ import { Image } from "react-native";
 import type { CardSnapshot } from "./cards";
 import { fontById, type TextOverlay } from "./overlay";
 import { resolvePhoto } from "./photos";
+import { printBorderDataUri } from "./print-borders";
 import { targetPixels, type Crop, type Orientation } from "./print-size";
 
 export async function downloadPrint(args: {
@@ -19,6 +20,7 @@ export async function downloadPrint(args: {
   orientation: Orientation;
   filename: string;
   overlay?: TextOverlay | null;
+  printBorder?: string | null;
 }): Promise<void> {
   const photo = await resolvePhoto(args.photoId);
   if (!photo) throw new Error("No encontramos la foto de este pedido.");
@@ -37,6 +39,7 @@ export async function downloadPrint(args: {
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("El navegador no pudo preparar el archivo.");
   ctx.drawImage(image, args.crop.x, args.crop.y, args.crop.width, args.crop.height, 0, 0, target.width, target.height);
+  if (args.printBorder) await drawPrintBorder(ctx, args.printBorder, target.width, target.height);
   if (args.overlay?.text) {
     const family = fontById(args.overlay.font).family;
     const size = Math.max(12, args.overlay.size * target.height);
@@ -55,6 +58,21 @@ export async function downloadPrint(args: {
   link.download = args.filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+/** Bakes the printed Christmas border into the print file at full print resolution. */
+export async function drawPrintBorder(ctx: CanvasRenderingContext2D, id: string, width: number, height: number): Promise<void> {
+  const uri = printBorderDataUri(id, width, height);
+  if (!uri) return;
+  const art = new window.Image();
+  art.width = width;
+  art.height = height;
+  await new Promise<void>((resolve, reject) => {
+    art.onload = () => resolve();
+    art.onerror = () => reject(new Error("No pudimos preparar el marco navideño impreso."));
+    art.src = uri;
+  });
+  ctx.drawImage(art, 0, 0, width, height);
 }
 
 const FONT_MODULES = {

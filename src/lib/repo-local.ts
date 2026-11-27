@@ -2,7 +2,8 @@ import commerceSeed from "../../data/commerce.json";
 import reviews from "../../data/reviews.json";
 import samples from "../../data/samples.json";
 import { defaultCampaign, type Campaign } from "./campaign";
-import { aspectParts, frameById, frames } from "./catalog";
+import { aspectParts, frameById, frames, offeredFrames } from "./catalog";
+import { normalizePrintBorder } from "./print-borders";
 import { guaranteeFor, type Zone } from "./cutoff";
 import { estimateDelivery } from "./delivery";
 import { giftCode, referralCodeFrom, uid } from "./ids";
@@ -346,6 +347,7 @@ function buildOrder(state: DB, input: CheckoutInput, phone: string, status: Orde
     resolutionStatus: item.resolutionStatus,
     blurry: false,
     textOverlay: item.textOverlay ?? null,
+    printBorder: item.card || item.collage ? null : normalizePrintBorder(item.printBorder),
     card: item.card ?? null,
     voice: item.voice ?? null,
     collage: item.collage ?? null,
@@ -413,10 +415,10 @@ export function createLocalRepo() {
     },
     async listFrames(): Promise<FrameOffer[]> {
       const state = required();
-      if (!stockChecksEnabled()) return frames.map((frame) => ({ ...frame, available: 99, lowStock: false, stockUncertain: false }));
+      if (!stockChecksEnabled()) return offeredFrames(frames).map((frame) => ({ ...frame, available: 99, lowStock: false, stockUncertain: false }));
       const stock = stockRecord(state);
       const lowAt = Object.fromEntries(state.inventory.map((item) => [item.sku, item.lowStockAt]));
-      return frames.map((frame) => ({
+      return offeredFrames(frames).map((frame) => ({
         ...frame,
         available: framesAvailable(frame, stock),
         lowStock: frameLowStock(frame, stock, lowAt),
@@ -933,9 +935,8 @@ function mustOrder(state: DB, id: string): Order {
   return order;
 }
 
-function wallFrame(index: number, count: number): string {
-  if (count >= 4) return "square-black-20";
-  if (count === 3 && index === 1) return "black-30";
+function wallFrame(_index: number, _count: number): string {
+  // The 20×20 and 30×40 frames are retired; a WhatsApp wall is now a set of 15×20 natural wood frames.
   return "wood-15";
 }
 

@@ -81,7 +81,8 @@
     "hanging": false,
     "consumes": [{ "sku": "body-15-gold", "qty": 1 }],
     "blurb": "Un filo dorado, acrílico y soporte. Para un regalo fino.",
-    "sort": 4
+    "sort": 4,
+    "retired": true
   },
   {
     "id": "black-30",
@@ -102,7 +103,8 @@
     "hanging": true,
     "consumes": [{ "sku": "body-30-black", "qty": 1 }],
     "blurb": "Gran formato con herraje para colgar. Envío incluido.",
-    "sort": 5
+    "sort": 5,
+    "retired": true
   },
   {
     "id": "white-30",
@@ -123,7 +125,8 @@
     "hanging": true,
     "consumes": [{ "sku": "body-30-white", "qty": 1 }],
     "blurb": "Blanco amplio, acrílico y listo para la pared.",
-    "sort": 6
+    "sort": 6,
+    "retired": true
   },
   {
     "id": "wood-30",
@@ -144,7 +147,8 @@
     "hanging": true,
     "consumes": [{ "sku": "body-30-wood", "qty": 1 }],
     "blurb": "Madera natural en 30×40, con colgador incluido.",
-    "sort": 7
+    "sort": 7,
+    "retired": true
   },
   {
     "id": "black-mat",
@@ -168,7 +172,8 @@
       { "sku": "mat-white", "qty": 1 }
     ],
     "blurb": "Cuerpo 30×40 negro, paspartú blanco y foto 15×20.",
-    "sort": 8
+    "sort": 8,
+    "retired": true
   },
   {
     "id": "wood-mat",
@@ -192,7 +197,8 @@
       { "sku": "mat-white", "qty": 1 }
     ],
     "blurb": "Madera, paspartú blanco amplio y herraje para colgar.",
-    "sort": 9
+    "sort": 9,
+    "retired": true
   },
   {
     "id": "square-black-20",
@@ -213,7 +219,8 @@
     "hanging": false,
     "consumes": [{ "sku": "body-20-black", "qty": 1 }],
     "blurb": "Cuadrado 20×20 con acrílico y patita de mesa.",
-    "sort": 10
+    "sort": 10,
+    "retired": true
   },
   {
     "id": "nieve-celeste",
@@ -237,7 +244,8 @@
     "sort": 11,
     "category": "navidad",
     "style": "traditional",
-    "border": { "top": 2.2, "right": 2.2, "bottom": 3.8, "left": 2.2 }
+    "border": { "top": 2.2, "right": 2.2, "bottom": 3.8, "left": 2.2 },
+    "retired": true
   },
   {
     "id": "acebo-clasico",
@@ -261,7 +269,8 @@
     "sort": 12,
     "category": "navidad",
     "style": "traditional",
-    "border": { "top": 2.4, "right": 2.4, "bottom": 2.4, "left": 2.4 }
+    "border": { "top": 2.4, "right": 2.4, "bottom": 2.4, "left": 2.4 },
+    "retired": true
   },
   {
     "id": "estrellas-oro",
@@ -285,7 +294,8 @@
     "sort": 13,
     "category": "navidad",
     "style": "traditional",
-    "border": { "top": 2.6, "right": 2.3, "bottom": 2.6, "left": 2.3 }
+    "border": { "top": 2.6, "right": 2.3, "bottom": 2.6, "left": 2.3 },
+    "retired": true
   },
   {
     "id": "retablo-ayacucho",
@@ -309,7 +319,8 @@
     "sort": 14,
     "category": "navidad",
     "style": "peruvian",
-    "border": { "top": 2.4, "right": 2.6, "bottom": 4.2, "left": 2.6 }
+    "border": { "top": 2.4, "right": 2.6, "bottom": 4.2, "left": 2.6 },
+    "retired": true
   },
   {
     "id": "aguayo-andino",
@@ -333,7 +344,8 @@
     "sort": 15,
     "category": "navidad",
     "style": "peruvian",
-    "border": { "top": 2.4, "right": 2.5, "bottom": 3.4, "left": 2.5 }
+    "border": { "top": 2.4, "right": 2.5, "bottom": 3.4, "left": 2.5 },
+    "retired": true
   },
   {
     "id": "noche-nevada",
@@ -357,7 +369,8 @@
     "sort": 16,
     "category": "navidad",
     "style": "traditional",
-    "border": { "top": 2.2, "right": 2.2, "bottom": 3.6, "left": 2.2 }
+    "border": { "top": 2.2, "right": 2.2, "bottom": 3.6, "left": 2.2 },
+    "retired": true
   },
   {
     "id": "pino-rustico",
@@ -381,6 +394,7 @@
     "sort": 17,
     "category": "navidad",
     "style": "traditional",
-    "border": { "top": 2.4, "right": 2.4, "bottom": 3.2, "left": 2.4 }
+    "border": { "top": 2.4, "right": 2.4, "bottom": 3.2, "left": 2.4 },
+    "retired": true
   }
 ]

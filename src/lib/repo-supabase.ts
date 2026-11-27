@@ -3,7 +3,7 @@ import { defaultCampaign, type Campaign } from "./campaign";
 import { signInCustomer } from "./customer-auth";
 import { createLocalRepo } from "./repo-local";
 import { getSupabase } from "./supabase";
-import { frames as catalogFrames } from "./catalog";
+import { frames as catalogFrames, offeredFrames } from "./catalog";
 import { TEST_PRODUCT_ID } from "./test-product";
 import { stockChecksEnabled } from "./env";
 import { mapFrameRow, mapGiftRow, mapInventoryRow, mapOrderRow, mapProfile, mapPromoRow } from "./db-map";
@@ -78,7 +78,7 @@ export function createSupabaseRepo() {
     },
     async listFrames() {
       const hide = (rows: FrameOffer[]): FrameOffer[] =>
-        stockChecksEnabled() ? rows : rows.map((frame) => ({ ...frame, available: 99, lowStock: false, stockUncertain: false }));
+        offeredFrames(stockChecksEnabled() ? rows : rows.map((frame) => ({ ...frame, available: 99, lowStock: false, stockUncertain: false })));
       try {
         const json = await shop("frames", {});
         if (Array.isArray(json.frames) && json.frames.length && !json.stockUncertain) {

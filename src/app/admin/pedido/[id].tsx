@@ -10,6 +10,7 @@ import { openGiftNotePrint } from "../../../lib/gift-note";
 import { frameById } from "../../../lib/catalog";
 import { backgroundLabel, spacingLabel } from "../../../lib/collage";
 import { downloadCardPdf, downloadPrint } from "../../../lib/print-export";
+import { printBorderLabel } from "../../../lib/print-borders";
 import { getRepo } from "../../../lib/repo";
 import { DONATION_LABEL, donationSummaryText } from "../../../lib/donation";
 import { giftWrapBadge, orderMoneyLines, paymentMethodLabel, paymentStatusLabel } from "../../../lib/order-admin";
@@ -139,6 +140,12 @@ export default function AdminOrder() {
             </View>
           ) : null}
           {item.textOverlay?.text ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Texto: {item.textOverlay.text}</Text> : null}
+          {printBorderLabel(item.printBorder) ? (
+            <View testID="admin-borde" style={{ gap: 2, backgroundColor: "#FBEFEA", borderRadius: 10, padding: 8 }}>
+              <Text style={{ fontFamily: font.semibold, color: colors.redDark }}>{printBorderLabel(item.printBorder)}</Text>
+              <Text style={{ fontFamily: font.body, color: colors.muted }}>Va impreso sobre la foto (no es un marco físico). "Descargar impresión" ya lo incluye; "Abrir foto de imprenta" es la foto sin borde.</Text>
+            </View>
+          ) : null}
           {item.card ? <Text style={{ fontFamily: font.body, color: colors.ink }}>{cardOrderLine(item.card)}</Text> : null}
           {item.card ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Portada: {item.card.frontMessage?.text || "Sin texto"}{item.card.photos.front ? " · con foto" : ""}</Text> : null}
           {item.card ? <Text style={{ fontFamily: font.body, color: colors.ink }}>Interior: {item.card.insideMessage?.text || "Sin texto"}{item.card.photos.insideCenter ? " · con foto" : ""}</Text> : null}
@@ -180,6 +187,7 @@ export default function AdminOrder() {
                   orientation: item.orientation,
                   filename: `${order.number}-${item.id}.jpg`,
                   overlay: item.textOverlay,
+                  printBorder: item.collage ? null : item.printBorder,
                 }).catch((err: Error) => setError(err.message))
               }
               style={chip(false)}
